@@ -1,0 +1,251 @@
+{
+  "entities": {
+    "rooms": {
+      "title": "Room",
+      "description": "A private chat room identified by its unique room code and secured by password verification.",
+      "type": "object",
+      "properties": {
+        "roomId": {
+          "type": "string",
+          "description": "Unique code identifier for the room.",
+          "maxLength": 32,
+          "pattern": "^[A-Z0-9_-]+$"
+        },
+        "passwordHash": {
+          "type": "string",
+          "description": "SHA-256 hash of the room password.",
+          "maxLength": 64
+        },
+        "participantCount": {
+          "type": "number",
+          "description": "Number of currently active participants in the room (0 to 2)."
+        },
+        "participants": {
+          "type": "object",
+          "description": "Map of active participant presence records keyed by participant ID, containing joinedAt, lastSeen, typing, typingTimestamp, and lastReadTimestamp."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the room record was created."
+        },
+        "lastActiveAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the room was last active."
+        }
+      },
+      "required": ["roomId", "passwordHash", "participantCount", "createdAt", "lastActiveAt"]
+    },
+    "messages": {
+      "title": "Message",
+      "description": "Chat messages and file attachments sent within a room.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "roomId": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "senderId": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "senderType": {
+          "type": "string",
+          "enum": ["user1", "user2", "system"]
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "enc": {
+          "type": "boolean",
+          "description": "Indicates whether the payload is encrypted with the client AES-GCM-256 enclave."
+        },
+        "v": {
+          "type": "number",
+          "description": "Enclave protocol version"
+        },
+        "iv": {
+          "type": "string",
+          "description": "Base64 encoded 96-bit AES-GCM initialization vector"
+        },
+        "ct": {
+          "type": "string",
+          "description": "Base64 encoded AES-GCM ciphertext with authentication tag"
+        },
+        "nonce": {
+          "type": "string",
+          "description": "Cryptographic anti-replay nonce"
+        },
+        "file": {
+          "type": "object",
+          "description": "Optional file metadata and small payload"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["roomId", "senderId", "createdAt"]
+    },
+    "fileChunks": {
+      "title": "File Chunk",
+      "description": "Chunked pieces of compressed large files stored in rooms/{roomId}/files/{fileId}/chunks/{chunkId}",
+      "type": "object",
+      "properties": {
+        "chunkIndex": {
+          "type": "number"
+        },
+        "data": {
+          "type": "string"
+        }
+      },
+      "required": ["chunkIndex", "data"]
+    },
+    "callSessions": {
+      "title": "Call Session",
+      "description": "Peer-to-peer WebRTC signaling state for 1-to-1 video/audio calls stored in rooms/{roomId}/calls/{callId}",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "callerId": {
+          "type": "string"
+        },
+        "callerName": {
+          "type": "string"
+        },
+        "callType": {
+          "type": "string",
+          "enum": ["video", "audio"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["calling", "ringing", "connected", "ended", "declined", "busy", "missed"]
+        },
+        "offer": {
+          "type": "object"
+        },
+        "answer": {
+          "type": "object"
+        },
+        "videoEnabled": {
+          "type": "boolean"
+        },
+        "audioEnabled": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["callerId", "status", "createdAt"]
+    },
+    "callCandidates": {
+      "title": "Call ICE Candidate",
+      "description": "ICE candidate payloads exchanged between peers for WebRTC connectivity",
+      "type": "object",
+      "properties": {
+        "candidate": {
+          "type": "string"
+        },
+        "sdpMid": {
+          "type": "string"
+        },
+        "sdpMLineIndex": {
+          "type": "number"
+        }
+      },
+      "required": ["candidate"]
+    },
+    "groupRequests": {
+      "title": "Group Room Feature Request",
+      "description": "User requests and votes for multi-peer (> 2 people) group rooms with custom team sizes and use cases.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "requestedSize": {
+          "type": "number",
+          "description": "Target number of people in room (3 to 50+)"
+        },
+        "useCase": {
+          "type": "string",
+          "description": "Why the user wants group chat (e.g. family, private team, confidential study group)"
+        },
+        "contact": {
+          "type": "string",
+          "description": "Optional email or pseudonym for notification"
+        },
+        "securityPriority": {
+          "type": "string",
+          "description": "Main security preference (e.g. Zero Logs, Full E2EE Mesh, Ephemeral Auto-burn)"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["requestedSize", "createdAt"]
+    },
+    "scratchpads": {
+      "title": "Collaborative Scratchpad and Whiteboard Canvas",
+      "description": "Real-time collaborative markdown notes and multi-user drawing canvas data stored in rooms/{roomId}/scratchpad/{docId}",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string",
+          "description": "Encrypted or formatted markdown notes text"
+        },
+        "strokes": {
+          "type": "array",
+          "description": "Serialized drawing strokes array for interactive whiteboard"
+        },
+        "lastUpdatedBy": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  },
+  "firestore": {
+    "/rooms/{roomId}": {
+      "schema": "rooms",
+      "description": "Stores room metadata, passwordHash, and participant count."
+    },
+    "/rooms/{roomId}/messages/{messageId}": {
+      "schema": "messages",
+      "description": "Encrypted chat messages and attachments."
+    },
+    "/rooms/{roomId}/files/{fileId}/chunks/{chunkId}": {
+      "schema": "fileChunks",
+      "description": "File chunk subcollection for compressed files."
+    },
+    "/rooms/{roomId}/calls/{callId}": {
+      "schema": "callSessions",
+      "description": "WebRTC call sessions."
+    },
+    "/rooms/{roomId}/scratchpad/{docId}": {
+      "schema": "scratchpads",
+      "description": "Collaborative scratchpad and whiteboard data."
+    },
+    "/group_requests/{requestId}": {
+      "schema": "groupRequests",
+      "description": "Group room feature requests."
+    }
+  }
+}

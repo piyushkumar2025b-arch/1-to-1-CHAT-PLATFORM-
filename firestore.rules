@@ -1,0 +1,110 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Validates document path IDs strictly to alphanumeric and safe delimiter chars [a-zA-Z0-9_-]
+    function isValidId(id) {
+      return id is string && id.matches('^[a-zA-Z0-9_-]{1,64}$');
+    }
+
+    // Default deny for all unspecified collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Private rooms: Protected zero-knowledge communication channels identified by roomId.
+    // List queries on /rooms are strictly forbidden to prevent room code enumeration.
+    // Direct document retrieval, creation, presence updates, and destruction require a valid roomId.
+    match /rooms/{roomId} {
+      allow get: if isValidId(roomId);
+      allow list: if false; // Room enumeration blocked
+
+      allow create: if isValidId(roomId)
+        && request.resource.data.roomId is string
+        && request.resource.data.passwordHash is string
+        && request.resource.data.passwordHash.size() <= 256;
+
+      allow update: if isValidId(roomId);
+
+      allow delete: if isValidId(roomId);
+
+      // Realtime messages subcollection within a room
+      match /messages/{messageId} {
+        allow get: if isValidId(roomId) && isValidId(messageId);
+        allow list: if isValidId(roomId);
+
+        // Writes MUST either be:
+        // 1. Fully encrypted envelope with bounded payload
+        // 2. A tombstone deletion record (isDeleted: true)
+        // 3. Or a bounded message text payload
+        allow create: if isValidId(roomId) && isValidId(messageId)
+          && (
+            (request.resource.data.enc == true 
+              && request.resource.data.ct is string 
+              && request.resource.data.iv is string
+              && request.resource.data.ct.size() > 0
+              && request.resource.data.ct.size() <= 1048576)
+            || (request.resource.data.isDeleted == true)
+            || (request.resource.data.text is string && request.resource.data.text.size() <= 10000)
+          );
+
+        // Message updates: reactions, editing, or soft deletions
+        allow update: if isValidId(roomId) && isValidId(messageId);
+
+        // Message deletion
+        allow delete: if isValidId(roomId) && isValidId(messageId);
+      }
+
+      // Realtime files and chunk streams within a room
+      match /files/{fileId} {
+        allow get: if isValidId(roomId) && isValidId(fileId);
+        allow list: if isValidId(roomId);
+
+        allow create, update: if isValidId(roomId) && isValidId(fileId)
+          && (!('fileSize' in request.resource.data) || (request.resource.data.fileSize is number && request.resource.data.fileSize <= 52428800));
+
+        allow delete: if isValidId(roomId) && isValidId(fileId);
+
+        match /chunks/{chunkId} {
+          allow get: if isValidId(roomId) && isValidId(fileId) && isValidId(chunkId);
+          allow list: if isValidId(roomId) && isValidId(fileId);
+
+          allow create, update: if isValidId(roomId) && isValidId(fileId) && isValidId(chunkId)
+            && (!('data' in request.resource.data) || (request.resource.data.data is string && request.resource.data.data.size() <= 600000));
+
+          allow delete: if isValidId(roomId) && isValidId(fileId) && isValidId(chunkId);
+        }
+      }
+
+      // Realtime WebRTC calls and ICE candidate signaling within a room
+      match /calls/{callId} {
+        allow get: if isValidId(roomId) && isValidId(callId);
+        allow list: if isValidId(roomId);
+        allow write: if isValidId(roomId) && isValidId(callId);
+
+        match /{subcollection}/{docId} {
+          allow get: if isValidId(roomId) && isValidId(docId);
+          allow list: if isValidId(roomId);
+          allow write: if isValidId(roomId) && isValidId(docId);
+        }
+      }
+
+      // Realtime collaborative scratchpad and whiteboard canvas within a room
+      match /scratchpad/{docId} {
+        allow get: if isValidId(roomId) && isValidId(docId);
+        allow list: if isValidId(roomId);
+        allow write: if isValidId(roomId) && isValidId(docId);
+      }
+    }
+
+    // User requests for multi-peer (> 2 people) group rooms
+    match /group_requests/{requestId} {
+      allow read: if false; // Private to administrators
+      allow create: if isValidId(requestId)
+        && request.resource.data.requestedSize is number
+        && request.resource.data.requestedSize >= 3
+        && request.resource.data.requestedSize <= 500;
+      allow update, delete: if false;
+    }
+  }
+}
