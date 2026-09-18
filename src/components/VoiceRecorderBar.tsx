@@ -5,12 +5,14 @@ interface VoiceRecorderBarProps {
   volume: number; // 0 to 1
   onCancel: () => void;
   onSend: () => void;
+  liveTranscript?: string;
 }
 
 export default function VoiceRecorderBar({
   volume,
   onCancel,
   onSend,
+  liveTranscript,
 }: VoiceRecorderBarProps) {
   const [seconds, setSeconds] = useState(0);
 
@@ -51,15 +53,22 @@ export default function VoiceRecorderBar({
         </div>
       </div>
 
-      {/* Center: Live Soundwave visualizer */}
-      <div className="flex-1 flex items-center justify-center gap-1 h-7 px-2 max-w-xs overflow-hidden">
-        {waveBars.map((h, idx) => (
-          <div
-            key={idx}
-            style={{ height: `${h}%` }}
-            className="w-1 rounded-full bg-red-400 transition-all duration-75"
-          />
-        ))}
+      {/* Center: Live Soundwave visualizer & Speech-to-text transcript preview */}
+      <div className="flex-1 flex flex-col items-center justify-center min-w-0 px-2">
+        <div className="flex items-center justify-center gap-1 h-6 w-full max-w-xs overflow-hidden">
+          {waveBars.map((h, idx) => (
+            <div
+              key={idx}
+              style={{ height: `${h}%` }}
+              className="w-1 rounded-full bg-red-400 transition-all duration-75 shrink-0"
+            />
+          ))}
+        </div>
+        {liveTranscript && (
+          <div className="text-[10px] text-red-200/90 truncate max-w-sm italic tracking-wide animate-in fade-in duration-100">
+            "{liveTranscript}"
+          </div>
+        )}
       </div>
 
       {/* Right: Discard & Send buttons */}

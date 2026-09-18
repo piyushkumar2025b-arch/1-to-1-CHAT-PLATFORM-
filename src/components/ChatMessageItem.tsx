@@ -11,6 +11,9 @@ import {
   Loader2,
   Pencil,
   Star,
+  Volume2,
+  VolumeX,
+  Bookmark,
 } from 'lucide-react';
 import { ChatMessage, ChatTheme } from '../types';
 import QuickReactionHoverBar from './QuickReactionHoverBar';
@@ -49,8 +52,14 @@ export interface ChatMessageItemProps {
   onEditMessage?: (msg: ChatMessage) => void;
   onBurnMedia?: (messageId: string, fileId: string) => void;
   onToggleStarMessage?: (messageId: string) => void;
+  onSaveToNotes?: (msg: ChatMessage) => void;
   onVoteOption?: (messageId: string, optionId: string) => void;
   onToggleClosePoll?: (messageId: string) => void;
+  displayDensity?: 'compact' | 'comfortable' | 'spacious';
+  fontSizePref?: 'small' | 'medium' | 'large';
+  timeFormatPref?: '12h' | '24h';
+  onSpeakMessage?: (messageId: string, text: string) => void;
+  isSpeakingThisMessage?: boolean;
 }
 
 export const ChatMessageItem = memo<ChatMessageItemProps>(
@@ -83,8 +92,14 @@ export const ChatMessageItem = memo<ChatMessageItemProps>(
     onEditMessage,
     onBurnMedia,
     onToggleStarMessage,
+    onSaveToNotes,
     onVoteOption,
     onToggleClosePoll,
+    displayDensity = 'comfortable',
+    fontSizePref = 'medium',
+    timeFormatPref = '12h',
+    onSpeakMessage,
+    isSpeakingThisMessage = false,
   }) => {
     const msgTime = msg.createdAt ? new Date(msg.createdAt).getTime() : 0;
     const isEditable =
@@ -93,8 +108,49 @@ export const ChatMessageItem = memo<ChatMessageItemProps>(
       Boolean(msg.text?.trim()) &&
       msgTime > 0 &&
       Date.now() - msgTime <= 15 * 60 * 1000;
+
+    const rowMargin = isPrevSameSender
+      ? displayDensity === 'compact'
+        ? 'mt-0.5'
+        : displayDensity === 'spacious'
+        ? 'mt-2'
+        : 'mt-1'
+      : displayDensity === 'compact'
+      ? 'mt-1.5'
+      : displayDensity === 'spacious'
+      ? 'mt-4'
+      : 'mt-3 sm:mt-3.5';
+
+    const bubblePadding =
+      displayDensity === 'compact'
+        ? 'p-2 sm:p-2.5'
+        : displayDensity === 'spacious'
+        ? 'p-4 sm:p-4.5'
+        : 'p-3 sm:p-3.5';
+
+    const textSizeClass =
+      fontSizePref === 'small'
+        ? 'text-[13px] leading-relaxed'
+        : fontSizePref === 'large'
+        ? 'text-[15.5px] leading-relaxed'
+        : 'text-sm leading-normal';
+
+    const formattedTime = React.useMemo(() => {
+      if (msg.createdAt) {
+        const d = new Date(msg.createdAt);
+        if (!isNaN(d.getTime())) {
+          return d.toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: timeFormatPref !== '24h',
+          });
+        }
+      }
+      return msg.time || '';
+    }, [msg.createdAt, msg.time, timeFormatPref]);
+
     return (
-      <div className={`w-full flex flex-col ${isPrevSameSender ? 'mt-1' : 'mt-3 sm:mt-3.5'}`}>
+      <div className={`w-full flex flex-col ${rowMargin}`}>
         {/* Sticky Clean Date Group Divider */}
         {showDateDivider && (
           <div className="flex justify-center my-4 sticky top-2 z-10 select-none pointer-events-none">
@@ -120,7 +176,7 @@ export const ChatMessageItem = memo<ChatMessageItemProps>(
             isHighlighted ? 'scale-[1.01] ring-2 ring-amber-400/80 rounded-2xl p-1' : ''
           }`}
         >
-          {/* Floating Capsule Action Bar on Message Hover (Reply & Copy & Pin & Info & Delete) */}
+          {/* Floating Capsule Action Bar on Message Hover (Reply & Copy & Pin & Info & Delete & TTS) */}
           <div
             className={`absolute -top-8.5 ${
               isMe ? 'right-1' : 'left-1'
@@ -168,6 +224,25 @@ export const ChatMessageItem = memo<ChatMessageItemProps>(
               </button>
             )}
 
+            {/* Read Aloud Text-to-Speech */}
+            {msg.text && !msg.isDeleted && onSpeakMessage && (
+              <button
+                type="button"
+                onClick={() => onSpeakMessage(msg.id, msg.text)}
+                title={isSpeakingThisMessage ? 'Stop reading aloud' : 'Read message aloud (Text-to-Speech)'}
+                className={`p-1 hover:text-emerald-300 transition-colors flex items-center gap-1 cursor-pointer ${
+                  isSpeakingThisMessage ? 'text-emerald-400 font-semibold' : 'text-neutral-300'
+                }`}
+              >
+                {isSpeakingThisMessage ? (
+                  <VolumeX className="w-3 h-3 text-emerald-400 animate-pulse" />
+                ) : (
+                  <Volume2 className="w-3 h-3 text-emerald-400/90" />
+                )}
+                <span className="hidden sm:inline">{isSpeakingThisMessage ? 'Stop' : 'Listen'}</span>
+              </button>
+            )}
+
             {/* Message Exact Sent Date & Time Inspector */}
             <button
               type="button"
@@ -207,6 +282,19 @@ export const ChatMessageItem = memo<ChatMessageItemProps>(
               </button>
             )}
 
+            {/* Save to Personal Encrypted Notes */}
+            {!msg.isDeleted && onSaveToNotes && (
+              <button
+                type="button"
+                onClick={() => onSaveToNotes(msg)}
+                title="Save into Personal Encrypted Notes (/notes)"
+                className="p-1 hover:text-amber-300 transition-colors flex items-center gap-1 cursor-pointer text-neutral-300"
+              >
+                <Bookmark className="w-3 h-3 text-amber-400/80 hover:text-amber-300" />
+                <span className="hidden sm:inline">Note</span>
+              </button>
+            )}
+
             {/* Delete Message Button */}
             <button
               type="button"
@@ -236,11 +324,15 @@ export const ChatMessageItem = memo<ChatMessageItemProps>(
 
           {/* Main Bubble */}
           <div
-            className={`max-w-[88%] sm:max-w-[75%] p-3 sm:p-3.5 ${bubbleRadiusClass} text-sm break-words shadow-sm flex flex-col gap-2 relative transition-all duration-200 ${
+            className={`max-w-[88%] sm:max-w-[75%] ${bubblePadding} ${bubbleRadiusClass} ${textSizeClass} break-words shadow-sm flex flex-col gap-2 relative transition-all duration-200 ${
               isMe ? currentTheme.myBubbleStyle : currentTheme.peerBubbleStyle
             } ${
               blurGuardActive
                 ? 'filter blur-[6px] opacity-75 hover:blur-none hover:opacity-100 select-none group/guard'
+                : ''
+            } ${
+              isSpeakingThisMessage
+                ? 'ring-2 ring-emerald-400/70 shadow-lg shadow-emerald-500/10'
                 : ''
             }`}
           >
@@ -329,16 +421,16 @@ export const ChatMessageItem = memo<ChatMessageItemProps>(
           )}
 
           {/* Timestamp, Ephemeral countdown & Delivery status */}
-          {(msg.time || msg.expiresAt || msg.isEdited) && (
+          {(formattedTime || msg.expiresAt || msg.isEdited) && (
             <div className="flex items-center gap-1.5 mt-1 px-1 flex-wrap">
-              {msg.time && (
+              {formattedTime && (
                 <button
                   type="button"
                   onClick={() => onShowMessageDetails(msg)}
-                  title={`Sent at ${msg.createdAt ? new Date(msg.createdAt).toLocaleString() : msg.time} • Click to view exact time & date details`}
+                  title={`Sent at ${msg.createdAt ? new Date(msg.createdAt).toLocaleString() : formattedTime} • Click to view exact time & date details`}
                   className="text-[10px] opacity-60 hover:opacity-100 hover:text-amber-300 transition-all cursor-pointer inline-flex items-center gap-1 group/time select-none"
                 >
-                  <span>{msg.time}</span>
+                  <span>{formattedTime}</span>
                   <Clock className="w-2.5 h-2.5 opacity-0 group-hover/time:opacity-100 transition-opacity" />
                 </button>
               )}
@@ -417,7 +509,11 @@ export const ChatMessageItem = memo<ChatMessageItemProps>(
       prev.currentTheme === next.currentTheme &&
       prev.activeRoomId === next.activeRoomId &&
       prev.roomPassword === next.roomPassword &&
-      prev.blurGuardActive === next.blurGuardActive
+      prev.blurGuardActive === next.blurGuardActive &&
+      prev.displayDensity === next.displayDensity &&
+      prev.fontSizePref === next.fontSizePref &&
+      prev.timeFormatPref === next.timeFormatPref &&
+      prev.isSpeakingThisMessage === next.isSpeakingThisMessage
     );
   }
 );

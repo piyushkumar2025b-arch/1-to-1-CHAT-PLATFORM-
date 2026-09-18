@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import { Play, Pause, Download, Loader2 } from 'lucide-react';
+import { Play, Pause, Download, Loader2, FileText, Check, Copy, ChevronDown, ChevronUp } from 'lucide-react';
 import { FileAttachment } from '../types';
 import { triggerBlobDownload } from '../lib/file-compression';
 import { getRoomFileBlob } from '../lib/file-retrieval';
+import { copyToClipboardSafe } from '../lib/security';
 
 interface VoiceMessagePlayerProps {
   file: FileAttachment;
@@ -25,9 +26,13 @@ export default function VoiceMessagePlayer({
   const [playbackRate, setPlaybackRate] = useState<1 | 1.5 | 2>(1);
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [showTranscript, setShowTranscript] = useState(false);
+  const [copiedTranscript, setCopiedTranscript] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const rawAudioBlobRef = useRef<Blob | null>(null);
+
+  const transcriptText = file.transcription?.trim() || '';
 
   // Initialize or fetch audio source blob
   const loadAudioBlob = async (): Promise<string> => {
@@ -201,13 +206,35 @@ export default function VoiceMessagePlayer({
         </div>
       </div>
 
-      {/* Footer: Timer, Speed, Download */}
+      {/* Footer: Timer, Speed, Download, Transcript */}
       <div className="flex items-center justify-between text-[11px] text-neutral-400 px-1 pt-0.5 border-t border-neutral-700/40">
         <span className="font-mono">
           {formatTime(currentTime)} / {formatTime(duration)}
         </span>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          {/* Transcript Toggle */}
+          {transcriptText && (
+            <button
+              type="button"
+              onClick={() => setShowTranscript((prev) => !prev)}
+              className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors flex items-center gap-1 cursor-pointer ${
+                showTranscript
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                  : 'bg-neutral-750 hover:bg-neutral-700 text-neutral-300 hover:text-white'
+              }`}
+              title="View voice note transcript"
+            >
+              <FileText className="w-3 h-3" />
+              <span>Transcript</span>
+              {showTranscript ? (
+                <ChevronUp className="w-2.5 h-2.5" />
+              ) : (
+                <ChevronDown className="w-2.5 h-2.5" />
+              )}
+            </button>
+          )}
+
           {/* Speed Toggle */}
           <button
             type="button"
@@ -228,6 +255,45 @@ export default function VoiceMessagePlayer({
           </button>
         </div>
       </div>
+
+      {/* Expandable Voice Note Transcript Drawer */}
+      {showTranscript && transcriptText && (
+        <div className="mt-2 pt-2 border-t border-neutral-700/50 text-xs text-neutral-200 bg-neutral-900/60 rounded-lg p-2.5 space-y-1.5 animate-in fade-in duration-150">
+          <div className="flex items-center justify-between text-[10px] text-neutral-400 font-medium">
+            <span className="flex items-center gap-1 text-amber-400">
+              <FileText className="w-3 h-3" />
+              Speech Transcript
+            </span>
+            <button
+              type="button"
+              onClick={async () => {
+                const ok = await copyToClipboardSafe(transcriptText);
+                if (ok) {
+                  setCopiedTranscript(true);
+                  setTimeout(() => setCopiedTranscript(false), 2000);
+                }
+              }}
+              className="hover:text-white flex items-center gap-1 transition-colors cursor-pointer"
+              title="Copy transcript text"
+            >
+              {copiedTranscript ? (
+                <>
+                  <Check className="w-3 h-3 text-emerald-400" />
+                  <span className="text-emerald-400">Copied</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3 h-3" />
+                  <span>Copy</span>
+                </>
+              )}
+            </button>
+          </div>
+          <p className="text-xs text-neutral-200 leading-relaxed italic select-text">
+            "{transcriptText}"
+          </p>
+        </div>
+      )}
     </div>
   );
 }

@@ -18,6 +18,11 @@ import {
   BarChart2,
   PenTool,
   Clock,
+  Zap,
+  Strikethrough,
+  Code,
+  Quote,
+  Bookmark,
 } from 'lucide-react';
 import { ConnectionState, ChatTheme, EphemeralTimerOption, ReplyReference, ChatMessage } from '../types';
 import ReplyBanner from './ReplyBanner';
@@ -58,6 +63,12 @@ export interface ChatInputBarProps {
   onOpenCreatePoll?: () => void;
   onOpenQuickDraw?: () => void;
   onOpenScheduleMessage?: () => void;
+  onOpenQuickReplies?: () => void;
+  onOpenPersonalNotes?: () => void;
+  sendKeyPreference?: 'enter' | 'ctrl_enter';
+  isDictating?: boolean;
+  onToggleDictate?: () => void;
+  voiceLiveTranscript?: string;
   onSendMessageOrFile: () => void;
   onFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
@@ -102,6 +113,12 @@ export const ChatInputBar = memo<ChatInputBarProps>(
     onOpenCreatePoll,
     onOpenQuickDraw,
     onOpenScheduleMessage,
+    onOpenQuickReplies,
+    onOpenPersonalNotes,
+    sendKeyPreference = 'enter',
+    isDictating = false,
+    onToggleDictate,
+    voiceLiveTranscript,
     onSendMessageOrFile,
     onFileSelect,
     fileInputRef,
@@ -209,9 +226,34 @@ export const ChatInputBar = memo<ChatInputBarProps>(
             volume={voiceVolume}
             onCancel={onCancelVoiceRecording}
             onSend={onSendVoiceRecording}
+            liveTranscript={voiceLiveTranscript}
           />
         ) : (
           <div className="relative">
+            {/* Voice Dictation Active Live Banner */}
+            {isDictating && (
+              <div className="mb-2 px-3 py-1.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-xs flex items-center justify-between gap-2 animate-in fade-in slide-in-from-bottom-1 duration-150 backdrop-blur-md shadow-lg">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="relative flex h-2.5 w-2.5 shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500" />
+                  </span>
+                  <span className="font-semibold text-rose-300 shrink-0">Voice Dictation:</span>
+                  <span className="text-neutral-300 truncate text-[11px]">
+                    Listening... Spoken words will be typed directly into your message
+                  </span>
+                </div>
+                {onToggleDictate && (
+                  <button
+                    type="button"
+                    onClick={onToggleDictate}
+                    className="px-2 py-0.5 rounded bg-rose-500 hover:bg-rose-600 text-white font-bold text-[10px] uppercase tracking-wider shrink-0 cursor-pointer shadow-xs"
+                  >
+                    Done
+                  </button>
+                )}
+              </div>
+            )}
             {/* Slash Commands Autocomplete Palette */}
             <SlashCommandMenu
               isOpen={slashMenuOpen}
@@ -313,6 +355,50 @@ export const ChatInputBar = memo<ChatInputBarProps>(
                   >
                     <PenTool className="w-4 h-4 text-emerald-400" />
                     <span>Sketch</span>
+                  </button>
+                )}
+
+                {onOpenQuickReplies && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenQuickReplies();
+                      setMobileToolsOpen(false);
+                    }}
+                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-amber-400 active:scale-95 transition-all text-[11px]"
+                  >
+                    <Zap className="w-4 h-4 text-amber-400" />
+                    <span>Replies</span>
+                  </button>
+                )}
+
+                {onOpenPersonalNotes && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenPersonalNotes();
+                      setMobileToolsOpen(false);
+                    }}
+                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-amber-300 active:scale-95 transition-all text-[11px]"
+                  >
+                    <Bookmark className="w-4 h-4 text-amber-400" />
+                    <span>Notes</span>
+                  </button>
+                )}
+
+                {onToggleDictate && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onToggleDictate();
+                      setMobileToolsOpen(false);
+                    }}
+                    className={`flex flex-col items-center gap-1 p-2 rounded-xl active:scale-95 transition-all text-[11px] ${
+                      isDictating ? 'text-rose-400 font-bold animate-pulse' : 'text-neutral-300 hover:text-rose-400'
+                    }`}
+                  >
+                    <Mic className="w-4 h-4 text-rose-400" />
+                    <span>{isDictating ? 'Stop Mic' : 'Dictate'}</span>
                   </button>
                 )}
 
@@ -448,6 +534,20 @@ export const ChatInputBar = memo<ChatInputBarProps>(
                   <Link2 className="w-4 h-4 text-purple-400" />
                 </button>
 
+                {/* Quick Canned Replies & Templates */}
+                {onOpenQuickReplies && (
+                  <button
+                    type="button"
+                    id="quick-replies-desktop-button"
+                    onClick={onOpenQuickReplies}
+                    disabled={!isConnected}
+                    title="Quick Canned Replies & Templates (/quick)"
+                    className="p-2 rounded-xl hover:bg-white/10 text-neutral-400 hover:text-amber-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <Zap className="w-4 h-4 text-amber-400" />
+                  </button>
+                )}
+
                 {/* Code Snippet Sandbox */}
                 {onOpenCodeSandbox && (
                   <button
@@ -490,8 +590,22 @@ export const ChatInputBar = memo<ChatInputBarProps>(
                   </button>
                 )}
 
+                {/* Personal Notes / Note to Self Shortcut */}
+                {onOpenPersonalNotes && (
+                  <button
+                    type="button"
+                    id="personal-notes-desktop-button"
+                    onClick={onOpenPersonalNotes}
+                    disabled={!isConnected}
+                    title="Encrypted Notes to Self & Scratchpad (/notes)"
+                    className="p-2 rounded-xl hover:bg-white/10 text-neutral-400 hover:text-amber-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <Bookmark className="w-4 h-4 text-amber-400" />
+                  </button>
+                )}
+
                 {/* Quick Markdown & Spoiler Helpers */}
-                <div className="hidden md:flex items-center gap-0.5 pl-1 border-l border-white/10">
+                <div className="hidden lg:flex items-center gap-0.5 pl-1 border-l border-white/10">
                   <button
                     type="button"
                     onClick={() => insertFormatting('**', '**', 'bold')}
@@ -509,6 +623,33 @@ export const ChatInputBar = memo<ChatInputBarProps>(
                     className="p-1.5 rounded-lg hover:bg-white/10 text-neutral-400 hover:text-white transition-colors disabled:opacity-40 cursor-pointer"
                   >
                     <Italic className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => insertFormatting('~', '~', 'strike')}
+                    disabled={!isConnected}
+                    title="Format Strikethrough (~text~)"
+                    className="p-1.5 rounded-lg hover:bg-white/10 text-neutral-400 hover:text-white transition-colors disabled:opacity-40 cursor-pointer"
+                  >
+                    <Strikethrough className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => insertFormatting('`', '`', 'code')}
+                    disabled={!isConnected}
+                    title="Format Inline Code (`code`)"
+                    className="p-1.5 rounded-lg hover:bg-white/10 text-neutral-400 hover:text-cyan-300 transition-colors disabled:opacity-40 cursor-pointer"
+                  >
+                    <Code className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => insertFormatting('> ', '', 'quote')}
+                    disabled={!isConnected}
+                    title="Format Blockquote (> text)"
+                    className="p-1.5 rounded-lg hover:bg-white/10 text-neutral-400 hover:text-purple-300 transition-colors disabled:opacity-40 cursor-pointer"
+                  >
+                    <Quote className="w-3.5 h-3.5" />
                   </button>
                   <button
                     type="button"
@@ -558,6 +699,24 @@ export const ChatInputBar = memo<ChatInputBarProps>(
                 </button>
               )}
 
+              {/* Speech-to-Text Voice Dictation Trigger */}
+              {onToggleDictate && !editingMessage && (
+                <button
+                  type="button"
+                  id="speech-dictate-button"
+                  onClick={onToggleDictate}
+                  disabled={!isConnected}
+                  title={isDictating ? 'Stop Voice Dictation' : 'Voice Dictation / Speech-to-Text (/dictate)'}
+                  className={`p-2 sm:py-2.5 sm:px-2.5 rounded-xl transition-all cursor-pointer shrink-0 disabled:opacity-30 disabled:cursor-not-allowed ${
+                    isDictating
+                      ? 'bg-rose-500/25 text-rose-400 border border-rose-500/50 shadow-sm animate-pulse'
+                      : 'bg-neutral-900/80 hover:bg-neutral-800 text-neutral-400 hover:text-rose-400 border border-neutral-800'
+                  }`}
+                >
+                  <Mic className={`w-3.5 h-3.5 ${isDictating ? 'text-rose-400' : ''}`} />
+                </button>
+              )}
+
               {/* Send / Save Button */}
               <button
                 id="send-message-button"
@@ -578,6 +737,24 @@ export const ChatInputBar = memo<ChatInputBarProps>(
                 )}
               </button>
             </form>
+
+            {/* Live Word & Character Counter Indicator */}
+            {inputText.length > 0 && (
+              <div className="flex items-center justify-between px-3 py-1 mt-1 text-[10px] text-neutral-400 select-none animate-in fade-in duration-100">
+                <span className="flex items-center gap-1.5 font-mono">
+                  <span className={inputText.length > 2000 ? 'text-amber-400 font-semibold' : ''}>
+                    {inputText.length} chars
+                  </span>
+                  <span>•</span>
+                  <span>{inputText.trim() ? inputText.trim().split(/\s+/).length : 0} words</span>
+                </span>
+                <span className="text-[10px] text-neutral-500 hidden sm:inline font-mono">
+                  {sendKeyPreference === 'ctrl_enter'
+                    ? 'Ctrl+Enter or ⌘+Enter to send'
+                    : 'Enter to send • Shift+Enter for new line'}
+                </span>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -1,6 +1,6 @@
 {
   "name": "Private Chat",
-  "description": "A private, secure 1-to-1 chat featuring end-to-end encrypted messaging, interactive polls, quick hand-drawn sketching, scheduled delayed dispatch, starred bookmarks, transcript export, panic stealth camouflage, auto-disappearing messages, WebRTC calls, Code Sandbox, and privacy shielding.",
+  "description": "A private, secure 1-to-1 chat featuring end-to-end encrypted messaging, personal notes & scratchpad, canned quick replies, appearance preferences, text-to-speech, interactive polls, quick sketching, scheduled dispatch, starred bookmarks, transcript export, panic stealth camouflage, auto-disappearing messages, WebRTC calls, and privacy shielding.",
   "requestFramePermissions": ["microphone", "camera", "display-capture"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

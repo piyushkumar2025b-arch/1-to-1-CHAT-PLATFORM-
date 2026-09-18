@@ -16,7 +16,8 @@ interface ShortcutItem {
 const SHORTCUTS: ShortcutItem[] = [
   { keys: ['Enter'], description: 'Send current message', category: 'Chatting' },
   { keys: ['Shift', 'Enter'], description: 'Add new line without sending', category: 'Chatting' },
-  { keys: ['/'], description: 'Open Slash Commands palette (/canvas, /call, /vault...)', category: 'Chatting' },
+  { keys: ['/'], description: 'Open Slash Commands palette (/notes, /quick, /appearance, /canvas...)', category: 'Chatting' },
+  { keys: ['Alt', 'N'], description: 'Open Encrypted Notes to Self & scratchpad', category: 'Media & Tools' },
   { keys: ['Ctrl / ⌘', 'K'], description: 'Toggle in-chat search & filter', category: 'Navigation' },
   { keys: ['Ctrl / ⌘', 'F'], description: 'Quick find in conversation', category: 'Navigation' },
   { keys: ['Ctrl / ⌘', 'Shift', 'L'], description: 'Instant privacy lock screen', category: 'Navigation' },

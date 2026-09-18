@@ -15,6 +15,11 @@ import {
   ShieldCheck,
   Code2,
   EyeOff,
+  Zap,
+  Sliders,
+  Bookmark,
+  Bell,
+  Mic,
 } from 'lucide-react';
 
 export interface SlashCommand {
@@ -96,6 +101,14 @@ export function SlashCommandMenu({
       category: 'Tools',
     },
     {
+      id: 'notes',
+      name: '/notes',
+      alias: '/scratchpad',
+      description: 'Open Encrypted Notes to Self, saved messages & checklists',
+      icon: <Bookmark className="w-4 h-4 text-amber-400" />,
+      category: 'Tools',
+    },
+    {
       id: 'timer',
       name: '/timer',
       alias: '/disappear',
@@ -109,6 +122,38 @@ export function SlashCommandMenu({
       alias: '/style',
       description: 'Customize chat theme, colors & wallpapers',
       icon: <Palette className="w-4 h-4 text-fuchsia-400" />,
+      category: 'Tools',
+    },
+    {
+      id: 'quick',
+      name: '/quick',
+      alias: '/canned',
+      description: 'Open quick canned replies & response templates',
+      icon: <Zap className="w-4 h-4 text-amber-400" />,
+      category: 'Tools',
+    },
+    {
+      id: 'sounds',
+      name: '/sounds',
+      alias: '/alerts',
+      description: 'Customize audio chime themes, volume & notification alerts',
+      icon: <Bell className="w-4 h-4 text-amber-400" />,
+      category: 'Tools',
+    },
+    {
+      id: 'dictate',
+      name: '/dictate',
+      alias: '/speech',
+      description: 'Start live speech-to-text voice dictation into chat input',
+      icon: <Mic className="w-4 h-4 text-rose-400" />,
+      category: 'Tools',
+    },
+    {
+      id: 'appearance',
+      name: '/appearance',
+      alias: '/display',
+      description: 'Customize chat font size, message density & shortcuts',
+      icon: <Sliders className="w-4 h-4 text-purple-400" />,
       category: 'Tools',
     },
     {

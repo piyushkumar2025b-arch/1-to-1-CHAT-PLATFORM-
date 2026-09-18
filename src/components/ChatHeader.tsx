@@ -35,6 +35,8 @@ import {
   Star,
   Download,
   ShieldAlert,
+  Sliders,
+  Bookmark,
 } from 'lucide-react';
 import { ConnectionState, ChatTheme, EphemeralTimerOption } from '../types';
 
@@ -86,6 +88,9 @@ interface ChatHeaderProps {
   onOpenStarredMessages?: () => void;
   onOpenExportModal?: () => void;
   onTriggerStealthDecoy?: () => void;
+  onOpenDisplaySettings?: () => void;
+  onOpenQuickReplies?: () => void;
+  onOpenPersonalNotes?: () => void;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -136,6 +141,9 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   onOpenStarredMessages,
   onOpenExportModal,
   onTriggerStealthDecoy,
+  onOpenDisplaySettings,
+  onOpenQuickReplies,
+  onOpenPersonalNotes,
 }) => {
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -616,6 +624,21 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                   </button>
                 )}
 
+                {/* Encrypted Notes to Self & Scratchpad */}
+                {onOpenPersonalNotes && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenPersonalNotes();
+                      setMoreMenuOpen(false);
+                    }}
+                    className="w-full px-3.5 py-2 text-left text-xs text-amber-300 hover:text-amber-200 hover:bg-white/10 flex items-center gap-2.5 transition-colors cursor-pointer"
+                  >
+                    <Bookmark className="w-4 h-4 text-amber-400" />
+                    <span>Encrypted Notes to Self (/notes)</span>
+                  </button>
+                )}
+
                 {/* Export Chat Transcript */}
                 {onOpenExportModal && (
                   <button
@@ -628,6 +651,36 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                   >
                     <Download className="w-4 h-4 text-emerald-400" />
                     <span>Export Transcript (.txt / .json)</span>
+                  </button>
+                )}
+
+                {/* Quick Canned Replies */}
+                {onOpenQuickReplies && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenQuickReplies();
+                      setMoreMenuOpen(false);
+                    }}
+                    className="w-full px-3.5 py-2 text-left text-xs text-neutral-200 hover:text-white hover:bg-white/10 flex items-center gap-2.5 transition-colors cursor-pointer"
+                  >
+                    <Zap className="w-4 h-4 text-amber-400" />
+                    <span>Quick Canned Replies & Templates</span>
+                  </button>
+                )}
+
+                {/* Chat Appearance & Text Size */}
+                {onOpenDisplaySettings && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenDisplaySettings();
+                      setMoreMenuOpen(false);
+                    }}
+                    className="w-full px-3.5 py-2 text-left text-xs text-neutral-200 hover:text-white hover:bg-white/10 flex items-center gap-2.5 transition-colors cursor-pointer"
+                  >
+                    <Sliders className="w-4 h-4 text-purple-400" />
+                    <span>Display Density & Font Size</span>
                   </button>
                 )}
 

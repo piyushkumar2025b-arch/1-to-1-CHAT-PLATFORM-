@@ -1,12 +1,14 @@
-import React from 'react';
-import { Clock, Calendar, ShieldCheck, X, Copy, Check, CheckCheck, Info, User } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Clock, Calendar, ShieldCheck, X, Copy, Check, CheckCheck, Info, User, Volume2, VolumeX, Bookmark, AlignLeft } from 'lucide-react';
 import { ChatMessage } from '../types';
+import { speakMessage, subscribeSpeechStatus, isSpeechSynthesisSupported } from '../lib/text-to-speech';
 
 interface MessageDetailsModalProps {
   isOpen: boolean;
   message: ChatMessage | null;
   onClose: () => void;
   isSeen?: boolean;
+  onSaveToNotes?: (msg: ChatMessage) => void;
 }
 
 export function MessageDetailsModal({
@@ -14,8 +16,18 @@ export function MessageDetailsModal({
   message,
   onClose,
   isSeen,
+  onSaveToNotes,
 }: MessageDetailsModalProps) {
-  const [copied, setCopied] = React.useState(false);
+  const [copied, setCopied] = useState(false);
+  const [savedToNotes, setSavedToNotes] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+
+  useEffect(() => {
+    const unsub = subscribeSpeechStatus((activeId) => {
+      setIsSpeaking(Boolean(message && activeId === message.id));
+    });
+    return unsub;
+  }, [message]);
 
   if (!isOpen || !message) return null;
 
@@ -160,32 +172,102 @@ export function MessageDetailsModal({
               </div>
             </div>
           </div>
+
+          {/* Text Statistics block */}
+          {message.text && (
+            <div className="p-3 rounded-xl bg-neutral-950 border border-neutral-800/80 flex items-start gap-3">
+              <div className="p-1.5 rounded-lg bg-neutral-900 border border-neutral-800 text-purple-400 shrink-0 mt-0.5">
+                <AlignLeft className="w-3.5 h-3.5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="text-[10px] uppercase font-semibold text-neutral-400 block tracking-wider">
+                  Text Statistics
+                </span>
+                <div className="flex items-center gap-2 text-xs text-neutral-300 mt-1 font-mono">
+                  <span>{message.text.trim().split(/\s+/).filter(Boolean).length} words</span>
+                  <span className="text-neutral-600">•</span>
+                  <span>{message.text.length} characters</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Action button: Copy full timestamp */}
-        <div className="flex items-center justify-between pt-1">
-          <button
-            type="button"
-            onClick={handleCopyTimestamp}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-neutral-300 hover:text-white bg-neutral-800 hover:bg-neutral-700 rounded-xl transition-colors cursor-pointer"
-          >
-            {copied ? (
-              <>
-                <Check className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Copied!</span>
-              </>
-            ) : (
-              <>
-                <Copy className="w-3.5 h-3.5" />
-                <span>Copy Timestamp</span>
-              </>
+        {/* Action buttons: Read Aloud, Save to Notes, Copy timestamp */}
+        <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {message.text && !message.isDeleted && isSpeechSynthesisSupported() && (
+              <button
+                type="button"
+                onClick={() => speakMessage(message.id, message.text)}
+                title={isSpeaking ? 'Stop speech' : 'Read message text aloud'}
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl transition-colors cursor-pointer ${
+                  isSpeaking
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold'
+                    : 'text-neutral-300 hover:text-white bg-neutral-800 hover:bg-neutral-700'
+                }`}
+              >
+                {isSpeaking ? (
+                  <>
+                    <VolumeX className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                    <span>Stop</span>
+                  </>
+                ) : (
+                  <>
+                    <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Read Aloud</span>
+                  </>
+                )}
+              </button>
             )}
-          </button>
+
+            {message.text && onSaveToNotes && (
+              <button
+                type="button"
+                onClick={() => {
+                  onSaveToNotes(message);
+                  setSavedToNotes(true);
+                  setTimeout(() => setSavedToNotes(false), 2000);
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-xl transition-colors cursor-pointer"
+              >
+                {savedToNotes ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Saved!</span>
+                  </>
+                ) : (
+                  <>
+                    <Bookmark className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Save to Notes</span>
+                  </>
+                )}
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={handleCopyTimestamp}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-neutral-300 hover:text-white bg-neutral-800 hover:bg-neutral-700 rounded-xl transition-colors cursor-pointer"
+            >
+              {copied ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Copy Time</span>
+                </>
+              )}
+            </button>
+          </div>
 
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-xs font-medium text-neutral-200 bg-neutral-800 hover:bg-neutral-700 rounded-xl transition-colors cursor-pointer"
+            className="px-4 py-2 text-xs font-medium text-neutral-200 bg-neutral-800 hover:bg-neutral-700 rounded-xl transition-colors cursor-pointer ml-auto"
           >
             Done
           </button>

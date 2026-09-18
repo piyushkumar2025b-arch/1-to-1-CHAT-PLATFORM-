@@ -17,6 +17,7 @@ export interface FileAttachment {
   viewed?: boolean;
   viewedAt?: string;
   burned?: boolean;
+  transcription?: string;
 }
 
 export interface ReplyReference {

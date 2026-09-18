@@ -8,6 +8,46 @@
  * 4. User notification toggle preferences (sound on/off, desktop notifications on/off)
  */
 
+export type SoundTheme = 'crystal' | 'zen' | 'cyber' | 'minimal' | 'classic';
+
+export interface AudioSettings {
+  soundEnabled: boolean;
+  volume: number; // 0 to 1
+  soundTheme: SoundTheme;
+  incomingChime: boolean;
+  outgoingChime: boolean;
+  peerChime: boolean;
+  timerAlert: boolean;
+}
+
+const DEFAULT_AUDIO_SETTINGS: AudioSettings = {
+  soundEnabled: true,
+  volume: 0.8,
+  soundTheme: 'crystal',
+  incomingChime: true,
+  outgoingChime: true,
+  peerChime: true,
+  timerAlert: true,
+};
+
+export function getAudioSettings(): AudioSettings {
+  if (typeof window === 'undefined') return DEFAULT_AUDIO_SETTINGS;
+  try {
+    const raw = localStorage.getItem('chat_audio_settings');
+    if (!raw) return DEFAULT_AUDIO_SETTINGS;
+    return { ...DEFAULT_AUDIO_SETTINGS, ...JSON.parse(raw) };
+  } catch (e) {
+    return DEFAULT_AUDIO_SETTINGS;
+  }
+}
+
+export function saveAudioSettings(settings: AudioSettings): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem('chat_audio_settings', JSON.stringify(settings));
+  } catch (e) {}
+}
+
 let audioCtx: AudioContext | null = null;
 
 function getAudioContext(): AudioContext | null {
@@ -27,40 +67,133 @@ function getAudioContext(): AudioContext | null {
 }
 
 /**
- * Synthesizes a soft, pleasant, modern incoming message chime using Web Audio API.
+ * Synthesizes incoming message chime based on selected sound theme and volume
  */
-export function playIncomingMessageSound(): void {
+export function playIncomingMessageSound(customTheme?: SoundTheme, customVolume?: number): void {
+  const settings = getAudioSettings();
+  if (!settings.soundEnabled && customVolume === undefined) return;
+  if (!settings.incomingChime && customVolume === undefined) return;
+
+  const theme = customTheme || settings.soundTheme;
+  const vol = (customVolume !== undefined ? customVolume : settings.volume);
+  if (vol <= 0) return;
+
   const ctx = getAudioContext();
   if (!ctx) return;
 
   try {
     const now = ctx.currentTime;
-    const osc1 = ctx.createOscillator();
-    const osc2 = ctx.createOscillator();
-    const gain = ctx.createGain();
 
-    osc1.type = 'sine';
-    // D5 note gliding to A5
-    osc1.frequency.setValueAtTime(587.33, now);
-    osc1.frequency.exponentialRampToValueAtTime(880, now + 0.08);
+    if (theme === 'zen') {
+      // Harmonic meditative chime (A4 + E5 overtone)
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const gain = ctx.createGain();
 
-    osc2.type = 'sine';
-    // A5 gliding to D6
-    osc2.frequency.setValueAtTime(880, now + 0.08);
-    osc2.frequency.exponentialRampToValueAtTime(1174.66, now + 0.16);
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(440, now);
+      osc2.type = 'triangle';
+      osc2.frequency.setValueAtTime(659.25, now);
 
-    gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(0.15, now + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.18 * vol, now + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
 
-    osc1.connect(gain);
-    osc2.connect(gain);
-    gain.connect(ctx.destination);
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(ctx.destination);
 
-    osc1.start(now);
-    osc1.stop(now + 0.1);
-    osc2.start(now + 0.08);
-    osc2.stop(now + 0.35);
+      osc1.start(now);
+      osc1.stop(now + 0.6);
+      osc2.start(now);
+      osc2.stop(now + 0.6);
+    } else if (theme === 'cyber') {
+      // 8-bit futuristic double ping
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(660, now);
+      osc.frequency.setValueAtTime(880, now + 0.05);
+      osc.frequency.setValueAtTime(1320, now + 0.1);
+
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.14 * vol, now + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.25);
+    } else if (theme === 'minimal') {
+      // Organic soft wood tap / click
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(800, now);
+      osc.frequency.exponentialRampToValueAtTime(180, now + 0.05);
+
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.2 * vol, now + 0.005);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.08);
+    } else if (theme === 'classic') {
+      // Cheerful two-tone arrival bell
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(523.25, now); // C5
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(783.99, now + 0.09); // G5
+
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.15 * vol, now + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc1.start(now);
+      osc1.stop(now + 0.12);
+      osc2.start(now + 0.09);
+      osc2.stop(now + 0.4);
+    } else {
+      // Default: 'crystal' - Crisp modern ascending droplet
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(587.33, now);
+      osc1.frequency.exponentialRampToValueAtTime(880, now + 0.08);
+
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(880, now + 0.08);
+      osc2.frequency.exponentialRampToValueAtTime(1174.66, now + 0.16);
+
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.15 * vol, now + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc1.start(now);
+      osc1.stop(now + 0.1);
+      osc2.start(now + 0.08);
+      osc2.stop(now + 0.35);
+    }
   } catch (err) {
     console.debug('Error playing audio chime:', err);
   }
@@ -69,7 +202,14 @@ export function playIncomingMessageSound(): void {
 /**
  * Synthesizes a subtle, soft, tactile swoosh/pop when sending a message.
  */
-export function playSentMessageSound(): void {
+export function playSentMessageSound(customVolume?: number): void {
+  const settings = getAudioSettings();
+  if (!settings.soundEnabled && customVolume === undefined) return;
+  if (!settings.outgoingChime && customVolume === undefined) return;
+
+  const vol = customVolume !== undefined ? customVolume : settings.volume;
+  if (vol <= 0) return;
+
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -83,7 +223,7 @@ export function playSentMessageSound(): void {
     osc.frequency.exponentialRampToValueAtTime(740, now + 0.06);
 
     gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(0.08, now + 0.01);
+    gain.gain.linearRampToValueAtTime(0.08 * vol, now + 0.01);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
 
     osc.connect(gain);
@@ -99,7 +239,14 @@ export function playSentMessageSound(): void {
 /**
  * Synthesizes a soft chime when a peer enters the room.
  */
-export function playPeerJoinedSound(): void {
+export function playPeerJoinedSound(customVolume?: number): void {
+  const settings = getAudioSettings();
+  if (!settings.soundEnabled && customVolume === undefined) return;
+  if (!settings.peerChime && customVolume === undefined) return;
+
+  const vol = customVolume !== undefined ? customVolume : settings.volume;
+  if (vol <= 0) return;
+
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -114,7 +261,7 @@ export function playPeerJoinedSound(): void {
     osc.frequency.setValueAtTime(783.99, now + 0.18); // G5
 
     gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(0.12, now + 0.02);
+    gain.gain.linearRampToValueAtTime(0.12 * vol, now + 0.02);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
 
     osc.connect(gain);
@@ -130,7 +277,14 @@ export function playPeerJoinedSound(): void {
 /**
  * Synthesizes a gentle tone when a peer disconnects.
  */
-export function playPeerLeftSound(): void {
+export function playPeerLeftSound(customVolume?: number): void {
+  const settings = getAudioSettings();
+  if (!settings.soundEnabled && customVolume === undefined) return;
+  if (!settings.peerChime && customVolume === undefined) return;
+
+  const vol = customVolume !== undefined ? customVolume : settings.volume;
+  if (vol <= 0) return;
+
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -144,14 +298,14 @@ export function playPeerLeftSound(): void {
     osc.frequency.exponentialRampToValueAtTime(440, now + 0.2); // A4
 
     gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(0.1, now + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    gain.gain.linearRampToValueAtTime(0.1 * vol, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
 
     osc.connect(gain);
     gain.connect(ctx.destination);
 
     osc.start(now);
-    osc.stop(now + 0.3);
+    osc.stop(now + 0.35);
   } catch (err) {
     console.debug('Error playing peer left sound:', err);
   }

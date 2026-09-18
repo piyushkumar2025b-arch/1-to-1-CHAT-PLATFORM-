@@ -98,6 +98,12 @@ import { SystemDiagnosticsModal } from './components/SystemDiagnosticsModal';
 import { ChatHeader } from './components/ChatHeader';
 import { ChatMessageItem } from './components/ChatMessageItem';
 import { ChatInputBar } from './components/ChatInputBar';
+import { ChatAppearanceModal } from './components/ChatAppearanceModal';
+import { QuickRepliesModal } from './components/QuickRepliesModal';
+import { PersonalNotesModal } from './components/PersonalNotesModal';
+import { addPersonalNote } from './lib/personal-notes';
+import { getDisplaySettings, saveDisplaySettings, DisplaySettings } from './lib/display-settings';
+import { stopSpeaking } from './lib/text-to-speech';
 import { StarredMessagesModal } from './components/StarredMessagesModal';
 import { ChatExportModal } from './components/ChatExportModal';
 import { StealthDecoyModal } from './components/StealthDecoyModal';
@@ -161,6 +167,11 @@ import {
   scheduleClipboardAutoWipe,
 } from './lib/crypto-enclave';
 import { PrivacyLockGuard } from './components/PrivacyLockGuard';
+import {
+  startSpeechRecognition,
+  stopSpeechRecognition,
+  isSpeechRecognitionSupported,
+} from './lib/speech-recognition';
 
 export default function App() {
   const [roomId, setRoomId] = useState('');
@@ -331,6 +342,30 @@ export default function App() {
   const [stealthDecoyOpen, setStealthDecoyOpen] = useState(false);
   const lastEscapePressRef = useRef<number>(0);
 
+  // Display Appearance & Quick Replies state
+  const [displaySettings, setDisplaySettings] = useState<DisplaySettings>(() => getDisplaySettings());
+  const [appearanceModalOpen, setAppearanceModalOpen] = useState(false);
+  const [quickRepliesModalOpen, setQuickRepliesModalOpen] = useState(false);
+  const [personalNotesModalOpen, setPersonalNotesModalOpen] = useState(false);
+
+  const handleSaveToNotes = useCallback((msg: ChatMessage) => {
+    const textContent = msg.text || (msg.file ? `[File Attachment: ${msg.file.fileName}]` : '');
+    if (!textContent) return;
+    addPersonalNote({
+      title: `Saved from ${msg.sender === 'me' ? 'You' : targetName || 'Peer'}`,
+      content: textContent,
+      sourceMessageId: msg.id,
+      sourceSender: msg.sender === 'me' ? 'You' : targetName || 'Peer',
+    });
+    setSecurityToastMessage('Message saved to Encrypted Personal Notes (/notes)!');
+  }, [targetName]);
+
+  const handleUpdateDisplaySettings = useCallback((newSettings: DisplaySettings) => {
+    setDisplaySettings(newSettings);
+    saveDisplaySettings(newSettings);
+    setSecurityToastMessage('Display and appearance preferences saved.');
+  }, []);
+
   // Interactive Polls, Quick Draw Sketching & Scheduled Messages state
   const [createPollModalOpen, setCreatePollModalOpen] = useState(false);
   const [quickDrawModalOpen, setQuickDrawModalOpen] = useState(false);
@@ -477,6 +512,53 @@ export default function App() {
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [voiceVolume, setVoiceVolume] = useState(0);
   const voiceRecorderRef = useRef<VoiceRecorder>(new VoiceRecorder());
+
+  // Voice speech-to-text dictation & voice message transcription state
+  const [isDictating, setIsDictating] = useState(false);
+  const [voiceLiveTranscript, setVoiceLiveTranscript] = useState('');
+  const voiceTranscriptRef = useRef<string>('');
+
+  const handleToggleVoiceDictation = useCallback(() => {
+    if (isDictating) {
+      stopSpeechRecognition();
+      setIsDictating(false);
+      setSecurityToastMessage('Voice dictation stopped.');
+      return;
+    }
+
+    if (!isSpeechRecognitionSupported()) {
+      setSecurityToastMessage('Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari.');
+      return;
+    }
+
+    const started = startSpeechRecognition({
+      continuous: true,
+      interimResults: true,
+      onStart: () => {
+        setIsDictating(true);
+        setSecurityToastMessage('🎙️ Voice dictation active. Speak to type...');
+      },
+      onResult: (transcript, isFinal) => {
+        if (isFinal && transcript.trim()) {
+          setInputText((prev) => {
+            const clean = prev.trim();
+            return clean ? `${clean} ${transcript.trim()} ` : `${transcript.trim()} `;
+          });
+        }
+      },
+      onError: (err) => {
+        setIsDictating(false);
+        setSecurityToastMessage(err || 'Voice dictation paused.');
+      },
+      onEnd: () => {
+        setIsDictating(false);
+      },
+    });
+
+    if (started) {
+      setIsDictating(true);
+    }
+  }, [isDictating]);
 
   // Live writing / typing state
   const [isPeerTyping, setIsPeerTyping] = useState(false);
@@ -2428,6 +2510,15 @@ export default function App() {
     } else if (cmd.id === 'burn') {
       setSecurityModalOpen(true);
       setInputText('');
+    } else if (cmd.id === 'quick') {
+      setQuickRepliesModalOpen(true);
+      setInputText('');
+    } else if (cmd.id === 'appearance') {
+      setAppearanceModalOpen(true);
+      setInputText('');
+    } else if (cmd.id === 'notes') {
+      setPersonalNotesModalOpen(true);
+      setInputText('');
     }
   };
 
@@ -2457,9 +2548,17 @@ export default function App() {
       }
     }
 
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessageOrFile();
+    // Check user's preferred send shortcut (Enter vs Ctrl+Enter / Cmd+Enter)
+    if (displaySettings.sendKeyPreference === 'ctrl_enter') {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        handleSendMessageOrFile();
+      }
+    } else {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleSendMessageOrFile();
+      }
     }
   };
 
@@ -3025,6 +3124,7 @@ export default function App() {
         console.warn('Error clearing participant on leave:', err);
       }
     }
+    stopSpeaking();
     purgeEnclaveKey();
     activePasswordRef.current = '';
     setActiveRoomId('');
@@ -3329,6 +3429,9 @@ export default function App() {
         onOpenStarredMessages={() => setStarredModalOpen(true)}
         onOpenExportModal={() => setExportModalOpen(true)}
         onTriggerStealthDecoy={() => setStealthDecoyOpen(true)}
+        onOpenDisplaySettings={() => setAppearanceModalOpen(true)}
+        onOpenQuickReplies={() => setQuickRepliesModalOpen(true)}
+        onOpenPersonalNotes={() => setPersonalNotesModalOpen(true)}
       />
 
       {/* Real-time In-Chat Search Bar */}
@@ -3539,6 +3642,11 @@ export default function App() {
                     onToggleStarMessage={handleToggleStarMessage}
                     onVoteOption={handleVoteOption}
                     onToggleClosePoll={handleToggleClosePoll}
+                    onSaveToNotes={handleSaveToNotes}
+                    displayDensity={displaySettings.density}
+                    fontSizePref={displaySettings.fontSize}
+                    timeFormatPref={displaySettings.timeFormat}
+                    speechEnabled={true}
                   />
                 );
               })}
@@ -3671,6 +3779,9 @@ export default function App() {
             onOpenCreatePoll={() => setCreatePollModalOpen(true)}
             onOpenQuickDraw={() => setQuickDrawModalOpen(true)}
             onOpenScheduleMessage={() => setScheduleModalOpen(true)}
+            onOpenQuickReplies={() => setQuickRepliesModalOpen(true)}
+            onOpenPersonalNotes={() => setPersonalNotesModalOpen(true)}
+            sendKeyPreference={displaySettings.sendKeyPreference}
             onSendMessageOrFile={handleSendMessageOrFile}
             onFileSelect={handleFileSelect}
             fileInputRef={fileInputRef}
@@ -3852,6 +3963,7 @@ export default function App() {
           peerLastReadTimestamp > 0 &&
           (messageForDetails.createdAt ? new Date(messageForDetails.createdAt).getTime() : 0) <= peerLastReadTimestamp
         )}
+        onSaveToNotes={handleSaveToNotes}
       />
 
       {/* Background Music Player (Supports Royalty-Free Full Tracks & Local Song Uploads) */}
@@ -4000,6 +4112,41 @@ export default function App() {
         onClose={() => setScheduleModalOpen(false)}
         onSchedule={handleScheduleMessage}
         messageText={inputText}
+      />
+
+      {/* Chat Appearance & Display Settings Modal */}
+      <ChatAppearanceModal
+        isOpen={appearanceModalOpen}
+        onClose={() => setAppearanceModalOpen(false)}
+        settings={displaySettings}
+        onUpdateSettings={handleUpdateDisplaySettings}
+        accentColor={currentTheme.accentColor}
+      />
+
+      {/* Quick Canned Replies & Response Templates Modal */}
+      <QuickRepliesModal
+        isOpen={quickRepliesModalOpen}
+        onClose={() => setQuickRepliesModalOpen(false)}
+        onSelectReply={(text) => {
+          setInputText((prev) => (prev.trim() ? `${prev} ${text}` : text));
+          if (textareaRef.current) {
+            textareaRef.current.focus();
+          }
+        }}
+        accentColor={currentTheme.accentColor}
+      />
+
+      {/* Encrypted Personal Notes, Saved Messages & Scratchpad Modal */}
+      <PersonalNotesModal
+        isOpen={personalNotesModalOpen}
+        onClose={() => setPersonalNotesModalOpen(false)}
+        onSendToChat={(text) => {
+          setInputText((prev) => (prev.trim() ? `${prev}\n${text}` : text));
+          if (textareaRef.current) {
+            textareaRef.current.focus();
+          }
+        }}
+        accentColor={currentTheme.accentColor}
       />
     </div>
   );
