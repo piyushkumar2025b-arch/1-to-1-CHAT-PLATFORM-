@@ -2519,6 +2519,21 @@ export default function App() {
     } else if (cmd.id === 'notes') {
       setPersonalNotesModalOpen(true);
       setInputText('');
+    } else if (cmd.id === 'sounds') {
+      setNotificationModalOpen(true);
+      setInputText('');
+    } else if (cmd.id === 'dictate') {
+      handleToggleVoiceDictation();
+      setInputText('');
+    } else if (cmd.id === 'search') {
+      setIsSearchOpen(true);
+      setInputText('');
+    } else if (cmd.id === 'poll') {
+      setCreatePollModalOpen(true);
+      setInputText('');
+    } else if (cmd.id === 'starred') {
+      setStarredModalOpen(true);
+      setInputText('');
     }
   };
 
@@ -2583,6 +2598,26 @@ export default function App() {
     try {
       await voiceRecorderRef.current.start((vol) => setVoiceVolume(vol));
       setIsRecordingVoice(true);
+      voiceTranscriptRef.current = '';
+      setVoiceLiveTranscript('');
+
+      // Auto-start zero-knowledge speech transcription alongside audio recording if supported
+      if (isSpeechRecognitionSupported()) {
+        startSpeechRecognition({
+          continuous: true,
+          interimResults: true,
+          onResult: (transcript, isFinal) => {
+            if (isFinal) {
+              voiceTranscriptRef.current = ((voiceTranscriptRef.current ? voiceTranscriptRef.current + ' ' : '') + transcript).trim();
+              setVoiceLiveTranscript(voiceTranscriptRef.current);
+            } else {
+              const current = voiceTranscriptRef.current ? `${voiceTranscriptRef.current} ${transcript}` : transcript;
+              setVoiceLiveTranscript(current);
+            }
+          },
+          onError: () => {},
+        });
+      }
     } catch (err: any) {
       console.error('Voice recorder error:', err);
       showToast('Microphone access is needed to record voice messages.', 'warning');
@@ -2591,12 +2626,16 @@ export default function App() {
 
   const handleCancelVoiceRecording = () => {
     voiceRecorderRef.current.cancel();
+    stopSpeechRecognition();
     setIsRecordingVoice(false);
     setVoiceVolume(0);
+    setVoiceLiveTranscript('');
+    voiceTranscriptRef.current = '';
   };
 
   const handleSendVoiceRecording = async () => {
     try {
+      stopSpeechRecognition();
       const result = await voiceRecorderRef.current.stop();
       setIsRecordingVoice(false);
       setVoiceVolume(0);
@@ -2607,6 +2646,13 @@ export default function App() {
         result.duration,
         result.waveformData
       );
+
+      // Attach client-side generated transcript if captured
+      if (voiceTranscriptRef.current.trim()) {
+        attachment.transcription = voiceTranscriptRef.current.trim();
+      }
+      setVoiceLiveTranscript('');
+      voiceTranscriptRef.current = '';
 
       const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const currentReply = replyingTo;
@@ -2827,20 +2873,25 @@ export default function App() {
   // Chat In-Room Search
   const matchedMessages = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return [];
+    if (!q && searchFilter === 'all') return [];
     return visibleMessages.filter((m) => {
       if (m.isDeleted) return false;
       const textMatch = (m.text || '').toLowerCase().includes(q);
-      const fileMatch = m.file ? (m.file.fileName || '').toLowerCase().includes(q) : false;
+      const isVoice = Boolean(m.file?.isVoice || m.file?.mimeType?.includes('audio'));
+      const fileMatch = m.file && !isVoice ? (m.file.fileName || '').toLowerCase().includes(q) : false;
+      const voiceMatch = isVoice && (!q || (m.text || '').toLowerCase().includes(q) || (m.file?.fileName || '').toLowerCase().includes(q));
       const links = m.text ? extractUrlsFromText(m.text) : [];
       const linkMatch = links.some(
         (l) => l.url.toLowerCase().includes(q) || l.domain.toLowerCase().includes(q)
       );
+      const starredMatch = Boolean(m.isStarred) && (!q || textMatch || fileMatch || linkMatch);
 
-      if (searchFilter === 'text') return textMatch;
-      if (searchFilter === 'files') return fileMatch;
-      if (searchFilter === 'links') return linkMatch;
-      return textMatch || fileMatch || linkMatch;
+      if (searchFilter === 'text') return q ? textMatch : true;
+      if (searchFilter === 'files') return q ? fileMatch : Boolean(m.file && !isVoice);
+      if (searchFilter === 'voice') return voiceMatch;
+      if (searchFilter === 'links') return q ? linkMatch : links.length > 0;
+      if (searchFilter === 'starred') return starredMatch;
+      return textMatch || fileMatch || voiceMatch || linkMatch;
     });
   }, [visibleMessages, searchQuery, searchFilter]);
 
@@ -3646,6 +3697,8 @@ export default function App() {
                     displayDensity={displaySettings.density}
                     fontSizePref={displaySettings.fontSize}
                     timeFormatPref={displaySettings.timeFormat}
+                    fontFamilyPref={displaySettings.fontFamily}
+                    bubbleCornerPref={displaySettings.bubbleRadius}
                     speechEnabled={true}
                   />
                 );
@@ -3782,6 +3835,9 @@ export default function App() {
             onOpenQuickReplies={() => setQuickRepliesModalOpen(true)}
             onOpenPersonalNotes={() => setPersonalNotesModalOpen(true)}
             sendKeyPreference={displaySettings.sendKeyPreference}
+            isDictating={isDictating}
+            onToggleDictate={handleToggleVoiceDictation}
+            voiceLiveTranscript={voiceLiveTranscript}
             onSendMessageOrFile={handleSendMessageOrFile}
             onFileSelect={handleFileSelect}
             fileInputRef={fileInputRef}

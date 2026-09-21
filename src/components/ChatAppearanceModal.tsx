@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Sliders, Type, Clock, Keyboard, Check, Sparkles } from 'lucide-react';
+import { X, Sliders, Type, Clock, Keyboard, Check, Sparkles, Smile, Square, Baseline } from 'lucide-react';
 import {
   DisplaySettings,
   saveDisplaySettings,
@@ -7,6 +7,8 @@ import {
   FontSizePreference,
   TimeFormatPreference,
   SendKeyPreference,
+  BubbleRadiusPreference,
+  FontFamilyPreference,
 } from '../lib/display-settings';
 
 interface ChatAppearanceModalProps {
@@ -176,7 +178,71 @@ export function ChatAppearanceModal({
             </div>
           </div>
 
-          {/* Section 4: Keyboard Send Shortcut */}
+          {/* Section 4: Bubble Corner Shape */}
+          <div>
+            <label className="text-xs font-semibold text-neutral-300 flex items-center gap-1.5 mb-2">
+              <Smile className="w-3.5 h-3.5 text-amber-400" />
+              <span>Bubble Corner Styling</span>
+            </label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {(
+                [
+                  { id: 'modern', label: 'Modern', desc: 'Rounded 2xl' },
+                  { id: 'rounded', label: 'Pill', desc: 'Fully curved' },
+                  { id: 'chatty', label: 'Classic Tail', desc: 'Tailed corners' },
+                  { id: 'sharp', label: 'Clean Box', desc: 'Subtle 6px' },
+                ] as { id: BubbleRadiusPreference; label: string; desc: string }[]
+              ).map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => handleChange('bubbleRadius', opt.id)}
+                  className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center ${
+                    (draft.bubbleRadius || 'modern') === opt.id
+                      ? 'bg-amber-500/15 border-amber-500/60 text-white ring-1 ring-amber-400/40'
+                      : 'bg-neutral-950/40 border-neutral-800 text-neutral-300 hover:bg-white/5'
+                  }`}
+                >
+                  <span className="text-xs font-bold">{opt.label}</span>
+                  <span className="text-[10px] text-neutral-400">{opt.desc}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 5: Font Family Typography */}
+          <div>
+            <label className="text-xs font-semibold text-neutral-300 flex items-center gap-1.5 mb-2">
+              <Baseline className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Typography Font Family</span>
+            </label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {(
+                [
+                  { id: 'sans', label: 'Clean Sans', fontClass: 'font-sans' },
+                  { id: 'mono', label: 'Matrix Mono', fontClass: 'font-mono' },
+                  { id: 'serif', label: 'Editorial Serif', fontClass: 'font-serif' },
+                  { id: 'system', label: 'Native OS', fontClass: 'font-sans' },
+                ] as { id: FontFamilyPreference; label: string; fontClass: string }[]
+              ).map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => handleChange('fontFamily', opt.id)}
+                  className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center ${opt.fontClass} ${
+                    (draft.fontFamily || 'sans') === opt.id
+                      ? 'bg-emerald-500/15 border-emerald-500/60 text-white ring-1 ring-emerald-400/40'
+                      : 'bg-neutral-950/40 border-neutral-800 text-neutral-300 hover:bg-white/5'
+                  }`}
+                >
+                  <span className="text-xs font-bold">{opt.label}</span>
+                  <span className="text-[10px] text-neutral-400">Aa Bb 123</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 6: Keyboard Send Shortcut */}
           <div>
             <label className="text-xs font-semibold text-neutral-300 flex items-center gap-1.5 mb-2">
               <Keyboard className="w-3.5 h-3.5 text-purple-400" />
@@ -220,9 +286,23 @@ export function ChatAppearanceModal({
           {/* Interactive Live Bubble Preview */}
           <div className="pt-2 border-t border-neutral-800/80">
             <div className="text-[11px] font-semibold text-neutral-400 mb-2">Live Preview:</div>
-            <div className="p-3 bg-neutral-950/80 rounded-xl border border-neutral-800 flex flex-col gap-2">
+            <div className="p-3.5 bg-neutral-950/80 rounded-xl border border-neutral-800 flex flex-col gap-2.5">
               <div
-                className={`self-start p-2.5 rounded-2xl bg-neutral-800 text-neutral-200 ${
+                className={`self-start p-2.5 max-w-[85%] bg-neutral-800 text-neutral-200 shadow-sm ${
+                  draft.bubbleRadius === 'rounded'
+                    ? 'rounded-3xl'
+                    : draft.bubbleRadius === 'sharp'
+                    ? 'rounded-md'
+                    : draft.bubbleRadius === 'chatty'
+                    ? 'rounded-2xl rounded-tl-sm'
+                    : 'rounded-2xl'
+                } ${
+                  draft.fontFamily === 'mono'
+                    ? 'font-mono'
+                    : draft.fontFamily === 'serif'
+                    ? 'font-serif'
+                    : 'font-sans'
+                } ${
                   draft.fontSize === 'small'
                     ? 'text-xs'
                     : draft.fontSize === 'large'
@@ -231,8 +311,11 @@ export function ChatAppearanceModal({
                 }`}
               >
                 <span>Previewing your customized chat appearance!</span>
-                <div className="text-[10px] text-neutral-400 mt-1">
-                  {draft.timeFormat === '24h' ? '14:30' : '2:30 PM'}
+                <div className="text-[10px] text-neutral-400 mt-1 flex items-center justify-between gap-3">
+                  <span>{draft.timeFormat === '24h' ? '14:30' : '2:30 PM'}</span>
+                  <span className="text-[9px] uppercase tracking-wider text-amber-400/90 font-mono">
+                    {draft.density}
+                  </span>
                 </div>
               </div>
             </div>

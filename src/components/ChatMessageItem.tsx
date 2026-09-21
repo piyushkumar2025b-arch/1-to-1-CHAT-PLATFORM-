@@ -58,6 +58,8 @@ export interface ChatMessageItemProps {
   displayDensity?: 'compact' | 'comfortable' | 'spacious';
   fontSizePref?: 'small' | 'medium' | 'large';
   timeFormatPref?: '12h' | '24h';
+  fontFamilyPref?: 'sans' | 'mono' | 'serif' | 'system';
+  bubbleCornerPref?: 'modern' | 'rounded' | 'sharp' | 'chatty';
   onSpeakMessage?: (messageId: string, text: string) => void;
   isSpeakingThisMessage?: boolean;
 }
@@ -98,6 +100,8 @@ export const ChatMessageItem = memo<ChatMessageItemProps>(
     displayDensity = 'comfortable',
     fontSizePref = 'medium',
     timeFormatPref = '12h',
+    fontFamilyPref = 'sans',
+    bubbleCornerPref = 'modern',
     onSpeakMessage,
     isSpeakingThisMessage = false,
   }) => {
@@ -134,6 +138,26 @@ export const ChatMessageItem = memo<ChatMessageItemProps>(
         : fontSizePref === 'large'
         ? 'text-[15.5px] leading-relaxed'
         : 'text-sm leading-normal';
+
+    const fontFamilyClass =
+      fontFamilyPref === 'mono'
+        ? 'font-mono'
+        : fontFamilyPref === 'serif'
+        ? 'font-serif'
+        : fontFamilyPref === 'system'
+        ? 'font-sans'
+        : 'font-sans';
+
+    const effectiveBubbleRadius =
+      bubbleCornerPref === 'rounded'
+        ? 'rounded-3xl'
+        : bubbleCornerPref === 'sharp'
+        ? 'rounded-md'
+        : bubbleCornerPref === 'chatty'
+        ? isMe
+          ? 'rounded-2xl rounded-tr-xs'
+          : 'rounded-2xl rounded-tl-xs'
+        : bubbleRadiusClass;
 
     const formattedTime = React.useMemo(() => {
       if (msg.createdAt) {
@@ -324,7 +348,7 @@ export const ChatMessageItem = memo<ChatMessageItemProps>(
 
           {/* Main Bubble */}
           <div
-            className={`max-w-[88%] sm:max-w-[75%] ${bubblePadding} ${bubbleRadiusClass} ${textSizeClass} break-words shadow-sm flex flex-col gap-2 relative transition-all duration-200 ${
+            className={`max-w-[88%] sm:max-w-[75%] ${bubblePadding} ${effectiveBubbleRadius} ${textSizeClass} ${fontFamilyClass} break-words shadow-sm flex flex-col gap-2 relative transition-all duration-200 ${
               isMe ? currentTheme.myBubbleStyle : currentTheme.peerBubbleStyle
             } ${
               blurGuardActive

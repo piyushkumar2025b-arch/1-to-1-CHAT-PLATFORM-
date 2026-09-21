@@ -680,7 +680,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                     className="w-full px-3.5 py-2 text-left text-xs text-neutral-200 hover:text-white hover:bg-white/10 flex items-center gap-2.5 transition-colors cursor-pointer"
                   >
                     <Sliders className="w-4 h-4 text-purple-400" />
-                    <span>Display Density & Font Size</span>
+                    <span>Display Styling, Fonts & Bubbles</span>
                   </button>
                 )}
 

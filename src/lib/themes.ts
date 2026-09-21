@@ -109,6 +109,30 @@ export const PRESET_THEMES: ChatTheme[] = [
     peerBubbleStyle: 'bg-white text-stone-900 border border-stone-200 shadow-xs',
     previewColor: 'from-stone-100 via-stone-200 to-indigo-100 border-indigo-400/40',
   },
+  {
+    id: 'tokyo',
+    name: 'Tokyo Cyberpunk',
+    type: 'preset',
+    accentColor: '#f43f5e',
+    bgStyle: 'bg-[#090816] text-neutral-100',
+    headerStyle: 'bg-[#130f2b]/90 border-pink-900/40 text-pink-200',
+    inputStyle: 'bg-[#130f2b]/90 border-pink-900/40 text-neutral-100',
+    myBubbleStyle: 'bg-gradient-to-r from-pink-500 via-rose-500 to-purple-600 text-white font-medium shadow-pink-950/50 shadow-md',
+    peerBubbleStyle: 'bg-[#1b153c] text-neutral-100 border border-pink-900/30',
+    previewColor: 'from-[#090816] via-[#1b153c] to-rose-950 border-pink-500/50',
+  },
+  {
+    id: 'matrix',
+    name: 'Terminal Green',
+    type: 'preset',
+    accentColor: '#22c55e',
+    bgStyle: 'bg-[#020d06] text-green-100',
+    headerStyle: 'bg-[#041d0e]/90 border-green-900/60 text-green-300 font-mono',
+    inputStyle: 'bg-[#041d0e]/90 border-green-900/60 text-green-100 font-mono',
+    myBubbleStyle: 'bg-green-600 text-neutral-950 font-semibold font-mono shadow-md shadow-green-950',
+    peerBubbleStyle: 'bg-[#062914] text-green-200 border border-green-800/50 font-mono',
+    previewColor: 'from-[#020d06] via-[#041d0e] to-green-950 border-green-500/60',
+  },
 ];
 
 export const DEFAULT_THEME = PRESET_THEMES[0];

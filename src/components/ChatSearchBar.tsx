@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { Search, X, ChevronUp, ChevronDown, FileText, Link, MessageSquare } from 'lucide-react';
+import { Search, X, ChevronUp, ChevronDown, FileText, Link, MessageSquare, Star, Mic } from 'lucide-react';
 
-export type SearchFilterType = 'all' | 'text' | 'files' | 'links';
+export type SearchFilterType = 'all' | 'text' | 'files' | 'voice' | 'links' | 'starred';
 
 interface ChatSearchBarProps {
   isOpen: boolean;
@@ -165,6 +165,18 @@ export const ChatSearchBar: React.FC<ChatSearchBarProps> = ({
           </button>
           <button
             type="button"
+            onClick={() => setFilterType('voice')}
+            className={`flex items-center gap-1 px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
+              filterType === 'voice'
+                ? 'bg-neutral-800 text-neutral-100 font-semibold'
+                : 'text-neutral-400 hover:text-neutral-200'
+            }`}
+          >
+            <Mic className="w-3 h-3 text-amber-400" />
+            <span>Voice</span>
+          </button>
+          <button
+            type="button"
             onClick={() => setFilterType('links')}
             className={`flex items-center gap-1 px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
               filterType === 'links'
@@ -174,6 +186,18 @@ export const ChatSearchBar: React.FC<ChatSearchBarProps> = ({
           >
             <Link className="w-3 h-3" />
             <span>Links</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterType('starred')}
+            className={`flex items-center gap-1 px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
+              filterType === 'starred'
+                ? 'bg-neutral-800 text-amber-300 font-semibold'
+                : 'text-neutral-400 hover:text-neutral-200'
+            }`}
+          >
+            <Star className="w-3 h-3 text-amber-400 fill-amber-400/40" />
+            <span>Starred</span>
           </button>
         </div>
 

@@ -23,7 +23,7 @@ export default function VoiceMessagePlayer({
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(file.duration || 0);
-  const [playbackRate, setPlaybackRate] = useState<1 | 1.5 | 2>(1);
+  const [playbackRate, setPlaybackRate] = useState<0.75 | 1 | 1.25 | 1.5 | 2>(1);
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [showTranscript, setShowTranscript] = useState(false);
@@ -100,7 +100,9 @@ export default function VoiceMessagePlayer({
   };
 
   const cycleSpeed = () => {
-    const nextSpeed: 1 | 1.5 | 2 = playbackRate === 1 ? 1.5 : playbackRate === 1.5 ? 2 : 1;
+    const speeds: Array<0.75 | 1 | 1.25 | 1.5 | 2> = [0.75, 1, 1.25, 1.5, 2];
+    const currentIndex = speeds.indexOf(playbackRate);
+    const nextSpeed = speeds[(currentIndex + 1) % speeds.length];
     setPlaybackRate(nextSpeed);
     if (audioRef.current) {
       audioRef.current.playbackRate = nextSpeed;

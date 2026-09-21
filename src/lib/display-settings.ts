@@ -2,6 +2,8 @@ export type MessageDensity = 'compact' | 'comfortable' | 'spacious';
 export type FontSizePreference = 'small' | 'medium' | 'large';
 export type TimeFormatPreference = '12h' | '24h';
 export type SendKeyPreference = 'enter' | 'ctrl_enter';
+export type BubbleRadiusPreference = 'modern' | 'rounded' | 'sharp' | 'chatty';
+export type FontFamilyPreference = 'sans' | 'mono' | 'serif' | 'system';
 
 export interface DisplaySettings {
   density: MessageDensity;
@@ -9,6 +11,8 @@ export interface DisplaySettings {
   timeFormat: TimeFormatPreference;
   sendKey: SendKeyPreference;
   sendKeyPreference?: SendKeyPreference;
+  bubbleRadius?: BubbleRadiusPreference;
+  fontFamily?: FontFamilyPreference;
 }
 
 export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
@@ -17,6 +21,8 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   timeFormat: '12h',
   sendKey: 'enter',
   sendKeyPreference: 'enter',
+  bubbleRadius: 'modern',
+  fontFamily: 'sans',
 };
 
 const STORAGE_KEY = 'private_chat_display_settings';
@@ -30,12 +36,21 @@ export function getSavedDisplaySettings(): DisplaySettings {
     const resolvedSendKey: SendKeyPreference = ['enter', 'ctrl_enter'].includes(parsed.sendKey || parsed.sendKeyPreference)
       ? (parsed.sendKey || parsed.sendKeyPreference)
       : 'enter';
+    const resolvedBubbleRadius: BubbleRadiusPreference = ['modern', 'rounded', 'sharp', 'chatty'].includes(parsed.bubbleRadius)
+      ? parsed.bubbleRadius
+      : 'modern';
+    const resolvedFontFamily: FontFamilyPreference = ['sans', 'mono', 'serif', 'system'].includes(parsed.fontFamily)
+      ? parsed.fontFamily
+      : 'sans';
+
     return {
       density: ['compact', 'comfortable', 'spacious'].includes(parsed.density) ? parsed.density : 'comfortable',
       fontSize: ['small', 'medium', 'large'].includes(parsed.fontSize) ? parsed.fontSize : 'medium',
       timeFormat: ['12h', '24h'].includes(parsed.timeFormat) ? parsed.timeFormat : '12h',
       sendKey: resolvedSendKey,
       sendKeyPreference: resolvedSendKey,
+      bubbleRadius: resolvedBubbleRadius,
+      fontFamily: resolvedFontFamily,
     };
   } catch {
     return DEFAULT_DISPLAY_SETTINGS;
