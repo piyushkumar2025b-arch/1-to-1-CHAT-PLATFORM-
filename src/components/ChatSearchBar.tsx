@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { Search, X, ChevronUp, ChevronDown, FileText, Link, MessageSquare, Star, Mic } from 'lucide-react';
+import { Search, X, ChevronUp, ChevronDown, FileText, Link, MessageSquare, Star, Mic, Image as ImageIcon } from 'lucide-react';
 
-export type SearchFilterType = 'all' | 'text' | 'files' | 'voice' | 'links' | 'starred';
+export type SearchFilterType = 'all' | 'text' | 'media' | 'files' | 'voice' | 'links' | 'starred';
 
 interface ChatSearchBarProps {
   isOpen: boolean;
@@ -126,8 +126,8 @@ export const ChatSearchBar: React.FC<ChatSearchBarProps> = ({
       </div>
 
       {/* Filter Chips & Close */}
-      <div className="flex items-center gap-2">
-        <div className="hidden sm:flex items-center gap-1 bg-neutral-950/60 p-0.5 rounded-lg border border-neutral-800 text-[11px]">
+      <div className="flex items-center gap-2 overflow-x-auto max-w-full py-0.5 scrollbar-none">
+        <div className="flex items-center gap-1 bg-neutral-950/60 p-0.5 rounded-lg border border-neutral-800 text-[11px] shrink-0">
           <button
             type="button"
             onClick={() => setFilterType('all')}
@@ -150,6 +150,18 @@ export const ChatSearchBar: React.FC<ChatSearchBarProps> = ({
           >
             <MessageSquare className="w-3 h-3" />
             <span>Text</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterType('media')}
+            className={`flex items-center gap-1 px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
+              filterType === 'media'
+                ? 'bg-neutral-800 text-purple-300 font-semibold'
+                : 'text-neutral-400 hover:text-neutral-200'
+            }`}
+          >
+            <ImageIcon className="w-3 h-3 text-purple-400" />
+            <span>Media</span>
           </button>
           <button
             type="button"

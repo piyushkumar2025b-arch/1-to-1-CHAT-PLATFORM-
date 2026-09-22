@@ -66,6 +66,7 @@ export interface ChatInputBarProps {
   onOpenQuickReplies?: () => void;
   onOpenPersonalNotes?: () => void;
   sendKeyPreference?: 'enter' | 'ctrl_enter';
+  showCharacterCount?: boolean;
   isDictating?: boolean;
   onToggleDictate?: () => void;
   voiceLiveTranscript?: string;
@@ -116,6 +117,7 @@ export const ChatInputBar = memo<ChatInputBarProps>(
     onOpenQuickReplies,
     onOpenPersonalNotes,
     sendKeyPreference = 'enter',
+    showCharacterCount = true,
     isDictating = false,
     onToggleDictate,
     voiceLiveTranscript,
@@ -664,26 +666,33 @@ export const ChatInputBar = memo<ChatInputBarProps>(
               </div>
 
               {/* Auto-expanding Multiline Message Textarea with Clipboard Paste Support */}
-              <textarea
-                id="message-input"
-                ref={textareaRef}
-                rows={1}
-                value={inputText}
-                onChange={onTextareaChange}
-                onKeyDown={onTextareaKeyDown}
-                onPaste={onPaste}
-                disabled={!isConnected}
-                placeholder={
-                  isConnected
-                    ? stagedFile
-                      ? 'Add a caption... (Enter to send, Shift+Enter for newline)'
-                      : replyingTo
-                      ? `Replying to ${replyingTo.senderName}...`
-                      : 'Type message or "/" for commands (Shift+Enter for newline)...'
-                    : 'Waiting for peer to join room...'
-                }
-                className="flex-1 bg-transparent border-0 focus:ring-0 focus:outline-none px-2 sm:px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors resize-none leading-relaxed max-h-32 min-h-[40px]"
-              />
+              <div className="flex-1 flex flex-col min-w-0 relative">
+                <textarea
+                  id="message-input"
+                  ref={textareaRef}
+                  rows={1}
+                  value={inputText}
+                  onChange={onTextareaChange}
+                  onKeyDown={onTextareaKeyDown}
+                  onPaste={onPaste}
+                  disabled={!isConnected}
+                  placeholder={
+                    isConnected
+                      ? stagedFile
+                        ? 'Add a caption... (Enter to send, Shift+Enter for newline)'
+                        : replyingTo
+                        ? `Replying to ${replyingTo.senderName}...`
+                        : 'Type message or "/" for commands (Shift+Enter for newline)...'
+                      : 'Waiting for peer to join room...'
+                  }
+                  className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none px-2 sm:px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors resize-none leading-relaxed max-h-32 min-h-[40px]"
+                />
+                {inputText.length > 80 && (
+                  <div className="absolute right-2 bottom-1 pointer-events-none text-[9px] font-mono text-neutral-500/80 bg-neutral-900/80 px-1 rounded select-none">
+                    {inputText.length}c · {inputText.trim().split(/\s+/).filter(Boolean).length}w
+                  </div>
+                )}
+              </div>
 
               {/* Schedule Delayed Dispatch Button */}
               {onOpenScheduleMessage && !editingMessage && Boolean(inputText.trim()) && (
@@ -739,7 +748,7 @@ export const ChatInputBar = memo<ChatInputBarProps>(
             </form>
 
             {/* Live Word & Character Counter Indicator */}
-            {inputText.length > 0 && (
+            {inputText.length > 0 && showCharacterCount && (
               <div className="flex items-center justify-between px-3 py-1 mt-1 text-[10px] text-neutral-400 select-none animate-in fade-in duration-100">
                 <span className="flex items-center gap-1.5 font-mono">
                   <span className={inputText.length > 2000 ? 'text-amber-400 font-semibold' : ''}>

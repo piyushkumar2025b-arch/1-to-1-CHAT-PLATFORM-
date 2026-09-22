@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Play, Pause, Download, Loader2, FileText, Check, Copy, ChevronDown, ChevronUp } from 'lucide-react';
+import { Play, Pause, Download, Loader2, FileText, Check, Copy, ChevronDown, ChevronUp, RotateCcw, RotateCw } from 'lucide-react';
 import { FileAttachment } from '../types';
 import { triggerBlobDownload } from '../lib/file-compression';
 import { getRoomFileBlob } from '../lib/file-retrieval';
@@ -129,6 +129,21 @@ export default function VoiceMessagePlayer({
     }
   };
 
+  const handleSkipRelative = async (secondsDelta: number) => {
+    if (!audioRef.current) {
+      const url = await loadAudioBlob();
+      const audio = new Audio(url);
+      audioRef.current = audio;
+    }
+
+    if (audioRef.current) {
+      const maxDur = duration || audioRef.current.duration || 1;
+      const target = Math.max(0, Math.min(maxDur, (audioRef.current.currentTime || 0) + secondsDelta));
+      audioRef.current.currentTime = target;
+      setCurrentTime(target);
+    }
+  };
+
   const handleDownload = async () => {
     if (!rawAudioBlobRef.current) {
       await loadAudioBlob();
@@ -208,11 +223,31 @@ export default function VoiceMessagePlayer({
         </div>
       </div>
 
-      {/* Footer: Timer, Speed, Download, Transcript */}
+      {/* Footer: Timer, Speed, Skip, Download, Transcript */}
       <div className="flex items-center justify-between text-[11px] text-neutral-400 px-1 pt-0.5 border-t border-neutral-700/40">
-        <span className="font-mono">
-          {formatTime(currentTime)} / {formatTime(duration)}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="font-mono">
+            {formatTime(currentTime)} / {formatTime(duration)}
+          </span>
+
+          {/* Quick 5-sec Rewind & Forward */}
+          <button
+            type="button"
+            onClick={() => handleSkipRelative(-5)}
+            title="Rewind 5s"
+            className="p-1 rounded hover:bg-white/10 text-neutral-400 hover:text-white transition-colors cursor-pointer"
+          >
+            <RotateCcw className="w-3 h-3" />
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSkipRelative(5)}
+            title="Forward 5s"
+            className="p-1 rounded hover:bg-white/10 text-neutral-400 hover:text-white transition-colors cursor-pointer"
+          >
+            <RotateCw className="w-3 h-3" />
+          </button>
+        </div>
 
         <div className="flex items-center gap-1.5">
           {/* Transcript Toggle */}

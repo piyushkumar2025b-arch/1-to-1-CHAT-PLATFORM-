@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { X, Sliders, Type, Clock, Keyboard, Check, Sparkles, Smile, Square, Baseline } from 'lucide-react';
+import { X, Sliders, Type, Clock, Keyboard, Check, Sparkles, Smile, Square, Baseline, RotateCcw } from 'lucide-react';
 import {
   DisplaySettings,
   saveDisplaySettings,
+  DEFAULT_DISPLAY_SETTINGS,
   MessageDensity,
   FontSizePreference,
   TimeFormatPreference,
@@ -283,6 +284,59 @@ export function ChatAppearanceModal({
             </div>
           </div>
 
+          {/* Section 7: Message Meta & Input Helpers */}
+          <div>
+            <label className="text-xs font-semibold text-neutral-300 flex items-center gap-1.5 mb-2">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>Interface Helpers & Toggles</span>
+            </label>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => handleChange('showTimestamps', draft.showTimestamps !== false ? false : true)}
+                className="w-full p-2.5 rounded-xl border border-neutral-800 bg-neutral-950/40 hover:bg-white/5 transition-all text-left flex items-center justify-between cursor-pointer"
+              >
+                <div>
+                  <div className="text-xs font-bold text-neutral-200">Show Message Timestamps</div>
+                  <div className="text-[10px] text-neutral-400">Display the clock time under every sent bubble</div>
+                </div>
+                <div
+                  className={`w-8 h-4.5 rounded-full transition-colors relative flex items-center p-0.5 ${
+                    draft.showTimestamps !== false ? 'bg-amber-500' : 'bg-neutral-700'
+                  }`}
+                >
+                  <div
+                    className={`w-3.5 h-3.5 rounded-full bg-white transition-transform ${
+                      draft.showTimestamps !== false ? 'translate-x-3.5' : 'translate-x-0'
+                    }`}
+                  />
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleChange('showCharacterCount', draft.showCharacterCount !== false ? false : true)}
+                className="w-full p-2.5 rounded-xl border border-neutral-800 bg-neutral-950/40 hover:bg-white/5 transition-all text-left flex items-center justify-between cursor-pointer"
+              >
+                <div>
+                  <div className="text-xs font-bold text-neutral-200">Live Word & Character Counter</div>
+                  <div className="text-[10px] text-neutral-400">Show live count and stats below the input bar</div>
+                </div>
+                <div
+                  className={`w-8 h-4.5 rounded-full transition-colors relative flex items-center p-0.5 ${
+                    draft.showCharacterCount !== false ? 'bg-amber-500' : 'bg-neutral-700'
+                  }`}
+                >
+                  <div
+                    className={`w-3.5 h-3.5 rounded-full bg-white transition-transform ${
+                      draft.showCharacterCount !== false ? 'translate-x-3.5' : 'translate-x-0'
+                    }`}
+                  />
+                </div>
+              </button>
+            </div>
+          </div>
+
           {/* Interactive Live Bubble Preview */}
           <div className="pt-2 border-t border-neutral-800/80">
             <div className="text-[11px] font-semibold text-neutral-400 mb-2">Live Preview:</div>
@@ -324,11 +378,24 @@ export function ChatAppearanceModal({
 
         {/* Footer */}
         <div className="px-5 py-3 border-t border-neutral-800 bg-neutral-950/40 flex items-center justify-between">
-          <span className="text-[11px] text-neutral-500">Saved automatically in browser</span>
+          <button
+            type="button"
+            onClick={() => {
+              setDraft(DEFAULT_DISPLAY_SETTINGS);
+              onUpdateSettings(DEFAULT_DISPLAY_SETTINGS);
+              saveDisplaySettings(DEFAULT_DISPLAY_SETTINGS);
+            }}
+            className="text-[11px] text-neutral-400 hover:text-amber-400 transition-colors flex items-center gap-1 cursor-pointer"
+            title="Reset to default display preferences"
+          >
+            <RotateCcw className="w-3 h-3" />
+            <span>Reset to defaults</span>
+          </button>
+
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-neutral-800 text-white hover:bg-neutral-700 transition-colors"
+            className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-neutral-800 text-white hover:bg-neutral-700 transition-colors cursor-pointer"
           >
             Done
           </button>

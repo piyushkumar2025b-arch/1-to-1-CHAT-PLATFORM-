@@ -171,7 +171,11 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       {/* LEFT SECTION: Room Identity & Connectivity */}
       <div className="flex items-center gap-2 sm:gap-3.5 min-w-0">
         {/* Room Code Badge with Copy Action */}
-        <div className="flex items-center gap-1.5 bg-black/40 hover:bg-black/55 border border-white/10 rounded-xl px-2 sm:px-2.5 py-1 transition-all">
+        <div
+          onClick={onCopyRoomId}
+          title={copiedCode ? 'Copied to clipboard!' : 'Click to copy room code'}
+          className="flex items-center gap-1.5 bg-black/40 hover:bg-black/60 border border-white/10 hover:border-white/20 rounded-xl px-2 sm:px-2.5 py-1 transition-all cursor-pointer group select-none active:scale-98"
+        >
           <div className="flex items-center gap-1">
             <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
             <span className="text-[10px] font-bold tracking-widest uppercase opacity-70 hidden md:inline">
@@ -189,14 +193,17 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           <button
             id="copy-room-id-button"
             type="button"
-            onClick={onCopyRoomId}
+            onClick={(e) => {
+              e.stopPropagation();
+              onCopyRoomId();
+            }}
             title="Copy room code"
             className="ml-1 p-1 hover:bg-white/10 rounded-md text-neutral-400 hover:text-neutral-100 transition-colors cursor-pointer"
           >
             {copiedCode ? (
-              <Check className="w-3.5 h-3.5 text-emerald-400" />
+              <Check className="w-3.5 h-3.5 text-emerald-400 animate-in zoom-in duration-150" />
             ) : (
-              <Copy className="w-3.5 h-3.5" />
+              <Copy className="w-3.5 h-3.5 group-hover:text-white transition-colors" />
             )}
           </button>
         </div>
@@ -248,6 +255,14 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             {pingQuality === 'offline' ? 'Offline' : pingMs !== null ? `${pingMs}ms` : '...'}
           </span>
         </button>
+
+        {/* Peer Name Badge */}
+        {targetName && (
+          <div className="hidden lg:flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-neutral-900/60 border border-neutral-800 text-[11px] text-neutral-300">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+            <span className="font-medium truncate max-w-[100px]">{targetName}</span>
+          </div>
+        )}
       </div>
 
       {/* RIGHT SECTION: Primary Communication & Secondary Tools */}
@@ -632,10 +647,15 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                       onOpenPersonalNotes();
                       setMoreMenuOpen(false);
                     }}
-                    className="w-full px-3.5 py-2 text-left text-xs text-amber-300 hover:text-amber-200 hover:bg-white/10 flex items-center gap-2.5 transition-colors cursor-pointer"
+                    className="w-full px-3.5 py-2 text-left text-xs text-amber-300 hover:text-amber-200 hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer"
                   >
-                    <Bookmark className="w-4 h-4 text-amber-400" />
-                    <span>Encrypted Notes to Self (/notes)</span>
+                    <div className="flex items-center gap-2.5">
+                      <Bookmark className="w-4 h-4 text-amber-400" />
+                      <span>Encrypted Notes to Self</span>
+                    </div>
+                    <kbd className="text-[9px] font-mono px-1 py-0.5 rounded bg-neutral-800 text-neutral-400 border border-neutral-700">
+                      /notes
+                    </kbd>
                   </button>
                 )}
 
@@ -662,10 +682,15 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                       onOpenQuickReplies();
                       setMoreMenuOpen(false);
                     }}
-                    className="w-full px-3.5 py-2 text-left text-xs text-neutral-200 hover:text-white hover:bg-white/10 flex items-center gap-2.5 transition-colors cursor-pointer"
+                    className="w-full px-3.5 py-2 text-left text-xs text-neutral-200 hover:text-white hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer"
                   >
-                    <Zap className="w-4 h-4 text-amber-400" />
-                    <span>Quick Canned Replies & Templates</span>
+                    <div className="flex items-center gap-2.5">
+                      <Zap className="w-4 h-4 text-amber-400" />
+                      <span>Quick Canned Replies & Templates</span>
+                    </div>
+                    <kbd className="text-[9px] font-mono px-1 py-0.5 rounded bg-neutral-800 text-neutral-400 border border-neutral-700">
+                      /quick
+                    </kbd>
                   </button>
                 )}
 

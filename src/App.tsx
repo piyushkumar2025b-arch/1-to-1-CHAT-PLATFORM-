@@ -2878,7 +2878,9 @@ export default function App() {
       if (m.isDeleted) return false;
       const textMatch = (m.text || '').toLowerCase().includes(q);
       const isVoice = Boolean(m.file?.isVoice || m.file?.mimeType?.includes('audio'));
+      const isMedia = Boolean(m.file?.mimeType?.startsWith('image/') || m.file?.mimeType?.startsWith('video/'));
       const fileMatch = m.file && !isVoice ? (m.file.fileName || '').toLowerCase().includes(q) : false;
+      const mediaMatch = isMedia && (!q || (m.file?.fileName || '').toLowerCase().includes(q) || (m.text || '').toLowerCase().includes(q));
       const voiceMatch = isVoice && (!q || (m.text || '').toLowerCase().includes(q) || (m.file?.fileName || '').toLowerCase().includes(q));
       const links = m.text ? extractUrlsFromText(m.text) : [];
       const linkMatch = links.some(
@@ -2887,7 +2889,8 @@ export default function App() {
       const starredMatch = Boolean(m.isStarred) && (!q || textMatch || fileMatch || linkMatch);
 
       if (searchFilter === 'text') return q ? textMatch : true;
-      if (searchFilter === 'files') return q ? fileMatch : Boolean(m.file && !isVoice);
+      if (searchFilter === 'media') return mediaMatch;
+      if (searchFilter === 'files') return q ? fileMatch : Boolean(m.file && !isVoice && !isMedia);
       if (searchFilter === 'voice') return voiceMatch;
       if (searchFilter === 'links') return q ? linkMatch : links.length > 0;
       if (searchFilter === 'starred') return starredMatch;
@@ -3699,6 +3702,7 @@ export default function App() {
                     timeFormatPref={displaySettings.timeFormat}
                     fontFamilyPref={displaySettings.fontFamily}
                     bubbleCornerPref={displaySettings.bubbleRadius}
+                    showTimestamps={displaySettings.showTimestamps !== false}
                     speechEnabled={true}
                   />
                 );
@@ -3835,6 +3839,7 @@ export default function App() {
             onOpenQuickReplies={() => setQuickRepliesModalOpen(true)}
             onOpenPersonalNotes={() => setPersonalNotesModalOpen(true)}
             sendKeyPreference={displaySettings.sendKeyPreference}
+            showCharacterCount={displaySettings.showCharacterCount !== false}
             isDictating={isDictating}
             onToggleDictate={handleToggleVoiceDictation}
             voiceLiveTranscript={voiceLiveTranscript}

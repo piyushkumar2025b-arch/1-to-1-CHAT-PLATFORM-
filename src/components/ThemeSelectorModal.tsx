@@ -9,7 +9,19 @@ interface ThemeSelectorModalProps {
   onClose: () => void;
 }
 
-const ACCENT_OPTIONS = ['#f59e0b', '#06b6d4', '#f43f5e', '#10b981', '#38bdf8', '#a855f7', '#ef4444', '#ffffff'];
+const ACCENT_OPTIONS = [
+  '#f59e0b', // Amber
+  '#06b6d4', // Cyan
+  '#f43f5e', // Rose
+  '#10b981', // Emerald
+  '#2dd4bf', // Teal
+  '#38bdf8', // Sky
+  '#8b5cf6', // Violet
+  '#ec4899', // Pink
+  '#ef4444', // Red
+  '#e2e8f0', // Silver
+  '#ffffff', // White
+];
 
 export default function ThemeSelectorModal({
   currentTheme,
@@ -254,9 +266,12 @@ export default function ThemeSelectorModal({
                 </div>
 
                 {/* Accent Color Picker for Custom Theme */}
-                <div className="space-y-1.5">
-                  <label className="text-xs text-neutral-300 block">Accent Color</label>
-                  <div className="flex items-center gap-2">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs text-neutral-300 block">Accent Color</label>
+                    <span className="text-[11px] font-mono text-neutral-400 uppercase">{customAccent}</span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
                     {ACCENT_OPTIONS.map((color) => (
                       <button
                         key={color}
@@ -264,14 +279,27 @@ export default function ThemeSelectorModal({
                         onClick={() => handleUpdateCustomSettings(customDim, color)}
                         style={{ backgroundColor: color }}
                         className={`w-7 h-7 rounded-full transition-transform cursor-pointer flex items-center justify-center ${
-                          customAccent === color ? 'scale-115 ring-2 ring-white' : 'hover:scale-105'
+                          customAccent.toLowerCase() === color.toLowerCase() ? 'scale-115 ring-2 ring-white shadow-md' : 'hover:scale-105 opacity-85 hover:opacity-100'
                         }`}
                       >
-                        {customAccent === color && (
-                          <Check className="w-3.5 h-3.5 text-black stroke-[3]" />
+                        {customAccent.toLowerCase() === color.toLowerCase() && (
+                          <Check className={`w-3.5 h-3.5 stroke-[3] ${['#ffffff', '#e2e8f0', '#2dd4bf', '#38bdf8'].includes(color.toLowerCase()) ? 'text-black' : 'text-white'}`} />
                         )}
                       </button>
                     ))}
+                    {/* Custom HTML color picker */}
+                    <label
+                      title="Custom color hex"
+                      className="w-7 h-7 rounded-full border border-neutral-700 bg-neutral-800 hover:border-neutral-500 cursor-pointer flex items-center justify-center overflow-hidden relative"
+                    >
+                      <input
+                        type="color"
+                        value={customAccent.startsWith('#') ? customAccent : '#f59e0b'}
+                        onChange={(e) => handleUpdateCustomSettings(customDim, e.target.value)}
+                        className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+                      />
+                      <span className="text-[10px] font-bold text-neutral-300">+</span>
+                    </label>
                   </div>
                 </div>
               </div>

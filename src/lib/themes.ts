@@ -133,6 +133,30 @@ export const PRESET_THEMES: ChatTheme[] = [
     peerBubbleStyle: 'bg-[#062914] text-green-200 border border-green-800/50 font-mono',
     previewColor: 'from-[#020d06] via-[#041d0e] to-green-950 border-green-500/60',
   },
+  {
+    id: 'aurora',
+    name: 'Aurora Borealis',
+    type: 'preset',
+    accentColor: '#2dd4bf',
+    bgStyle: 'bg-[#041316] text-teal-100',
+    headerStyle: 'bg-[#082026]/90 border-teal-900/40 text-teal-200',
+    inputStyle: 'bg-[#082026]/90 border-teal-900/40 text-teal-100',
+    myBubbleStyle: 'bg-gradient-to-r from-teal-500 via-emerald-500 to-cyan-500 text-neutral-950 font-semibold shadow-teal-950/60 shadow-md',
+    peerBubbleStyle: 'bg-[#0c2a33] text-teal-100 border border-teal-800/40',
+    previewColor: 'from-[#041316] via-[#082026] to-teal-900 border-teal-400/50',
+  },
+  {
+    id: 'obsidian',
+    name: 'OLED Pure Obsidian',
+    type: 'preset',
+    accentColor: '#e2e8f0',
+    bgStyle: 'bg-black text-neutral-100',
+    headerStyle: 'bg-black/95 border-neutral-850 text-neutral-200',
+    inputStyle: 'bg-black/95 border-neutral-850 text-neutral-100',
+    myBubbleStyle: 'bg-neutral-200 text-neutral-950 font-semibold shadow-xs',
+    peerBubbleStyle: 'bg-[#0d0d0d] text-neutral-200 border border-neutral-800',
+    previewColor: 'from-black via-[#0a0a0a] to-[#141414] border-neutral-700/60',
+  },
 ];
 
 export const DEFAULT_THEME = PRESET_THEMES[0];

@@ -11,8 +11,10 @@ import {
   FileText,
   Mic,
   MessageSquare,
+  Download,
 } from 'lucide-react';
 import { ChatMessage } from '../types';
+import { triggerBlobDownload } from '../lib/file-compression';
 
 interface StarredMessagesModalProps {
   isOpen: boolean;
@@ -31,10 +33,17 @@ export const StarredMessagesModal: React.FC<StarredMessagesModalProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [filterType, setFilterType] = useState<'all' | 'text' | 'media' | 'links'>('all');
 
   if (!isOpen) return null;
 
   const filteredMessages = starredMessages.filter((msg) => {
+    // Type filtering
+    if (filterType === 'media' && !msg.file) return false;
+    if (filterType === 'links' && (!msg.text || !/https?:\/\/[^\s]+/i.test(msg.text))) return false;
+    if (filterType === 'text' && (!msg.text || msg.file)) return false;
+
+    // Search filtering
     if (!searchQuery.trim()) return true;
     const query = searchQuery.toLowerCase();
     const textMatch = msg.text?.toLowerCase().includes(query);
@@ -50,6 +59,32 @@ export const StarredMessagesModal: React.FC<StarredMessagesModalProps> = ({
       setCopiedId(msg.id);
       setTimeout(() => setCopiedId(null), 2000);
     });
+  };
+
+  const handleExportStarred = () => {
+    if (starredMessages.length === 0) return;
+    const lines = [
+      '# Starred Messages Export',
+      `Exported: ${new Date().toLocaleString()}`,
+      `Total Bookmarks: ${starredMessages.length}`,
+      '----------------------------------------\n',
+    ];
+
+    starredMessages.forEach((msg, idx) => {
+      const timeStr = msg.time || (msg.createdAt ? new Date(msg.createdAt).toLocaleString() : 'Unknown time');
+      const senderStr = msg.sender === 'me' ? 'You' : 'Peer';
+      lines.push(`[#${idx + 1}] ${senderStr} (${timeStr}):`);
+      if (msg.text) {
+        lines.push(msg.text);
+      }
+      if (msg.file) {
+        lines.push(`[Attachment: ${msg.file.fileName} - ${(msg.file.fileSize / 1024).toFixed(1)} KB]`);
+      }
+      lines.push('\n');
+    });
+
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+    triggerBlobDownload(blob, `starred-messages-${new Date().toISOString().slice(0, 10)}.txt`);
   };
 
   return (
@@ -79,18 +114,31 @@ export const StarredMessagesModal: React.FC<StarredMessagesModalProps> = ({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            {starredMessages.length > 0 && (
+              <button
+                type="button"
+                onClick={handleExportStarred}
+                title="Export all starred messages to a text file"
+                className="px-2.5 py-1 text-xs rounded-lg bg-neutral-800 hover:bg-neutral-700 text-amber-300 hover:text-amber-200 border border-neutral-700 flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Export</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
-        {/* Search Bar */}
+        {/* Search Bar & Category Filter */}
         {starredMessages.length > 0 && (
-          <div className="p-3 border-b border-neutral-800/80 bg-neutral-900/50">
+          <div className="p-3 border-b border-neutral-800/80 bg-neutral-900/50 space-y-2">
             <div className="relative">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
               <input
@@ -109,6 +157,30 @@ export const StarredMessagesModal: React.FC<StarredMessagesModalProps> = ({
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
+            </div>
+
+            <div className="flex items-center gap-1.5 overflow-x-auto text-[11px]">
+              {(
+                [
+                  { id: 'all', label: 'All Items' },
+                  { id: 'text', label: 'Text Messages' },
+                  { id: 'media', label: 'Attachments & Files' },
+                  { id: 'links', label: 'Links & URLs' },
+                ] as const
+              ).map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setFilterType(tab.id)}
+                  className={`px-2.5 py-1 rounded-lg font-medium transition-colors cursor-pointer shrink-0 ${
+                    filterType === tab.id
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                      : 'bg-neutral-800/60 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </div>
           </div>
         )}

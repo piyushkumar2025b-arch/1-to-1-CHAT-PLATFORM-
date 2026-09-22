@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Zap, Plus, Trash2, Send, CornerDownLeft, Sparkles } from 'lucide-react';
+import { X, Zap, Plus, Trash2, Send, CornerDownLeft, Sparkles, Search } from 'lucide-react';
 import {
   QuickReplyItem,
   getAllQuickReplies,
@@ -21,6 +21,7 @@ export function QuickRepliesModal({
   accentColor = '#f59e0b',
 }: QuickRepliesModalProps) {
   const [replies, setReplies] = useState<QuickReplyItem[]>(() => getAllQuickReplies());
+  const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState<'all' | 'status' | 'actions' | 'privacy' | 'custom'>('all');
   const [isCreating, setIsCreating] = useState(false);
   const [newTitle, setNewTitle] = useState('');
@@ -56,11 +57,17 @@ export function QuickRepliesModal({
     setReplies(getAllQuickReplies());
   };
 
-  const filtered = replies.filter((item) => {
-    if (filterCategory === 'all') return true;
-    if (filterCategory === 'custom') return item.isCustom;
-    return item.category === filterCategory;
-  });
+  const filtered = replies
+    .filter((item) => {
+      if (filterCategory === 'all') return true;
+      if (filterCategory === 'custom') return item.isCustom;
+      return item.category === filterCategory;
+    })
+    .filter((item) => {
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      return item.title.toLowerCase().includes(q) || item.text.toLowerCase().includes(q);
+    });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-150">
@@ -99,6 +106,29 @@ export function QuickRepliesModal({
           >
             <X className="w-4 h-4" />
           </button>
+        </div>
+
+        {/* Search Bar */}
+        <div className="px-4 py-2 border-b border-neutral-800 bg-neutral-950/60">
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search canned replies and shortcuts..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-8 pr-7 py-1.5 bg-neutral-900 border border-neutral-800 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-500/60 transition-colors"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white p-0.5"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Categories Bar */}

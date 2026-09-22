@@ -60,6 +60,7 @@ export interface ChatMessageItemProps {
   timeFormatPref?: '12h' | '24h';
   fontFamilyPref?: 'sans' | 'mono' | 'serif' | 'system';
   bubbleCornerPref?: 'modern' | 'rounded' | 'sharp' | 'chatty';
+  showTimestamps?: boolean;
   onSpeakMessage?: (messageId: string, text: string) => void;
   isSpeakingThisMessage?: boolean;
 }
@@ -102,6 +103,7 @@ export const ChatMessageItem = memo<ChatMessageItemProps>(
     timeFormatPref = '12h',
     fontFamilyPref = 'sans',
     bubbleCornerPref = 'modern',
+    showTimestamps = true,
     onSpeakMessage,
     isSpeakingThisMessage = false,
   }) => {
@@ -445,9 +447,9 @@ export const ChatMessageItem = memo<ChatMessageItemProps>(
           )}
 
           {/* Timestamp, Ephemeral countdown & Delivery status */}
-          {(formattedTime || msg.expiresAt || msg.isEdited) && (
+          {((formattedTime && showTimestamps) || msg.expiresAt || msg.isEdited) && (
             <div className="flex items-center gap-1.5 mt-1 px-1 flex-wrap">
-              {formattedTime && (
+              {formattedTime && showTimestamps && (
                 <button
                   type="button"
                   onClick={() => onShowMessageDetails(msg)}

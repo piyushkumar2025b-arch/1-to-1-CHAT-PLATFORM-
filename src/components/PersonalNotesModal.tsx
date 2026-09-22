@@ -15,7 +15,9 @@ import {
   Clock,
   Sparkles,
   StickyNote,
+  Download,
 } from 'lucide-react';
+import { triggerBlobDownload } from '../lib/file-compression';
 import {
   PersonalNote,
   getPersonalNotes,
@@ -110,6 +112,31 @@ export function PersonalNotesModal({
     }
   };
 
+  const handleExportNotes = () => {
+    if (notes.length === 0) return;
+    const lines = [
+      '# Encrypted Notes to Self - Export',
+      `Exported: ${new Date().toLocaleString()}`,
+      `Total Notes: ${notes.length}`,
+      '----------------------------------------\n',
+    ];
+
+    notes.forEach((note, idx) => {
+      const dateStr = new Date(note.updatedAt).toLocaleString();
+      const pinStr = note.isPinned ? '[PINNED] ' : '';
+      const todoStr = note.isTodo ? (note.completed ? '[DONE] ' : '[TODO] ') : '';
+      lines.push(`--- Note #${idx + 1} ${pinStr}${todoStr}---`);
+      if (note.title) {
+        lines.push(`Title: ${note.title}`);
+      }
+      lines.push(`Date: ${dateStr}`);
+      lines.push(`Content:\n${note.content}\n`);
+    });
+
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+    triggerBlobDownload(blob, `my-notes-${new Date().toISOString().slice(0, 10)}.txt`);
+  };
+
   const filteredNotes = notes
     .filter((note) => {
       if (filter === 'pinned') return note.isPinned;
@@ -168,6 +195,18 @@ export function PersonalNotesModal({
           </div>
 
           <div className="flex items-center gap-2">
+            {notes.length > 0 && !isCreating && (
+              <button
+                type="button"
+                id="notes-export-btn"
+                onClick={handleExportNotes}
+                title="Export all notes to a text file"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-neutral-300 hover:text-white bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 transition-colors cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden sm:inline">Export</span>
+              </button>
+            )}
             {!isCreating && (
               <button
                 type="button"

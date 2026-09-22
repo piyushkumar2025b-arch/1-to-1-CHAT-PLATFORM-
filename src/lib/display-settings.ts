@@ -13,6 +13,8 @@ export interface DisplaySettings {
   sendKeyPreference?: SendKeyPreference;
   bubbleRadius?: BubbleRadiusPreference;
   fontFamily?: FontFamilyPreference;
+  showTimestamps?: boolean;
+  showCharacterCount?: boolean;
 }
 
 export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
@@ -23,6 +25,8 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   sendKeyPreference: 'enter',
   bubbleRadius: 'modern',
   fontFamily: 'sans',
+  showTimestamps: true,
+  showCharacterCount: true,
 };
 
 const STORAGE_KEY = 'private_chat_display_settings';
@@ -51,6 +55,8 @@ export function getSavedDisplaySettings(): DisplaySettings {
       sendKeyPreference: resolvedSendKey,
       bubbleRadius: resolvedBubbleRadius,
       fontFamily: resolvedFontFamily,
+      showTimestamps: parsed.showTimestamps !== undefined ? Boolean(parsed.showTimestamps) : true,
+      showCharacterCount: parsed.showCharacterCount !== undefined ? Boolean(parsed.showCharacterCount) : true,
     };
   } catch {
     return DEFAULT_DISPLAY_SETTINGS;
