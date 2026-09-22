@@ -8,7 +8,9 @@ import {
   Highlighter,
   Eraser,
   Palette,
+  Download,
 } from 'lucide-react';
+import { triggerBlobDownload } from '../lib/file-compression';
 
 interface QuickDrawModalProps {
   isOpen: boolean;
@@ -195,6 +197,16 @@ export const QuickDrawModal: React.FC<QuickDrawModalProps> = ({
     }, 'image/png');
   };
 
+  const handleDownloadDoodle = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      triggerBlobDownload(blob, `sketch-${Date.now()}.png`);
+    }, 'image/png');
+  };
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
@@ -302,11 +314,25 @@ export const QuickDrawModal: React.FC<QuickDrawModalProps> = ({
                   onClick={() => setSelectedColor(c)}
                   style={{ backgroundColor: c }}
                   className={`w-5 h-5 rounded-full transition-transform cursor-pointer ${
-                    selectedColor === c ? 'scale-125 ring-2 ring-white shadow-xs' : 'opacity-80 hover:opacity-100'
+                    selectedColor.toLowerCase() === c.toLowerCase() ? 'scale-125 ring-2 ring-white shadow-xs' : 'opacity-80 hover:opacity-100'
                   }`}
                   title={c}
                 />
               ))}
+
+              {/* Custom Color Input */}
+              <label
+                className="w-5 h-5 rounded-full border border-dashed border-neutral-600 hover:border-white flex items-center justify-center cursor-pointer transition-colors relative overflow-hidden shrink-0"
+                title="Custom color picker"
+              >
+                <input
+                  type="color"
+                  value={selectedColor}
+                  onChange={(e) => setSelectedColor(e.target.value)}
+                  className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+                />
+                <Palette className="w-3 h-3 text-neutral-400" />
+              </label>
             </div>
           )}
 
@@ -352,6 +378,15 @@ export const QuickDrawModal: React.FC<QuickDrawModalProps> = ({
             Encrypted zero-knowledge canvas transmission
           </span>
           <div className="flex items-center gap-2.5 ml-auto">
+            <button
+              type="button"
+              onClick={handleDownloadDoodle}
+              title="Save sketch to your device as PNG"
+              className="px-3 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white transition-colors cursor-pointer flex items-center gap-1.5"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Save Image</span>
+            </button>
             <button
               type="button"
               onClick={onClose}

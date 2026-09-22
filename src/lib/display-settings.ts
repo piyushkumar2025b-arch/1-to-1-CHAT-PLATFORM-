@@ -15,6 +15,7 @@ export interface DisplaySettings {
   fontFamily?: FontFamilyPreference;
   showTimestamps?: boolean;
   showCharacterCount?: boolean;
+  showWordCount?: boolean;
 }
 
 export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
@@ -27,6 +28,7 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   fontFamily: 'sans',
   showTimestamps: true,
   showCharacterCount: true,
+  showWordCount: true,
 };
 
 const STORAGE_KEY = 'private_chat_display_settings';
@@ -57,6 +59,7 @@ export function getSavedDisplaySettings(): DisplaySettings {
       fontFamily: resolvedFontFamily,
       showTimestamps: parsed.showTimestamps !== undefined ? Boolean(parsed.showTimestamps) : true,
       showCharacterCount: parsed.showCharacterCount !== undefined ? Boolean(parsed.showCharacterCount) : true,
+      showWordCount: parsed.showWordCount !== undefined ? Boolean(parsed.showWordCount) : true,
     };
   } catch {
     return DEFAULT_DISPLAY_SETTINGS;

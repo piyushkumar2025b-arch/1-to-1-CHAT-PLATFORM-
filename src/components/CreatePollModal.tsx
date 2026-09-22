@@ -128,6 +128,38 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
             </div>
           )}
 
+          {/* Quick Preset Templates */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-medium text-neutral-400 flex items-center justify-between">
+              <span>Quick Templates</span>
+              <span className="text-[10px] text-neutral-500">Click to autofill</span>
+            </label>
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+              {[
+                { title: 'Yes / No', q: 'Do you agree with this proposal?', opts: ['Yes, definitely', 'No, disagree', 'Need more details'], multi: false },
+                { title: 'Rating (1-5)', q: 'How would you rate this work?', opts: ['⭐ Excellent (5/5)', '👍 Good (4/5)', '😐 Neutral (3/5)', '👎 Needs Work (1-2/5)'], multi: false },
+                { title: 'Meeting Time', q: 'When are you free for a synced call?', opts: ['Morning (9am - 12pm)', 'Afternoon (1pm - 5pm)', 'Evening (after 6pm)', 'Tomorrow'], multi: true },
+                { title: 'Deployment', q: 'Ready to proceed with deployment?', opts: ['Ship now 🚀', 'Wait for tests ⏳', 'Block/Hold 🛑'], multi: false },
+                { title: 'Food & Dining', q: 'What cuisine should we get?', opts: ['Pizza & Pasta 🍕', 'Burgers & Fries 🍔', 'Sushi & Japanese 🍣', 'Tacos & Mexican 🌮'], multi: true },
+                { title: 'Priority Level', q: 'What priority should this task have?', opts: ['🔥 P0 - Blocker', '⚡ P1 - High Priority', '⏳ P2 - Normal Backlog'], multi: false },
+              ].map((template) => (
+                <button
+                  key={template.title}
+                  type="button"
+                  onClick={() => {
+                    setQuestion(template.q);
+                    setOptions(template.opts);
+                    setAllowMultiple(template.multi);
+                    if (error) setError('');
+                  }}
+                  className="px-2.5 py-1 rounded-lg text-[11px] bg-neutral-800/80 hover:bg-neutral-750 text-neutral-300 hover:text-white border border-neutral-700/60 transition-colors whitespace-nowrap cursor-pointer"
+                >
+                  {template.title}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Question Input */}
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-neutral-300 flex items-center gap-1.5">

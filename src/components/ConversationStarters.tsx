@@ -1,10 +1,12 @@
 import React from 'react';
-import { Hand, ShieldCheck, Mic, Image, Sparkles } from 'lucide-react';
+import { Hand, ShieldCheck, Mic, Image, Sparkles, BarChart2, PenTool } from 'lucide-react';
 
 interface ConversationStartersProps {
   onSendMessage: (text: string) => void;
   onOpenVoice: () => void;
   onOpenFile: () => void;
+  onOpenPoll?: () => void;
+  onOpenDraw?: () => void;
   accentColor?: string;
 }
 
@@ -12,6 +14,8 @@ export default function ConversationStarters({
   onSendMessage,
   onOpenVoice,
   onOpenFile,
+  onOpenPoll,
+  onOpenDraw,
   accentColor = '#f59e0b',
 }: ConversationStartersProps) {
   return (
@@ -87,6 +91,38 @@ export default function ConversationStarters({
             <div className="text-[10px] text-neutral-400">Send files or pics</div>
           </div>
         </button>
+
+        {onOpenPoll && (
+          <button
+            type="button"
+            onClick={onOpenPoll}
+            className="flex items-center gap-2 p-2.5 rounded-xl bg-neutral-900/90 hover:bg-neutral-800 border border-neutral-800 text-xs text-left text-neutral-200 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer group"
+          >
+            <div className="w-7 h-7 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0 group-hover:scale-110 transition-transform">
+              <BarChart2 className="w-3.5 h-3.5" />
+            </div>
+            <div>
+              <div className="font-semibold text-neutral-200">Create Poll</div>
+              <div className="text-[10px] text-neutral-400">Vote on options</div>
+            </div>
+          </button>
+        )}
+
+        {onOpenDraw && (
+          <button
+            type="button"
+            onClick={onOpenDraw}
+            className="flex items-center gap-2 p-2.5 rounded-xl bg-neutral-900/90 hover:bg-neutral-800 border border-neutral-800 text-xs text-left text-neutral-200 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer group"
+          >
+            <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0 group-hover:scale-110 transition-transform">
+              <PenTool className="w-3.5 h-3.5" />
+            </div>
+            <div>
+              <div className="font-semibold text-neutral-200">Quick Sketch</div>
+              <div className="text-[10px] text-neutral-400">Draw doodle & send</div>
+            </div>
+          </button>
+        )}
       </div>
     </div>
   );

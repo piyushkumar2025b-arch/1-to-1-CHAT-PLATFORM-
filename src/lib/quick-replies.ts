@@ -55,6 +55,30 @@ export const DEFAULT_QUICK_REPLIES: QuickReplyItem[] = [
     text: '🚶 Stepping away from keyboard for a few minutes.',
     category: 'status',
   },
+  {
+    id: 'qr-9',
+    title: 'Burn after reading',
+    text: '🔥 Please view this and burn/clear when done.',
+    category: 'privacy',
+  },
+  {
+    id: 'qr-10',
+    title: 'All done & tested',
+    text: '✅ All changes tested, verified, and ready to go!',
+    category: 'actions',
+  },
+  {
+    id: 'qr-11',
+    title: 'Vote on the poll',
+    text: '📊 I just launched a quick poll above, please vote your choice!',
+    category: 'actions',
+  },
+  {
+    id: 'qr-12',
+    title: 'Zero logs policy',
+    text: '🛡️ Reminder: this session is peer-to-peer encrypted with zero server logs.',
+    category: 'privacy',
+  },
 ];
 
 const STORAGE_KEY = 'private_chat_custom_quick_replies';

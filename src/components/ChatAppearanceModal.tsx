@@ -319,8 +319,8 @@ export function ChatAppearanceModal({
                 className="w-full p-2.5 rounded-xl border border-neutral-800 bg-neutral-950/40 hover:bg-white/5 transition-all text-left flex items-center justify-between cursor-pointer"
               >
                 <div>
-                  <div className="text-xs font-bold text-neutral-200">Live Word & Character Counter</div>
-                  <div className="text-[10px] text-neutral-400">Show live count and stats below the input bar</div>
+                  <div className="text-xs font-bold text-neutral-200">Live Character Counter</div>
+                  <div className="text-[10px] text-neutral-400">Show character counter below the input bar</div>
                 </div>
                 <div
                   className={`w-8 h-4.5 rounded-full transition-colors relative flex items-center p-0.5 ${
@@ -330,6 +330,28 @@ export function ChatAppearanceModal({
                   <div
                     className={`w-3.5 h-3.5 rounded-full bg-white transition-transform ${
                       draft.showCharacterCount !== false ? 'translate-x-3.5' : 'translate-x-0'
+                    }`}
+                  />
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleChange('showWordCount', draft.showWordCount !== false ? false : true)}
+                className="w-full p-2.5 rounded-xl border border-neutral-800 bg-neutral-950/40 hover:bg-white/5 transition-all text-left flex items-center justify-between cursor-pointer"
+              >
+                <div>
+                  <div className="text-xs font-bold text-neutral-200">Live Word Counter</div>
+                  <div className="text-[10px] text-neutral-400">Show live word count statistic below the input bar</div>
+                </div>
+                <div
+                  className={`w-8 h-4.5 rounded-full transition-colors relative flex items-center p-0.5 ${
+                    draft.showWordCount !== false ? 'bg-amber-500' : 'bg-neutral-700'
+                  }`}
+                >
+                  <div
+                    className={`w-3.5 h-3.5 rounded-full bg-white transition-transform ${
+                      draft.showWordCount !== false ? 'translate-x-3.5' : 'translate-x-0'
                     }`}
                   />
                 </div>

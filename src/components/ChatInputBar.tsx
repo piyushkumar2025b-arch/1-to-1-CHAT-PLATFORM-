@@ -67,6 +67,7 @@ export interface ChatInputBarProps {
   onOpenPersonalNotes?: () => void;
   sendKeyPreference?: 'enter' | 'ctrl_enter';
   showCharacterCount?: boolean;
+  showWordCount?: boolean;
   isDictating?: boolean;
   onToggleDictate?: () => void;
   voiceLiveTranscript?: string;
@@ -118,6 +119,7 @@ export const ChatInputBar = memo<ChatInputBarProps>(
     onOpenPersonalNotes,
     sendKeyPreference = 'enter',
     showCharacterCount = true,
+    showWordCount = true,
     isDictating = false,
     onToggleDictate,
     voiceLiveTranscript,
@@ -748,14 +750,18 @@ export const ChatInputBar = memo<ChatInputBarProps>(
             </form>
 
             {/* Live Word & Character Counter Indicator */}
-            {inputText.length > 0 && showCharacterCount && (
+            {inputText.length > 0 && (showCharacterCount || showWordCount) && (
               <div className="flex items-center justify-between px-3 py-1 mt-1 text-[10px] text-neutral-400 select-none animate-in fade-in duration-100">
                 <span className="flex items-center gap-1.5 font-mono">
-                  <span className={inputText.length > 2000 ? 'text-amber-400 font-semibold' : ''}>
-                    {inputText.length} chars
-                  </span>
-                  <span>•</span>
-                  <span>{inputText.trim() ? inputText.trim().split(/\s+/).length : 0} words</span>
+                  {showCharacterCount && (
+                    <span className={inputText.length > 2000 ? 'text-amber-400 font-semibold' : ''}>
+                      {inputText.length} chars
+                    </span>
+                  )}
+                  {showCharacterCount && showWordCount && <span>•</span>}
+                  {showWordCount && (
+                    <span>{inputText.trim() ? inputText.trim().split(/\s+/).length : 0} words</span>
+                  )}
                 </span>
                 <span className="text-[10px] text-neutral-500 hidden sm:inline font-mono">
                   {sendKeyPreference === 'ctrl_enter'

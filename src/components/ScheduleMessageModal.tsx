@@ -19,9 +19,11 @@ interface ScheduleMessageModalProps {
 const PRESET_DELAYS = [
   { label: 'In 1 minute', ms: 1 * 60 * 1000 },
   { label: 'In 5 minutes', ms: 5 * 60 * 1000 },
+  { label: 'In 10 minutes', ms: 10 * 60 * 1000 },
   { label: 'In 15 minutes', ms: 15 * 60 * 1000 },
   { label: 'In 30 minutes', ms: 30 * 60 * 1000 },
   { label: 'In 1 hour', ms: 60 * 60 * 1000 },
+  { label: 'In 2 hours', ms: 120 * 60 * 1000 },
   { label: 'In 3 hours', ms: 3 * 60 * 60 * 1000 },
 ];
 

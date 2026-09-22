@@ -3557,6 +3557,8 @@ export default function App() {
                   onSendMessage={(text) => handleSendMessage(undefined, text)}
                   onOpenVoice={handleStartVoiceRecording}
                   onOpenFile={() => fileInputRef.current?.click()}
+                  onOpenPoll={() => setCreatePollModalOpen(true)}
+                  onOpenDraw={() => setQuickDrawModalOpen(true)}
                   accentColor={currentTheme.accentColor}
                 />
               ) : (
@@ -3840,6 +3842,7 @@ export default function App() {
             onOpenPersonalNotes={() => setPersonalNotesModalOpen(true)}
             sendKeyPreference={displaySettings.sendKeyPreference}
             showCharacterCount={displaySettings.showCharacterCount !== false}
+            showWordCount={displaySettings.showWordCount !== false}
             isDictating={isDictating}
             onToggleDictate={handleToggleVoiceDictation}
             voiceLiveTranscript={voiceLiveTranscript}
