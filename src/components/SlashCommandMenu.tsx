@@ -25,6 +25,7 @@ import {
   Sparkles,
   Timer,
   ListTodo,
+  Radio,
 } from 'lucide-react';
 
 export interface SlashCommand {
@@ -111,6 +112,30 @@ export function SlashCommandMenu({
       alias: '/checklist',
       description: 'Insert interactive collaborative checklist card',
       icon: <ListTodo className="w-4 h-4 text-emerald-400" />,
+      category: 'Tools',
+    },
+    {
+      id: 'shield',
+      name: '/shield',
+      alias: '/mask',
+      description: 'Open Acoustic Privacy Shield (Audio speech jamming & noise masking)',
+      icon: <Radio className="w-4 h-4 text-amber-400" />,
+      category: 'Tools',
+    },
+    {
+      id: 'shred',
+      name: '/shred',
+      alias: '/wipe',
+      description: 'Open Digital File Shredder (DoD 5220.22-M sanitization & certificate)',
+      icon: <Trash2 className="w-4 h-4 text-rose-400" />,
+      category: 'Tools',
+    },
+    {
+      id: 'pick',
+      name: '/pick',
+      alias: '/choose',
+      description: 'Insert interactive CSPRNG decision picker card (e.g. /pick Red, Blue)',
+      icon: <Dices className="w-4 h-4 text-amber-300" />,
       category: 'Tools',
     },
     {

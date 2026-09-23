@@ -7,6 +7,8 @@ import { EncryptedMessageCapsule } from './EncryptedMessageCapsule';
 import { CountdownTimerCard } from './CountdownTimerCard';
 import { BurnOnReadCapsule } from './BurnOnReadCapsule';
 import { ChecklistCard } from './ChecklistCard';
+import { ChoicePickerCard } from './ChoicePickerCard';
+import { ShreddedFileReceiptCard } from './ShreddedFileReceiptCard';
 import { hasSteganography } from '../lib/steganography';
 
 interface MessageContentRendererProps {
@@ -271,6 +273,39 @@ export function MessageContentRenderer({
         accentColor={accentColor}
       />
     );
+  }
+
+  // Check for Certified File Shred Receipt: 🛡️ [SHREDDED:fileName:fileSize:hash:standard]
+  const shredMatch = trimmed.match(/^🛡️?\s*\[SHREDDED:([^:]+):([^:]+):([^:]+):([^\]]+)\]$/i);
+  if (shredMatch) {
+    return (
+      <ShreddedFileReceiptCard
+        fileName={shredMatch[1].trim()}
+        fileSize={shredMatch[2].trim()}
+        originalHash={shredMatch[3].trim()}
+        wipeStandard={shredMatch[4].trim()}
+        accentColor={accentColor}
+      />
+    );
+  }
+
+  // Check for Choice Decision Picker: [CHOICE:Option1, Option2, Option3] or [CHOICE:Title:Option1, Option2]
+  const choiceMatch = trimmed.match(/^(?:🎲\s*)?\[CHOICE:(?:([^:]+):)?([^\]]+)\]$/i);
+  if (choiceMatch) {
+    const title = choiceMatch[1]?.trim() || 'Decision Picker';
+    const options = choiceMatch[2]
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (options.length > 0) {
+      return (
+        <ChoicePickerCard
+          title={title}
+          options={options}
+          accentColor={accentColor}
+        />
+      );
+    }
   }
 
   // Check for AES-256 encrypted payload

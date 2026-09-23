@@ -38,6 +38,8 @@ import {
   Sliders,
   Bookmark,
   KeyRound,
+  Radio,
+  Trash2,
 } from 'lucide-react';
 import { ConnectionState, ChatTheme, EphemeralTimerOption } from '../types';
 
@@ -96,6 +98,8 @@ interface ChatHeaderProps {
   onOpenPasswordGenerator?: () => void;
   onOpenBurnOnRead?: () => void;
   onOpenSteganography?: () => void;
+  onOpenAcousticShield?: () => void;
+  onOpenFileShredder?: () => void;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -153,6 +157,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   onOpenPasswordGenerator,
   onOpenBurnOnRead,
   onOpenSteganography,
+  onOpenAcousticShield,
+  onOpenFileShredder,
 }) => {
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -747,6 +753,48 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                     </div>
                     <kbd className="text-[9px] font-mono px-1 py-0.5 rounded bg-neutral-800 text-neutral-400 border border-neutral-700">
                       /stego
+                    </kbd>
+                  </button>
+                )}
+
+                {/* Acoustic Privacy Shield */}
+                {onOpenAcousticShield && (
+                  <button
+                    type="button"
+                    id="header-acoustic-shield-btn"
+                    onClick={() => {
+                      onOpenAcousticShield();
+                      setMoreMenuOpen(false);
+                    }}
+                    className="w-full px-3.5 py-2 text-left text-xs text-neutral-200 hover:text-white hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Radio className="w-4 h-4 text-amber-400" />
+                      <span>Acoustic Privacy Shield</span>
+                    </div>
+                    <kbd className="text-[9px] font-mono px-1 py-0.5 rounded bg-neutral-800 text-neutral-400 border border-neutral-700">
+                      /shield
+                    </kbd>
+                  </button>
+                )}
+
+                {/* Digital File Shredder */}
+                {onOpenFileShredder && (
+                  <button
+                    type="button"
+                    id="header-file-shredder-btn"
+                    onClick={() => {
+                      onOpenFileShredder();
+                      setMoreMenuOpen(false);
+                    }}
+                    className="w-full px-3.5 py-2 text-left text-xs text-neutral-200 hover:text-white hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Trash2 className="w-4 h-4 text-rose-400" />
+                      <span>Digital File Shredder</span>
+                    </div>
+                    <kbd className="text-[9px] font-mono px-1 py-0.5 rounded bg-neutral-800 text-neutral-400 border border-neutral-700">
+                      /shred
                     </kbd>
                   </button>
                 )}

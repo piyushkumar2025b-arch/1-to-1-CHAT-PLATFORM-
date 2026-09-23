@@ -105,6 +105,8 @@ import { CryptoCipherModal } from './components/CryptoCipherModal';
 import { PasswordGeneratorModal } from './components/PasswordGeneratorModal';
 import { BurnOnReadModal } from './components/BurnOnReadModal';
 import { SteganographyModal } from './components/SteganographyModal';
+import { AcousticShieldModal } from './components/AcousticShieldModal';
+import { FileShredderModal } from './components/FileShredderModal';
 import { addPersonalNote } from './lib/personal-notes';
 import { getDisplaySettings, saveDisplaySettings, DisplaySettings } from './lib/display-settings';
 import { stopSpeaking } from './lib/text-to-speech';
@@ -356,6 +358,8 @@ export default function App() {
   const [burnOnReadModalOpen, setBurnOnReadModalOpen] = useState(false);
   const [steganographyModalOpen, setSteganographyModalOpen] = useState(false);
   const [steganographyInspectText, setSteganographyInspectText] = useState('');
+  const [acousticShieldModalOpen, setAcousticShieldModalOpen] = useState(false);
+  const [fileShredderModalOpen, setFileShredderModalOpen] = useState(false);
 
   const handleSaveToNotes = useCallback((msg: ChatMessage) => {
     const textContent = msg.text || (msg.file ? `[File Attachment: ${msg.file.fileName}]` : '');
@@ -2585,6 +2589,26 @@ export default function App() {
         setInputText('📋 [CHECKLIST:Checklist:Review updates, Test endpoints, Confirm sync]');
       }
       textareaRef.current?.focus();
+    } else if (cmd.id === 'shield') {
+      setAcousticShieldModalOpen(true);
+      setInputText('');
+    } else if (cmd.id === 'shred') {
+      setFileShredderModalOpen(true);
+      setInputText('');
+    } else if (cmd.id === 'pick') {
+      const match = inputText.match(/^\/(?:pick|choose)(?:\s+(.+))?$/i);
+      if (match && match[1]?.trim()) {
+        const raw = match[1].trim();
+        const items = raw.split(',').map((s) => s.trim()).filter(Boolean);
+        if (items.length > 0) {
+          setInputText(`🎲 [CHOICE:Quick Decision:${items.join(', ')}]`);
+        } else {
+          setInputText(`🎲 [CHOICE:Decision:${raw}]`);
+        }
+      } else {
+        setInputText('🎲 [CHOICE:Decision Picker:Option Alpha, Option Beta, Option Gamma]');
+      }
+      textareaRef.current?.focus();
     } else if (cmd.id === 'timer') {
       const match = inputText.match(/^\/(?:timer|countdown)(?:\s+(\d+))?(?:\s+(.*))?$/i);
       const minutes = match && match[1] ? parseInt(match[1], 10) : 5;
@@ -3559,6 +3583,8 @@ export default function App() {
           setSteganographyInspectText('');
           setSteganographyModalOpen(true);
         }}
+        onOpenAcousticShield={() => setAcousticShieldModalOpen(true)}
+        onOpenFileShredder={() => setFileShredderModalOpen(true)}
       />
 
       {/* Real-time In-Chat Search Bar */}
@@ -3924,6 +3950,8 @@ export default function App() {
               setSteganographyInspectText('');
               setSteganographyModalOpen(true);
             }}
+            onOpenAcousticShield={() => setAcousticShieldModalOpen(true)}
+            onOpenFileShredder={() => setFileShredderModalOpen(true)}
             sendKeyPreference={displaySettings.sendKeyPreference}
             showCharacterCount={displaySettings.showCharacterCount !== false}
             showWordCount={displaySettings.showWordCount !== false}
@@ -4347,6 +4375,26 @@ export default function App() {
         initialText={steganographyInspectText || inputText}
         onInsertToChat={(encodedText) => {
           setInputText(encodedText);
+          if (textareaRef.current) {
+            textareaRef.current.focus();
+          }
+        }}
+        accentColor={currentTheme.accentColor}
+      />
+
+      {/* Acoustic Privacy & Speech Jammer Shield Modal */}
+      <AcousticShieldModal
+        isOpen={acousticShieldModalOpen}
+        onClose={() => setAcousticShieldModalOpen(false)}
+        accentColor={currentTheme.accentColor}
+      />
+
+      {/* Digital File Shredder & DoD Destruction Certifier Modal */}
+      <FileShredderModal
+        isOpen={fileShredderModalOpen}
+        onClose={() => setFileShredderModalOpen(false)}
+        onInsertToChat={(certificate) => {
+          setInputText(certificate);
           if (textareaRef.current) {
             textareaRef.current.focus();
           }

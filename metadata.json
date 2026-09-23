@@ -1,6 +1,6 @@
 {
   "name": "Private Chat",
-  "description": "A private, secure 1-to-1 chat featuring end-to-end encrypted messaging, self-destructing burn-on-read notes, zero-width steganography invisible ink, interactive checklist cards, in-bubble AES decryptors, live countdown timers, CSPRNG password & entropy generator, cryptographic cipher toolkit, personal notes vault, text-to-speech, interactive polls, quick sketching, scheduled dispatch, starred bookmarks, transcript export, and privacy shielding.",
+  "description": "A private, secure 1-to-1 chat featuring end-to-end encrypted messaging, acoustic privacy sound jamming shield, digital file shredder, CSPRNG decision pickers, self-destructing burn-on-read notes, zero-width steganography invisible ink, interactive checklist cards, in-bubble AES decryptors, live countdown timers, password generator, crypto cipher toolkit, and privacy shielding.",
   "requestFramePermissions": ["microphone", "camera", "display-capture"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

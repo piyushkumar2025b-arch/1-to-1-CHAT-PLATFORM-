@@ -24,6 +24,8 @@ import {
   Quote,
   Bookmark,
   KeyRound,
+  Radio,
+  Trash2,
 } from 'lucide-react';
 import { ConnectionState, ChatTheme, EphemeralTimerOption, ReplyReference, ChatMessage } from '../types';
 import ReplyBanner from './ReplyBanner';
@@ -70,6 +72,8 @@ export interface ChatInputBarProps {
   onOpenPasswordGenerator?: () => void;
   onOpenBurnOnRead?: () => void;
   onOpenSteganography?: () => void;
+  onOpenAcousticShield?: () => void;
+  onOpenFileShredder?: () => void;
   sendKeyPreference?: 'enter' | 'ctrl_enter';
   showCharacterCount?: boolean;
   showWordCount?: boolean;
@@ -126,6 +130,8 @@ export const ChatInputBar = memo<ChatInputBarProps>(
     onOpenPasswordGenerator,
     onOpenBurnOnRead,
     onOpenSteganography,
+    onOpenAcousticShield,
+    onOpenFileShredder,
     sendKeyPreference = 'enter',
     showCharacterCount = true,
     showWordCount = true,
@@ -455,6 +461,34 @@ export const ChatInputBar = memo<ChatInputBarProps>(
                   </button>
                 )}
 
+                {onOpenAcousticShield && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenAcousticShield();
+                      setMobileToolsOpen(false);
+                    }}
+                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-amber-400 active:scale-95 transition-all text-[11px]"
+                  >
+                    <Radio className="w-4 h-4 text-amber-400" />
+                    <span>Shield</span>
+                  </button>
+                )}
+
+                {onOpenFileShredder && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenFileShredder();
+                      setMobileToolsOpen(false);
+                    }}
+                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-rose-400 active:scale-95 transition-all text-[11px]"
+                  >
+                    <Trash2 className="w-4 h-4 text-rose-400" />
+                    <span>Shredder</span>
+                  </button>
+                )}
+
                 {onToggleDictate && (
                   <button
                     type="button"
@@ -726,6 +760,34 @@ export const ChatInputBar = memo<ChatInputBarProps>(
                     className="p-2 rounded-xl hover:bg-white/10 text-neutral-400 hover:text-cyan-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                   >
                     <EyeOff className="w-4 h-4 text-cyan-300" />
+                  </button>
+                )}
+
+                {/* Acoustic Privacy Shield */}
+                {onOpenAcousticShield && (
+                  <button
+                    type="button"
+                    id="acoustic-shield-desktop-button"
+                    onClick={onOpenAcousticShield}
+                    disabled={!isConnected}
+                    title="Acoustic Privacy Shield (Speech jammer & masking) (/shield)"
+                    className="p-2 rounded-xl hover:bg-white/10 text-neutral-400 hover:text-amber-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <Radio className="w-4 h-4 text-amber-400" />
+                  </button>
+                )}
+
+                {/* Digital File Shredder */}
+                {onOpenFileShredder && (
+                  <button
+                    type="button"
+                    id="file-shredder-desktop-button"
+                    onClick={onOpenFileShredder}
+                    disabled={!isConnected}
+                    title="Digital File Shredder (DoD 5220.22-M sanitization) (/shred)"
+                    className="p-2 rounded-xl hover:bg-white/10 text-neutral-400 hover:text-rose-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4 text-rose-400" />
                   </button>
                 )}
 
