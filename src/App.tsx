@@ -102,6 +102,7 @@ import { ChatAppearanceModal } from './components/ChatAppearanceModal';
 import { QuickRepliesModal } from './components/QuickRepliesModal';
 import { PersonalNotesModal } from './components/PersonalNotesModal';
 import { CryptoCipherModal } from './components/CryptoCipherModal';
+import { PasswordGeneratorModal } from './components/PasswordGeneratorModal';
 import { addPersonalNote } from './lib/personal-notes';
 import { getDisplaySettings, saveDisplaySettings, DisplaySettings } from './lib/display-settings';
 import { stopSpeaking } from './lib/text-to-speech';
@@ -349,6 +350,7 @@ export default function App() {
   const [quickRepliesModalOpen, setQuickRepliesModalOpen] = useState(false);
   const [personalNotesModalOpen, setPersonalNotesModalOpen] = useState(false);
   const [cryptoCipherModalOpen, setCryptoCipherModalOpen] = useState(false);
+  const [passwordGenModalOpen, setPasswordGenModalOpen] = useState(false);
 
   const handleSaveToNotes = useCallback((msg: ChatMessage) => {
     const textContent = msg.text || (msg.file ? `[File Attachment: ${msg.file.fileName}]` : '');
@@ -2539,6 +2541,16 @@ export default function App() {
     } else if (cmd.id === 'cipher') {
       setCryptoCipherModalOpen(true);
       setInputText('');
+    } else if (cmd.id === 'password') {
+      setPasswordGenModalOpen(true);
+      setInputText('');
+    } else if (cmd.id === 'timer') {
+      const match = inputText.match(/^\/(?:timer|countdown)(?:\s+(\d+))?(?:\s+(.*))?$/i);
+      const minutes = match && match[1] ? parseInt(match[1], 10) : 5;
+      const label = match && match[2] ? match[2].trim() : `${minutes}-Min Timer`;
+      const seconds = minutes * 60;
+      setInputText(`⏱️ [TIMER:${seconds}:${label}]`);
+      textareaRef.current?.focus();
     } else if (cmd.id === 'roll') {
       const roll = Math.floor(Math.random() * 6) + 1;
       setInputText((prev) => (prev.startsWith('/') ? '' : prev) + `🎲 Rolled a ${roll}! (1-6) `);
@@ -3500,6 +3512,7 @@ export default function App() {
         onOpenQuickReplies={() => setQuickRepliesModalOpen(true)}
         onOpenPersonalNotes={() => setPersonalNotesModalOpen(true)}
         onOpenCryptoCipher={() => setCryptoCipherModalOpen(true)}
+        onOpenPasswordGenerator={() => setPasswordGenModalOpen(true)}
       />
 
       {/* Real-time In-Chat Search Bar */}
@@ -3855,6 +3868,7 @@ export default function App() {
             onOpenQuickReplies={() => setQuickRepliesModalOpen(true)}
             onOpenPersonalNotes={() => setPersonalNotesModalOpen(true)}
             onOpenCryptoCipher={() => setCryptoCipherModalOpen(true)}
+            onOpenPasswordGenerator={() => setPasswordGenModalOpen(true)}
             sendKeyPreference={displaySettings.sendKeyPreference}
             showCharacterCount={displaySettings.showCharacterCount !== false}
             showWordCount={displaySettings.showWordCount !== false}
@@ -4240,6 +4254,19 @@ export default function App() {
         }}
         accentColor={currentTheme.accentColor}
         initialText={inputText}
+      />
+
+      {/* CSPRNG Password & Entropy Generator Modal */}
+      <PasswordGeneratorModal
+        isOpen={passwordGenModalOpen}
+        onClose={() => setPasswordGenModalOpen(false)}
+        onInsertToChat={(password) => {
+          setInputText((prev) => (prev.trim() ? `${prev}\n${password}` : password));
+          if (textareaRef.current) {
+            textareaRef.current.focus();
+          }
+        }}
+        accentColor={currentTheme.accentColor}
       />
     </div>
   );

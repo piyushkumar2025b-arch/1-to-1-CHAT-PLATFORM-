@@ -67,6 +67,7 @@ export interface ChatInputBarProps {
   onOpenQuickReplies?: () => void;
   onOpenPersonalNotes?: () => void;
   onOpenCryptoCipher?: () => void;
+  onOpenPasswordGenerator?: () => void;
   sendKeyPreference?: 'enter' | 'ctrl_enter';
   showCharacterCount?: boolean;
   showWordCount?: boolean;
@@ -120,6 +121,7 @@ export const ChatInputBar = memo<ChatInputBarProps>(
     onOpenQuickReplies,
     onOpenPersonalNotes,
     onOpenCryptoCipher,
+    onOpenPasswordGenerator,
     sendKeyPreference = 'enter',
     showCharacterCount = true,
     showWordCount = true,
@@ -407,6 +409,20 @@ export const ChatInputBar = memo<ChatInputBarProps>(
                   </button>
                 )}
 
+                {onOpenPasswordGenerator && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenPasswordGenerator();
+                      setMobileToolsOpen(false);
+                    }}
+                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-amber-300 active:scale-95 transition-all text-[11px]"
+                  >
+                    <KeyRound className="w-4 h-4 text-amber-300" />
+                    <span>Passgen</span>
+                  </button>
+                )}
+
                 {onToggleDictate && (
                   <button
                     type="button"
@@ -636,6 +652,20 @@ export const ChatInputBar = memo<ChatInputBarProps>(
                     className="p-2 rounded-xl hover:bg-white/10 text-neutral-400 hover:text-amber-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                   >
                     <KeyRound className="w-4 h-4 text-amber-400" />
+                  </button>
+                )}
+
+                {/* Password & Passphrase Generator */}
+                {onOpenPasswordGenerator && (
+                  <button
+                    type="button"
+                    id="password-generator-desktop-button"
+                    onClick={onOpenPasswordGenerator}
+                    disabled={!isConnected}
+                    title="Password & Passphrase Generator with Entropy Audit (/password)"
+                    className="p-2 rounded-xl hover:bg-white/10 text-neutral-400 hover:text-amber-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <KeyRound className="w-4 h-4 text-amber-300" />
                   </button>
                 )}
 

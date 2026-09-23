@@ -3,6 +3,8 @@ import { Copy, Check, ArrowUpRight, Code2, Terminal } from 'lucide-react';
 import { parseTextWithUrls, extractUrlsFromText } from '../lib/link-utils';
 import { LinkPreviewCard } from './LinkPreviewCard';
 import { highlightCode, TOKEN_COLOR_CLASSES } from '../lib/syntax-highlighter';
+import { EncryptedMessageCapsule } from './EncryptedMessageCapsule';
+import { CountdownTimerCard } from './CountdownTimerCard';
 
 interface MessageContentRendererProps {
   text: string;
@@ -237,6 +239,32 @@ export function MessageContentRenderer({
 }: MessageContentRendererProps) {
   // Check if message is solely emojis (1 to 4 emoji characters)
   const trimmed = text.trim();
+
+  // Check for AES-256 encrypted payload
+  if (trimmed.startsWith('CIPHER_AES::')) {
+    return (
+      <EncryptedMessageCapsule
+        payload={trimmed}
+        isMe={isMe}
+        accentColor={accentColor}
+      />
+    );
+  }
+
+  // Check for Countdown Timer syntax: ⏱️ [TIMER:seconds:label] or [TIMER:seconds:label]
+  const timerMatch = trimmed.match(/^⏱️?\s*\[TIMER:(\d+)(?::([^\]]*))?\]$/i);
+  if (timerMatch) {
+    const seconds = parseInt(timerMatch[1], 10);
+    const label = timerMatch[2]?.trim() || 'Countdown Timer';
+    return (
+      <CountdownTimerCard
+        totalSeconds={seconds}
+        label={label}
+        accentColor={accentColor}
+      />
+    );
+  }
+
   const isOnlyEmojis = trimmed.length <= 16 && ONLY_EMOJI_REGEX.test(trimmed);
 
   if (isOnlyEmojis) {

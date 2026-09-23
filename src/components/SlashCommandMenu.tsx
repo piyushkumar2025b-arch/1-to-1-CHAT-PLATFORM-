@@ -23,6 +23,7 @@ import {
   KeyRound,
   Dices,
   Sparkles,
+  Timer,
 } from 'lucide-react';
 
 export interface SlashCommand {
@@ -69,6 +70,22 @@ export function SlashCommandMenu({
       alias: '/encrypt',
       description: 'Open Cryptographic Cipher & Hash Toolkit (AES-GCM, SHA, Morse)',
       icon: <KeyRound className="w-4 h-4 text-amber-400" />,
+      category: 'Tools',
+    },
+    {
+      id: 'password',
+      name: '/password',
+      alias: '/passgen',
+      description: 'Open CSPRNG Password & Entropy Generator (Diceware, Keys, PINs)',
+      icon: <KeyRound className="w-4 h-4 text-amber-300" />,
+      category: 'Tools',
+    },
+    {
+      id: 'timer',
+      name: '/timer',
+      alias: '/countdown',
+      description: 'Insert interactive countdown timer card (e.g. 5m standup sync)',
+      icon: <Timer className="w-4 h-4 text-cyan-400" />,
       category: 'Tools',
     },
     {
