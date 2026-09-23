@@ -68,6 +68,8 @@ export interface ChatInputBarProps {
   onOpenPersonalNotes?: () => void;
   onOpenCryptoCipher?: () => void;
   onOpenPasswordGenerator?: () => void;
+  onOpenBurnOnRead?: () => void;
+  onOpenSteganography?: () => void;
   sendKeyPreference?: 'enter' | 'ctrl_enter';
   showCharacterCount?: boolean;
   showWordCount?: boolean;
@@ -122,6 +124,8 @@ export const ChatInputBar = memo<ChatInputBarProps>(
     onOpenPersonalNotes,
     onOpenCryptoCipher,
     onOpenPasswordGenerator,
+    onOpenBurnOnRead,
+    onOpenSteganography,
     sendKeyPreference = 'enter',
     showCharacterCount = true,
     showWordCount = true,
@@ -423,6 +427,34 @@ export const ChatInputBar = memo<ChatInputBarProps>(
                   </button>
                 )}
 
+                {onOpenBurnOnRead && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenBurnOnRead();
+                      setMobileToolsOpen(false);
+                    }}
+                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-orange-400 active:scale-95 transition-all text-[11px]"
+                  >
+                    <Flame className="w-4 h-4 text-orange-400" />
+                    <span>Burn Note</span>
+                  </button>
+                )}
+
+                {onOpenSteganography && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenSteganography();
+                      setMobileToolsOpen(false);
+                    }}
+                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-cyan-300 active:scale-95 transition-all text-[11px]"
+                  >
+                    <EyeOff className="w-4 h-4 text-cyan-300" />
+                    <span>Stego</span>
+                  </button>
+                )}
+
                 {onToggleDictate && (
                   <button
                     type="button"
@@ -666,6 +698,34 @@ export const ChatInputBar = memo<ChatInputBarProps>(
                     className="p-2 rounded-xl hover:bg-white/10 text-neutral-400 hover:text-amber-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                   >
                     <KeyRound className="w-4 h-4 text-amber-300" />
+                  </button>
+                )}
+
+                {/* Burn-After-Reading Note */}
+                {onOpenBurnOnRead && (
+                  <button
+                    type="button"
+                    id="burn-on-read-desktop-button"
+                    onClick={onOpenBurnOnRead}
+                    disabled={!isConnected}
+                    title="Burn-After-Reading Confidential Note (/burn)"
+                    className="p-2 rounded-xl hover:bg-white/10 text-neutral-400 hover:text-orange-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <Flame className="w-4 h-4 text-orange-400" />
+                  </button>
+                )}
+
+                {/* Steganography Concealer & Inspector */}
+                {onOpenSteganography && (
+                  <button
+                    type="button"
+                    id="steganography-desktop-button"
+                    onClick={onOpenSteganography}
+                    disabled={!isConnected}
+                    title="Steganography Concealer (Hide invisible secrets) (/stego)"
+                    className="p-2 rounded-xl hover:bg-white/10 text-neutral-400 hover:text-cyan-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <EyeOff className="w-4 h-4 text-cyan-300" />
                   </button>
                 )}
 

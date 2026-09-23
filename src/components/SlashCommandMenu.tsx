@@ -24,6 +24,7 @@ import {
   Dices,
   Sparkles,
   Timer,
+  ListTodo,
 } from 'lucide-react';
 
 export interface SlashCommand {
@@ -86,6 +87,30 @@ export function SlashCommandMenu({
       alias: '/countdown',
       description: 'Insert interactive countdown timer card (e.g. 5m standup sync)',
       icon: <Timer className="w-4 h-4 text-cyan-400" />,
+      category: 'Tools',
+    },
+    {
+      id: 'burn',
+      name: '/burn',
+      alias: '/secret',
+      description: 'Create self-destructing Burn-After-Reading secret capsule',
+      icon: <Flame className="w-4 h-4 text-orange-400" />,
+      category: 'Tools',
+    },
+    {
+      id: 'stego',
+      name: '/stego',
+      alias: '/hide',
+      description: 'Conceal or decode invisible zero-width steganography secrets',
+      icon: <EyeOff className="w-4 h-4 text-cyan-300" />,
+      category: 'Tools',
+    },
+    {
+      id: 'todo',
+      name: '/todo',
+      alias: '/checklist',
+      description: 'Insert interactive collaborative checklist card',
+      icon: <ListTodo className="w-4 h-4 text-emerald-400" />,
       category: 'Tools',
     },
     {

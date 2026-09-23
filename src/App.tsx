@@ -103,6 +103,8 @@ import { QuickRepliesModal } from './components/QuickRepliesModal';
 import { PersonalNotesModal } from './components/PersonalNotesModal';
 import { CryptoCipherModal } from './components/CryptoCipherModal';
 import { PasswordGeneratorModal } from './components/PasswordGeneratorModal';
+import { BurnOnReadModal } from './components/BurnOnReadModal';
+import { SteganographyModal } from './components/SteganographyModal';
 import { addPersonalNote } from './lib/personal-notes';
 import { getDisplaySettings, saveDisplaySettings, DisplaySettings } from './lib/display-settings';
 import { stopSpeaking } from './lib/text-to-speech';
@@ -351,6 +353,9 @@ export default function App() {
   const [personalNotesModalOpen, setPersonalNotesModalOpen] = useState(false);
   const [cryptoCipherModalOpen, setCryptoCipherModalOpen] = useState(false);
   const [passwordGenModalOpen, setPasswordGenModalOpen] = useState(false);
+  const [burnOnReadModalOpen, setBurnOnReadModalOpen] = useState(false);
+  const [steganographyModalOpen, setSteganographyModalOpen] = useState(false);
+  const [steganographyInspectText, setSteganographyInspectText] = useState('');
 
   const handleSaveToNotes = useCallback((msg: ChatMessage) => {
     const textContent = msg.text || (msg.file ? `[File Attachment: ${msg.file.fileName}]` : '');
@@ -2544,6 +2549,42 @@ export default function App() {
     } else if (cmd.id === 'password') {
       setPasswordGenModalOpen(true);
       setInputText('');
+    } else if (cmd.id === 'burn') {
+      // Check if user passed text like /burn my secret code
+      const match = inputText.match(/^\/(?:burn|secret)(?:\s+(.+))?$/i);
+      if (match && match[1]?.trim()) {
+        try {
+          const b64 = btoa(unescape(encodeURIComponent(match[1].trim())));
+          setInputText(`BURN_SECRET::15::${b64}`);
+        } catch {
+          setBurnOnReadModalOpen(true);
+          setInputText('');
+        }
+      } else {
+        setBurnOnReadModalOpen(true);
+        setInputText('');
+      }
+    } else if (cmd.id === 'stego') {
+      const match = inputText.match(/^\/(?:stego|hide)(?:\s+(.+))?$/i);
+      if (match && match[1]?.trim()) {
+        setSteganographyInspectText(match[1].trim());
+      }
+      setSteganographyModalOpen(true);
+      setInputText('');
+    } else if (cmd.id === 'todo') {
+      const match = inputText.match(/^\/(?:todo|checklist)(?:\s+(.+))?$/i);
+      if (match && match[1]?.trim()) {
+        const raw = match[1].trim();
+        const items = raw.split(',').map((s) => s.trim()).filter(Boolean);
+        if (items.length > 0) {
+          setInputText(`📋 [CHECKLIST:Team Checklist:${items.join(', ')}]`);
+        } else {
+          setInputText(`📋 [CHECKLIST:Tasks:${raw}]`);
+        }
+      } else {
+        setInputText('📋 [CHECKLIST:Checklist:Review updates, Test endpoints, Confirm sync]');
+      }
+      textareaRef.current?.focus();
     } else if (cmd.id === 'timer') {
       const match = inputText.match(/^\/(?:timer|countdown)(?:\s+(\d+))?(?:\s+(.*))?$/i);
       const minutes = match && match[1] ? parseInt(match[1], 10) : 5;
@@ -3513,6 +3554,11 @@ export default function App() {
         onOpenPersonalNotes={() => setPersonalNotesModalOpen(true)}
         onOpenCryptoCipher={() => setCryptoCipherModalOpen(true)}
         onOpenPasswordGenerator={() => setPasswordGenModalOpen(true)}
+        onOpenBurnOnRead={() => setBurnOnReadModalOpen(true)}
+        onOpenSteganography={() => {
+          setSteganographyInspectText('');
+          setSteganographyModalOpen(true);
+        }}
       />
 
       {/* Real-time In-Chat Search Bar */}
@@ -3733,6 +3779,10 @@ export default function App() {
                     bubbleCornerPref={displaySettings.bubbleRadius}
                     showTimestamps={displaySettings.showTimestamps !== false}
                     speechEnabled={true}
+                    onInspectSteganography={(txt) => {
+                      setSteganographyInspectText(txt);
+                      setSteganographyModalOpen(true);
+                    }}
                   />
                 );
               })}
@@ -3869,6 +3919,11 @@ export default function App() {
             onOpenPersonalNotes={() => setPersonalNotesModalOpen(true)}
             onOpenCryptoCipher={() => setCryptoCipherModalOpen(true)}
             onOpenPasswordGenerator={() => setPasswordGenModalOpen(true)}
+            onOpenBurnOnRead={() => setBurnOnReadModalOpen(true)}
+            onOpenSteganography={() => {
+              setSteganographyInspectText('');
+              setSteganographyModalOpen(true);
+            }}
             sendKeyPreference={displaySettings.sendKeyPreference}
             showCharacterCount={displaySettings.showCharacterCount !== false}
             showWordCount={displaySettings.showWordCount !== false}
@@ -4262,6 +4317,36 @@ export default function App() {
         onClose={() => setPasswordGenModalOpen(false)}
         onInsertToChat={(password) => {
           setInputText((prev) => (prev.trim() ? `${prev}\n${password}` : password));
+          if (textareaRef.current) {
+            textareaRef.current.focus();
+          }
+        }}
+        accentColor={currentTheme.accentColor}
+      />
+
+      {/* Burn-After-Reading Confidential Note Modal */}
+      <BurnOnReadModal
+        isOpen={burnOnReadModalOpen}
+        onClose={() => setBurnOnReadModalOpen(false)}
+        onInsertToChat={(payload) => {
+          setInputText(payload);
+          if (textareaRef.current) {
+            textareaRef.current.focus();
+          }
+        }}
+        accentColor={currentTheme.accentColor}
+      />
+
+      {/* Steganography Invisible Ink Concealer & Inspector Modal */}
+      <SteganographyModal
+        isOpen={steganographyModalOpen}
+        onClose={() => {
+          setSteganographyModalOpen(false);
+          setSteganographyInspectText('');
+        }}
+        initialText={steganographyInspectText || inputText}
+        onInsertToChat={(encodedText) => {
+          setInputText(encodedText);
           if (textareaRef.current) {
             textareaRef.current.focus();
           }

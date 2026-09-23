@@ -63,6 +63,7 @@ export interface ChatMessageItemProps {
   showTimestamps?: boolean;
   onSpeakMessage?: (messageId: string, text: string) => void;
   isSpeakingThisMessage?: boolean;
+  onInspectSteganography?: (text: string) => void;
 }
 
 export const ChatMessageItem = memo<ChatMessageItemProps>(
@@ -106,6 +107,7 @@ export const ChatMessageItem = memo<ChatMessageItemProps>(
     showTimestamps = true,
     onSpeakMessage,
     isSpeakingThisMessage = false,
+    onInspectSteganography,
   }) => {
     const msgTime = msg.createdAt ? new Date(msg.createdAt).getTime() : 0;
     const isEditable =
@@ -429,6 +431,7 @@ export const ChatMessageItem = memo<ChatMessageItemProps>(
                     isMe={isMe}
                     accentColor={currentTheme.accentColor}
                     onOpenCodeInSandbox={onOpenCodeInSandbox}
+                    onInspectSteganography={onInspectSteganography}
                   />
                 )}
               </>

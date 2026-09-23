@@ -94,6 +94,8 @@ interface ChatHeaderProps {
   onOpenPersonalNotes?: () => void;
   onOpenCryptoCipher?: () => void;
   onOpenPasswordGenerator?: () => void;
+  onOpenBurnOnRead?: () => void;
+  onOpenSteganography?: () => void;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -149,6 +151,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   onOpenPersonalNotes,
   onOpenCryptoCipher,
   onOpenPasswordGenerator,
+  onOpenBurnOnRead,
+  onOpenSteganography,
 }) => {
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -701,6 +705,48 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                     </div>
                     <kbd className="text-[9px] font-mono px-1 py-0.5 rounded bg-neutral-800 text-neutral-400 border border-neutral-700">
                       /password
+                    </kbd>
+                  </button>
+                )}
+
+                {/* Burn-After-Reading Note */}
+                {onOpenBurnOnRead && (
+                  <button
+                    type="button"
+                    id="header-burn-on-read-btn"
+                    onClick={() => {
+                      onOpenBurnOnRead();
+                      setMoreMenuOpen(false);
+                    }}
+                    className="w-full px-3.5 py-2 text-left text-xs text-neutral-200 hover:text-white hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Flame className="w-4 h-4 text-orange-400" />
+                      <span>Burn-After-Reading Note</span>
+                    </div>
+                    <kbd className="text-[9px] font-mono px-1 py-0.5 rounded bg-neutral-800 text-neutral-400 border border-neutral-700">
+                      /burn
+                    </kbd>
+                  </button>
+                )}
+
+                {/* Steganography Concealer & Inspector */}
+                {onOpenSteganography && (
+                  <button
+                    type="button"
+                    id="header-steganography-btn"
+                    onClick={() => {
+                      onOpenSteganography();
+                      setMoreMenuOpen(false);
+                    }}
+                    className="w-full px-3.5 py-2 text-left text-xs text-neutral-200 hover:text-white hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <EyeOff className="w-4 h-4 text-cyan-300" />
+                      <span>Steganography Concealer</span>
+                    </div>
+                    <kbd className="text-[9px] font-mono px-1 py-0.5 rounded bg-neutral-800 text-neutral-400 border border-neutral-700">
+                      /stego
                     </kbd>
                   </button>
                 )}

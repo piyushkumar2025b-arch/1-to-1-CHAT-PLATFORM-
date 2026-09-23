@@ -1,16 +1,20 @@
 import React, { useState } from 'react';
-import { Copy, Check, ArrowUpRight, Code2, Terminal } from 'lucide-react';
+import { Copy, Check, ArrowUpRight, Code2, Terminal, EyeOff } from 'lucide-react';
 import { parseTextWithUrls, extractUrlsFromText } from '../lib/link-utils';
 import { LinkPreviewCard } from './LinkPreviewCard';
 import { highlightCode, TOKEN_COLOR_CLASSES } from '../lib/syntax-highlighter';
 import { EncryptedMessageCapsule } from './EncryptedMessageCapsule';
 import { CountdownTimerCard } from './CountdownTimerCard';
+import { BurnOnReadCapsule } from './BurnOnReadCapsule';
+import { ChecklistCard } from './ChecklistCard';
+import { hasSteganography } from '../lib/steganography';
 
 interface MessageContentRendererProps {
   text: string;
   isMe: boolean;
   accentColor?: string;
   onOpenCodeInSandbox?: (code: string, language?: string) => void;
+  onInspectSteganography?: (text: string) => void;
 }
 
 // Regex to test if string contains solely 1 to 4 emoji characters and whitespace
@@ -236,9 +240,38 @@ export function MessageContentRenderer({
   isMe,
   accentColor,
   onOpenCodeInSandbox,
+  onInspectSteganography,
 }: MessageContentRendererProps) {
   // Check if message is solely emojis (1 to 4 emoji characters)
   const trimmed = text.trim();
+
+  // Check for Burn-On-Read confidential secret payload
+  if (trimmed.startsWith('BURN_SECRET::')) {
+    return (
+      <BurnOnReadCapsule
+        payload={trimmed}
+        isMe={isMe}
+        accentColor={accentColor}
+      />
+    );
+  }
+
+  // Check for Interactive Checklist syntax: [CHECKLIST:Title:Item1,Item2,Item3]
+  const checklistMatch = trimmed.match(/^📋?\s*\[CHECKLIST:([^:]+):([^\]]+)\]$/i);
+  if (checklistMatch) {
+    const title = checklistMatch[1].trim();
+    const items = checklistMatch[2]
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return (
+      <ChecklistCard
+        title={title}
+        initialItems={items}
+        accentColor={accentColor}
+      />
+    );
+  }
 
   // Check for AES-256 encrypted payload
   if (trimmed.startsWith('CIPHER_AES::')) {
@@ -276,6 +309,7 @@ export function MessageContentRenderer({
   }
 
   const parts = splitByCodeBlocks(text);
+  const containsStego = hasSteganography(text);
 
   return (
     <div className="space-y-2">
@@ -317,6 +351,22 @@ export function MessageContentRenderer({
           </p>
         );
       })}
+
+      {/* Steganography Invisible Secret Detected Badge */}
+      {containsStego && (
+        <div className="pt-1">
+          <button
+            type="button"
+            onClick={() => onInspectSteganography?.(text)}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-950/40 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-900/50 hover:border-cyan-400 text-[11px] font-mono transition-all cursor-pointer shadow-xs active:scale-95"
+            title="A hidden message encoded with zero-width Unicode steganography was detected in this message"
+          >
+            <EyeOff className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+            <span className="font-semibold">🕵️ Steganography Payload Detected</span>
+            <span className="underline ml-0.5 text-cyan-200 font-sans">Extract Secret</span>
+          </button>
+        </div>
+      )}
 
       {/* Extracted Interactive Link Cards */}
       {(() => {
