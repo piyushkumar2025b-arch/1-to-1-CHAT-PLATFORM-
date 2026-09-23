@@ -9,6 +9,11 @@ import {
   Eraser,
   Palette,
   Download,
+  Square,
+  Circle,
+  ArrowRight,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { triggerBlobDownload } from '../lib/file-compression';
 
@@ -19,7 +24,8 @@ interface QuickDrawModalProps {
   accentColor?: string;
 }
 
-type ToolType = 'pen' | 'highlighter' | 'eraser';
+type ToolType = 'pen' | 'highlighter' | 'eraser' | 'rectangle' | 'circle' | 'arrow';
+type BgMode = 'dark' | 'light' | 'grid';
 
 const COLOR_PALETTE = [
   '#f59e0b', // Amber
@@ -52,24 +58,41 @@ export const QuickDrawModal: React.FC<QuickDrawModalProps> = ({
   const [isDrawing, setIsDrawing] = useState(false);
   const [history, setHistory] = useState<ImageData[]>([]);
 
+  const [startPos, setStartPos] = useState<{ x: number; y: number } | null>(null);
+  const [snapshot, setSnapshot] = useState<ImageData | null>(null);
+  const [bgMode, setBgMode] = useState<BgMode>('dark');
+
   // Setup canvas background
-  const initCanvas = () => {
+  const initCanvas = (mode: BgMode = bgMode) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Set dark background
-    ctx.fillStyle = '#171717';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (mode === 'light') {
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#cbd5e1';
+      for (let x = 20; x < canvas.width; x += 24) {
+        for (let y = 20; y < canvas.height; y += 24) {
+          ctx.beginPath();
+          ctx.arc(x, y, 1, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    } else {
+      // Set dark background
+      ctx.fillStyle = '#171717';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Subtle dark dot grid
-    ctx.fillStyle = '#262626';
-    for (let x = 20; x < canvas.width; x += 24) {
-      for (let y = 20; y < canvas.height; y += 24) {
-        ctx.beginPath();
-        ctx.arc(x, y, 1, 0, Math.PI * 2);
-        ctx.fill();
+      // Subtle dark dot grid
+      ctx.fillStyle = '#262626';
+      for (let x = 20; x < canvas.width; x += 24) {
+        for (let y = 20; y < canvas.height; y += 24) {
+          ctx.beginPath();
+          ctx.arc(x, y, 1, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
     }
 
@@ -81,7 +104,7 @@ export const QuickDrawModal: React.FC<QuickDrawModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => {
-        initCanvas();
+        initCanvas(bgMode);
       }, 50);
     }
   }, [isOpen]);
@@ -112,7 +135,13 @@ export const QuickDrawModal: React.FC<QuickDrawModalProps> = ({
   };
 
   const handleClear = () => {
-    initCanvas();
+    initCanvas(bgMode);
+  };
+
+  const toggleBgMode = () => {
+    const nextMode = bgMode === 'dark' ? 'light' : 'dark';
+    setBgMode(nextMode);
+    initCanvas(nextMode);
   };
 
   const getCoordinates = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -137,12 +166,17 @@ export const QuickDrawModal: React.FC<QuickDrawModalProps> = ({
     setIsDrawing(true);
 
     const { x, y } = getCoordinates(e);
+    setStartPos({ x, y });
+
+    // Save snapshot for previewing shapes while dragging
+    const currentSnap = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    setSnapshot(currentSnap);
 
     ctx.beginPath();
     ctx.moveTo(x, y);
 
     if (selectedTool === 'eraser') {
-      ctx.strokeStyle = '#171717';
+      ctx.strokeStyle = bgMode === 'light' ? '#f8fafc' : '#171717';
       ctx.globalAlpha = 1.0;
       ctx.lineWidth = brushSize * 2.5;
     } else if (selectedTool === 'highlighter') {
@@ -167,8 +201,54 @@ export const QuickDrawModal: React.FC<QuickDrawModalProps> = ({
     if (!ctx) return;
 
     const { x, y } = getCoordinates(e);
-    ctx.lineTo(x, y);
-    ctx.stroke();
+
+    if (['rectangle', 'circle', 'arrow'].includes(selectedTool)) {
+      if (!startPos || !snapshot) return;
+      // Restore snapshot to redraw shape dynamically
+      ctx.putImageData(snapshot, 0, 0);
+
+      ctx.strokeStyle = selectedColor;
+      ctx.lineWidth = brushSize;
+      ctx.globalAlpha = 1.0;
+
+      if (selectedTool === 'rectangle') {
+        const width = x - startPos.x;
+        const height = y - startPos.y;
+        ctx.strokeRect(startPos.x, startPos.y, width, height);
+      } else if (selectedTool === 'circle') {
+        const radiusX = Math.abs(x - startPos.x) / 2;
+        const radiusY = Math.abs(y - startPos.y) / 2;
+        const centerX = startPos.x + (x - startPos.x) / 2;
+        const centerY = startPos.y + (y - startPos.y) / 2;
+        ctx.beginPath();
+        ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (selectedTool === 'arrow') {
+        // Draw line with arrowhead
+        ctx.beginPath();
+        ctx.moveTo(startPos.x, startPos.y);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+
+        const angle = Math.atan2(y - startPos.y, x - startPos.x);
+        const headLen = Math.max(12, brushSize * 2.5);
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(
+          x - headLen * Math.cos(angle - Math.PI / 6),
+          y - headLen * Math.sin(angle - Math.PI / 6)
+        );
+        ctx.moveTo(x, y);
+        ctx.lineTo(
+          x - headLen * Math.cos(angle + Math.PI / 6),
+          y - headLen * Math.sin(angle + Math.PI / 6)
+        );
+        ctx.stroke();
+      }
+    } else {
+      ctx.lineTo(x, y);
+      ctx.stroke();
+    }
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -182,6 +262,8 @@ export const QuickDrawModal: React.FC<QuickDrawModalProps> = ({
     ctx.closePath();
     ctx.globalAlpha = 1.0;
     setIsDrawing(false);
+    setStartPos(null);
+    setSnapshot(null);
     saveHistoryState();
   };
 
@@ -273,6 +355,42 @@ export const QuickDrawModal: React.FC<QuickDrawModalProps> = ({
             </button>
             <button
               type="button"
+              onClick={() => setSelectedTool('rectangle')}
+              className={`p-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1 ${
+                selectedTool === 'rectangle'
+                  ? 'bg-neutral-800 text-amber-400 font-semibold shadow-xs'
+                  : 'text-neutral-400 hover:text-white'
+              }`}
+              title="Box / Rectangle"
+            >
+              <Square className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedTool('circle')}
+              className={`p-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1 ${
+                selectedTool === 'circle'
+                  ? 'bg-neutral-800 text-amber-400 font-semibold shadow-xs'
+                  : 'text-neutral-400 hover:text-white'
+              }`}
+              title="Circle / Ellipse"
+            >
+              <Circle className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedTool('arrow')}
+              className={`p-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1 ${
+                selectedTool === 'arrow'
+                  ? 'bg-neutral-800 text-amber-400 font-semibold shadow-xs'
+                  : 'text-neutral-400 hover:text-white'
+              }`}
+              title="Pointer Arrow"
+            >
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
               onClick={() => setSelectedTool('eraser')}
               className={`p-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1 ${
                 selectedTool === 'eraser'
@@ -336,8 +454,16 @@ export const QuickDrawModal: React.FC<QuickDrawModalProps> = ({
             </div>
           )}
 
-          {/* Undo & Clear */}
+          {/* Undo, Clear & Background Toggle */}
           <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={toggleBgMode}
+              className="p-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-300 transition-colors cursor-pointer"
+              title={`Switch to ${bgMode === 'dark' ? 'Light' : 'Dark'} Canvas Background`}
+            >
+              {bgMode === 'dark' ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-cyan-400" />}
+            </button>
             <button
               type="button"
               onClick={handleUndo}

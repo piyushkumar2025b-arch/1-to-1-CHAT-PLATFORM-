@@ -223,6 +223,64 @@ print("Ready for AES-GCM enclave initialization.")`,
 </body>
 </html>`,
   },
+  {
+    id: 'jwt-auth-verifier',
+    name: '🛡️ JWT Token Verifier',
+    lang: 'javascript',
+    title: 'jwt-verifier.js',
+    code: `// Real-Time JWT Claim Inspector & Signature Simulation
+function parseJwt(token) {
+  const parts = token.split('.');
+  if (parts.length !== 3) throw new Error("Invalid JWT token format");
+  const header = JSON.parse(atob(parts[0]));
+  const payload = JSON.parse(atob(parts[1]));
+  return { header, payload, signature: parts[2] };
+}
+
+const sampleToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9." +
+  "eyJzdWIiOiJ1c2VyXzEyMzQ1IiwibmFtZSI6IkFsaWNlIFByaXZhdGUiLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3MDk4NTYwMDB9." +
+  "W4uFj1J...signature_hash";
+
+console.log("Analyzing JWT Token structure...");
+const parsed = parseJwt(sampleToken);
+console.log("Algorithm:", parsed.header.alg);
+console.log("Subject ID:", parsed.payload.sub);
+console.log("Display Name:", parsed.payload.name);
+console.log("Role:", parsed.payload.role);
+return { verified: true, role: parsed.payload.role };`,
+  },
+  {
+    id: 'benchmark-crypto',
+    name: '⏱️ Crypto Benchmark',
+    lang: 'typescript',
+    title: 'crypto-speed.ts',
+    code: `// Client-side Cryptographic Performance Benchmark
+async function runCryptoBenchmark() {
+  console.log("Running SHA-256 vs SHA-512 speed trial (500 iterations)...");
+  const enc = new TextEncoder();
+  const sampleData = enc.encode("Confidential Encrypted Message Payload for Private P2P Mesh Channel");
+
+  const t0 = performance.now();
+  for (let i = 0; i < 500; i++) {
+    await crypto.subtle.digest('SHA-256', sampleData);
+  }
+  const t1 = performance.now();
+  const sha256Duration = (t1 - t0).toFixed(2);
+  console.log("SHA-256 500x hashes:", sha256Duration, "ms");
+
+  const t2 = performance.now();
+  for (let i = 0; i < 500; i++) {
+    await crypto.subtle.digest('SHA-512', sampleData);
+  }
+  const t3 = performance.now();
+  const sha512Duration = (t3 - t2).toFixed(2);
+  console.log("SHA-512 500x hashes:", sha512Duration, "ms");
+
+  return { sha256Duration: \`\${sha256Duration}ms\`, sha512Duration: \`\${sha512Duration}ms\` };
+}
+
+await runCryptoBenchmark();`,
+  },
 ];
 
 const LANGUAGES: { value: CodeLanguage; label: string }[] = [
@@ -976,13 +1034,28 @@ export function CodeSandboxModal({
                     </span>
                   )}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setConsoleOutput([])}
-                  className="hover:text-white transition-colors cursor-pointer text-[10px]"
-                >
-                  Clear Console
-                </button>
+                <div className="flex items-center gap-2">
+                  {consoleOutput.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(consoleOutput.join('\n'));
+                      }}
+                      className="px-2 py-0.5 rounded bg-neutral-800 hover:bg-neutral-750 text-neutral-300 hover:text-white transition-colors cursor-pointer text-[10px] flex items-center gap-1"
+                      title="Copy all output logs"
+                    >
+                      <Copy className="w-3 h-3 text-cyan-400" />
+                      <span>Copy Logs</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setConsoleOutput([])}
+                    className="hover:text-white transition-colors cursor-pointer text-[10px]"
+                  >
+                    Clear Console
+                  </button>
+                </div>
               </div>
 
               <div className="flex-1 p-4 overflow-y-auto space-y-1.5 scrollbar-thin select-text">

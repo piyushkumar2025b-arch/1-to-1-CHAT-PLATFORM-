@@ -10,19 +10,33 @@ import { ScheduledMessage } from '../types';
 
 interface ScheduledMessagesTrayProps {
   scheduledMessages: ScheduledMessage[];
-  onSendImmediately: (id: string) => void;
-  onCancelScheduled: (id: string) => void;
+  onSendImmediately?: (id: string) => void;
+  onSendNow?: (id: string) => void;
+  onCancelScheduled?: (id: string) => void;
+  onCancel?: (id: string) => void;
   accentColor?: string;
 }
 
 export const ScheduledMessagesTray: React.FC<ScheduledMessagesTrayProps> = ({
   scheduledMessages,
   onSendImmediately,
+  onSendNow,
   onCancelScheduled,
+  onCancel,
   accentColor = '#f59e0b',
 }) => {
   const [, setTick] = useState(0);
   const [isExpanded, setIsExpanded] = useState(false);
+
+  const handleSend = (id: string) => {
+    if (onSendNow) onSendNow(id);
+    else if (onSendImmediately) onSendImmediately(id);
+  };
+
+  const handleCancel = (id: string) => {
+    if (onCancel) onCancel(id);
+    else if (onCancelScheduled) onCancelScheduled(id);
+  };
 
   // Update countdown every second
   useEffect(() => {
@@ -71,7 +85,7 @@ export const ScheduledMessagesTray: React.FC<ScheduledMessagesTrayProps> = ({
           <div className="flex items-center gap-1.5 shrink-0 ml-2">
             <button
               type="button"
-              onClick={() => onSendImmediately(nextMsg.id)}
+              onClick={() => handleSend(nextMsg.id)}
               title="Dispatch message right now"
               className="px-2 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500 hover:text-black text-amber-300 font-medium text-[11px] flex items-center gap-1 transition-all cursor-pointer border border-amber-500/30"
             >
@@ -80,7 +94,7 @@ export const ScheduledMessagesTray: React.FC<ScheduledMessagesTrayProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => onCancelScheduled(nextMsg.id)}
+              onClick={() => handleCancel(nextMsg.id)}
               title="Cancel scheduled dispatch"
               className="p-1 rounded-lg hover:bg-white/10 text-neutral-400 hover:text-rose-400 transition-colors cursor-pointer"
             >
@@ -119,7 +133,7 @@ export const ScheduledMessagesTray: React.FC<ScheduledMessagesTrayProps> = ({
                 <div className="flex items-center gap-1 shrink-0 ml-2">
                   <button
                     type="button"
-                    onClick={() => onSendImmediately(msg.id)}
+                    onClick={() => handleSend(msg.id)}
                     className="p-1 rounded text-amber-400 hover:text-amber-200"
                     title="Send now"
                   >
@@ -127,7 +141,7 @@ export const ScheduledMessagesTray: React.FC<ScheduledMessagesTrayProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => onCancelScheduled(msg.id)}
+                    onClick={() => handleCancel(msg.id)}
                     className="p-1 rounded text-neutral-500 hover:text-rose-400"
                     title="Cancel"
                   >

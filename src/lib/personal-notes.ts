@@ -98,3 +98,20 @@ export function toggleTodoNote(id: string): PersonalNote[] {
   savePersonalNotes(updated);
   return updated;
 }
+
+export function importPersonalNotes(incoming: PersonalNote[]): PersonalNote[] {
+  const current = getPersonalNotes();
+  const existingIds = new Set(current.map((n) => n.id));
+  const validIncoming = incoming
+    .filter((n) => n && typeof n.content === 'string' && n.content.trim().length > 0)
+    .map((n) => ({
+      ...n,
+      id: existingIds.has(n.id) ? `note_${Date.now()}_${Math.random().toString(36).substring(2, 6)}` : n.id,
+      createdAt: n.createdAt || Date.now(),
+      updatedAt: n.updatedAt || Date.now(),
+    }));
+
+  const merged = [...validIncoming, ...current];
+  savePersonalNotes(merged);
+  return merged;
+}

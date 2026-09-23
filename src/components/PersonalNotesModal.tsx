@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   Bookmark,
@@ -16,6 +16,7 @@ import {
   Sparkles,
   StickyNote,
   Download,
+  Upload,
 } from 'lucide-react';
 import { triggerBlobDownload } from '../lib/file-compression';
 import {
@@ -26,6 +27,7 @@ import {
   deletePersonalNote,
   togglePinNote,
   toggleTodoNote,
+  importPersonalNotes,
 } from '../lib/personal-notes';
 
 interface PersonalNotesModalProps {
@@ -50,6 +52,8 @@ export function PersonalNotesModal({
   const [newIsTodo, setNewIsTodo] = useState(false);
   const [newIsPinned, setNewIsPinned] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [importStatus, setImportStatus] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -137,6 +141,38 @@ export function PersonalNotesModal({
     triggerBlobDownload(blob, `my-notes-${new Date().toISOString().slice(0, 10)}.txt`);
   };
 
+  const handleExportJson = () => {
+    if (notes.length === 0) return;
+    const blob = new Blob([JSON.stringify(notes, null, 2)], { type: 'application/json' });
+    triggerBlobDownload(blob, `personal-notes-backup-${new Date().toISOString().slice(0, 10)}.json`);
+  };
+
+  const handleImportJson = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        const parsed = JSON.parse(text);
+        if (Array.isArray(parsed)) {
+          const merged = importPersonalNotes(parsed);
+          setNotes(merged);
+          setImportStatus(`Imported ${parsed.length} notes`);
+          setTimeout(() => setImportStatus(null), 3000);
+        } else {
+          setImportStatus('Invalid notes file');
+          setTimeout(() => setImportStatus(null), 3000);
+        }
+      } catch (err) {
+        setImportStatus('Failed to parse JSON file');
+        setTimeout(() => setImportStatus(null), 3000);
+      }
+    };
+    reader.readAsText(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const filteredNotes = notes
     .filter((note) => {
       if (filter === 'pinned') return note.isPinned;
@@ -195,16 +231,32 @@ export function PersonalNotesModal({
           </div>
 
           <div className="flex items-center gap-2">
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept=".json"
+              onChange={handleImportJson}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              title="Import notes from JSON backup"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-neutral-300 hover:text-white bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 transition-colors cursor-pointer"
+            >
+              <Upload className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="hidden sm:inline">Import</span>
+            </button>
             {notes.length > 0 && !isCreating && (
               <button
                 type="button"
                 id="notes-export-btn"
-                onClick={handleExportNotes}
-                title="Export all notes to a text file"
+                onClick={handleExportJson}
+                title="Backup all notes to a JSON file"
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-neutral-300 hover:text-white bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 transition-colors cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5 text-amber-400" />
-                <span className="hidden sm:inline">Export</span>
+                <span className="hidden sm:inline">Backup</span>
               </button>
             )}
             {!isCreating && (
@@ -229,6 +281,19 @@ export function PersonalNotesModal({
             </button>
           </div>
         </div>
+
+        {importStatus && (
+          <div className="px-4 py-2 bg-emerald-500/15 border-b border-emerald-500/30 text-emerald-300 text-xs flex items-center justify-between">
+            <span>{importStatus}</span>
+            <button
+              type="button"
+              onClick={() => setImportStatus(null)}
+              className="text-emerald-400 hover:text-emerald-200"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
 
         {/* Search and Category Filter Bar */}
         <div className="p-3 border-b border-neutral-800/80 bg-neutral-950/40 flex flex-col sm:flex-row items-center gap-2 shrink-0">
@@ -307,6 +372,15 @@ export function PersonalNotesModal({
               autoFocus
               className="w-full px-3 py-2 rounded-lg bg-neutral-900 border border-neutral-750 text-neutral-200 placeholder-neutral-500 text-xs focus:outline-none resize-none"
             />
+
+            {newContent.length > 0 && (
+              <div className="flex items-center justify-between text-[10px] text-neutral-400 font-mono px-1">
+                <span>
+                  {newContent.length} chars • {newContent.trim() ? newContent.trim().split(/\s+/).length : 0} words
+                </span>
+                <span className="text-neutral-500 text-[9px]">Encrypted in local vault</span>
+              </div>
+            )}
 
             <div className="flex items-center justify-between pt-1">
               <div className="flex items-center gap-3">

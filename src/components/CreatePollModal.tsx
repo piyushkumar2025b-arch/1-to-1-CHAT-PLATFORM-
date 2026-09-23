@@ -142,6 +142,8 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                 { title: 'Deployment', q: 'Ready to proceed with deployment?', opts: ['Ship now 🚀', 'Wait for tests ⏳', 'Block/Hold 🛑'], multi: false },
                 { title: 'Food & Dining', q: 'What cuisine should we get?', opts: ['Pizza & Pasta 🍕', 'Burgers & Fries 🍔', 'Sushi & Japanese 🍣', 'Tacos & Mexican 🌮'], multi: true },
                 { title: 'Priority Level', q: 'What priority should this task have?', opts: ['🔥 P0 - Blocker', '⚡ P1 - High Priority', '⏳ P2 - Normal Backlog'], multi: false },
+                { title: 'Feature Launch', q: 'Should we release this to production?', opts: ['Ship it now 🚀', 'Need more testing 🧪', 'Revert changes ↩️'], multi: false },
+                { title: 'Coffee / Break', q: 'Ready for a quick 10-minute break?', opts: ['Yes, let’s grab coffee ☕', 'Give me 10 mins ⏳', 'Working through it 💻'], multi: false },
               ].map((template) => (
                 <button
                   key={template.title}
