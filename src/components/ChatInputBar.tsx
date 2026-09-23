@@ -23,6 +23,7 @@ import {
   Code,
   Quote,
   Bookmark,
+  KeyRound,
 } from 'lucide-react';
 import { ConnectionState, ChatTheme, EphemeralTimerOption, ReplyReference, ChatMessage } from '../types';
 import ReplyBanner from './ReplyBanner';
@@ -65,6 +66,7 @@ export interface ChatInputBarProps {
   onOpenScheduleMessage?: () => void;
   onOpenQuickReplies?: () => void;
   onOpenPersonalNotes?: () => void;
+  onOpenCryptoCipher?: () => void;
   sendKeyPreference?: 'enter' | 'ctrl_enter';
   showCharacterCount?: boolean;
   showWordCount?: boolean;
@@ -117,6 +119,7 @@ export const ChatInputBar = memo<ChatInputBarProps>(
     onOpenScheduleMessage,
     onOpenQuickReplies,
     onOpenPersonalNotes,
+    onOpenCryptoCipher,
     sendKeyPreference = 'enter',
     showCharacterCount = true,
     showWordCount = true,
@@ -390,6 +393,20 @@ export const ChatInputBar = memo<ChatInputBarProps>(
                   </button>
                 )}
 
+                {onOpenCryptoCipher && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenCryptoCipher();
+                      setMobileToolsOpen(false);
+                    }}
+                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-amber-400 active:scale-95 transition-all text-[11px]"
+                  >
+                    <KeyRound className="w-4 h-4 text-amber-400" />
+                    <span>Cipher</span>
+                  </button>
+                )}
+
                 {onToggleDictate && (
                   <button
                     type="button"
@@ -605,6 +622,20 @@ export const ChatInputBar = memo<ChatInputBarProps>(
                     className="p-2 rounded-xl hover:bg-white/10 text-neutral-400 hover:text-amber-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                   >
                     <Bookmark className="w-4 h-4 text-amber-400" />
+                  </button>
+                )}
+
+                {/* Cryptographic Cipher & Hash Toolkit */}
+                {onOpenCryptoCipher && (
+                  <button
+                    type="button"
+                    id="crypto-cipher-desktop-button"
+                    onClick={onOpenCryptoCipher}
+                    disabled={!isConnected}
+                    title="Cryptographic Cipher, Hash & Morse Toolkit (/cipher)"
+                    className="p-2 rounded-xl hover:bg-white/10 text-neutral-400 hover:text-amber-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <KeyRound className="w-4 h-4 text-amber-400" />
                   </button>
                 )}
 

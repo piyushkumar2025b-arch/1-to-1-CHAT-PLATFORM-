@@ -20,6 +20,9 @@ import {
   Bookmark,
   Bell,
   Mic,
+  KeyRound,
+  Dices,
+  Sparkles,
 } from 'lucide-react';
 
 export interface SlashCommand {
@@ -58,6 +61,14 @@ export function SlashCommandMenu({
       alias: '/sandbox',
       description: 'Open interactive code sandbox with syntax highlighting & REPL',
       icon: <Code2 className="w-4 h-4 text-cyan-400" />,
+      category: 'Tools',
+    },
+    {
+      id: 'cipher',
+      name: '/cipher',
+      alias: '/encrypt',
+      description: 'Open Cryptographic Cipher & Hash Toolkit (AES-GCM, SHA, Morse)',
+      icon: <KeyRound className="w-4 h-4 text-amber-400" />,
       category: 'Tools',
     },
     {
@@ -226,6 +237,22 @@ export function SlashCommandMenu({
       alias: '',
       description: 'Insert ( ͡° ͜ʖ ͡°) into message',
       icon: <Smile className="w-4 h-4 text-purple-300" />,
+      category: 'Text',
+    },
+    {
+      id: 'roll',
+      name: '/roll',
+      alias: '/dice',
+      description: 'Roll a random d6 / d20 die (e.g. 🎲 Rolled 6 [1-6])',
+      icon: <Dices className="w-4 h-4 text-amber-400" />,
+      category: 'Text',
+    },
+    {
+      id: 'coin',
+      name: '/coin',
+      alias: '/flip',
+      description: 'Flip a coin (🪙 Heads or Tails)',
+      icon: <Sparkles className="w-4 h-4 text-amber-300" />,
       category: 'Text',
     },
     {

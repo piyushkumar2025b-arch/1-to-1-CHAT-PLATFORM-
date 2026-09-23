@@ -101,6 +101,7 @@ import { ChatInputBar } from './components/ChatInputBar';
 import { ChatAppearanceModal } from './components/ChatAppearanceModal';
 import { QuickRepliesModal } from './components/QuickRepliesModal';
 import { PersonalNotesModal } from './components/PersonalNotesModal';
+import { CryptoCipherModal } from './components/CryptoCipherModal';
 import { addPersonalNote } from './lib/personal-notes';
 import { getDisplaySettings, saveDisplaySettings, DisplaySettings } from './lib/display-settings';
 import { stopSpeaking } from './lib/text-to-speech';
@@ -347,6 +348,7 @@ export default function App() {
   const [appearanceModalOpen, setAppearanceModalOpen] = useState(false);
   const [quickRepliesModalOpen, setQuickRepliesModalOpen] = useState(false);
   const [personalNotesModalOpen, setPersonalNotesModalOpen] = useState(false);
+  const [cryptoCipherModalOpen, setCryptoCipherModalOpen] = useState(false);
 
   const handleSaveToNotes = useCallback((msg: ChatMessage) => {
     const textContent = msg.text || (msg.file ? `[File Attachment: ${msg.file.fileName}]` : '');
@@ -2534,6 +2536,17 @@ export default function App() {
     } else if (cmd.id === 'starred') {
       setStarredModalOpen(true);
       setInputText('');
+    } else if (cmd.id === 'cipher') {
+      setCryptoCipherModalOpen(true);
+      setInputText('');
+    } else if (cmd.id === 'roll') {
+      const roll = Math.floor(Math.random() * 6) + 1;
+      setInputText((prev) => (prev.startsWith('/') ? '' : prev) + `🎲 Rolled a ${roll}! (1-6) `);
+      textareaRef.current?.focus();
+    } else if (cmd.id === 'coin') {
+      const flip = Math.random() < 0.5 ? 'Heads' : 'Tails';
+      setInputText((prev) => (prev.startsWith('/') ? '' : prev) + `🪙 Coin Flip: ${flip}! `);
+      textareaRef.current?.focus();
     }
   };
 
@@ -3486,6 +3499,7 @@ export default function App() {
         onOpenDisplaySettings={() => setAppearanceModalOpen(true)}
         onOpenQuickReplies={() => setQuickRepliesModalOpen(true)}
         onOpenPersonalNotes={() => setPersonalNotesModalOpen(true)}
+        onOpenCryptoCipher={() => setCryptoCipherModalOpen(true)}
       />
 
       {/* Real-time In-Chat Search Bar */}
@@ -3840,6 +3854,7 @@ export default function App() {
             onOpenScheduleMessage={() => setScheduleModalOpen(true)}
             onOpenQuickReplies={() => setQuickRepliesModalOpen(true)}
             onOpenPersonalNotes={() => setPersonalNotesModalOpen(true)}
+            onOpenCryptoCipher={() => setCryptoCipherModalOpen(true)}
             sendKeyPreference={displaySettings.sendKeyPreference}
             showCharacterCount={displaySettings.showCharacterCount !== false}
             showWordCount={displaySettings.showWordCount !== false}
@@ -4211,6 +4226,20 @@ export default function App() {
           }
         }}
         accentColor={currentTheme.accentColor}
+      />
+
+      {/* Cryptographic Cipher, Hash & Morse Toolkit Modal */}
+      <CryptoCipherModal
+        isOpen={cryptoCipherModalOpen}
+        onClose={() => setCryptoCipherModalOpen(false)}
+        onInsertToChat={(text) => {
+          setInputText((prev) => (prev.trim() ? `${prev}\n${text}` : text));
+          if (textareaRef.current) {
+            textareaRef.current.focus();
+          }
+        }}
+        accentColor={currentTheme.accentColor}
+        initialText={inputText}
       />
     </div>
   );
