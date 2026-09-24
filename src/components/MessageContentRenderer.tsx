@@ -9,7 +9,12 @@ import { BurnOnReadCapsule } from './BurnOnReadCapsule';
 import { ChecklistCard } from './ChecklistCard';
 import { ChoicePickerCard } from './ChoicePickerCard';
 import { ShreddedFileReceiptCard } from './ShreddedFileReceiptCard';
+import { TimeLockCapsule } from './TimeLockCapsule';
+import { ConfidentialVeilCard } from './ConfidentialVeilCard';
 import { hasSteganography } from '../lib/steganography';
+import { ShamirShareCard } from './ShamirShareCard';
+import { MarkdownTableCard, parseTableFromText } from './MarkdownTableCard';
+import { ScratchRevealImageCard, parseScratchImage } from './ScratchRevealImageCard';
 
 interface MessageContentRendererProps {
   text: string;
@@ -17,6 +22,8 @@ interface MessageContentRendererProps {
   accentColor?: string;
   onOpenCodeInSandbox?: (code: string, language?: string) => void;
   onInspectSteganography?: (text: string) => void;
+  onOpenReconstructor?: (shareToken: string) => void;
+  onOpenLightbox?: (src: string) => void;
 }
 
 // Regex to test if string contains solely 1 to 4 emoji characters and whitespace
@@ -243,9 +250,49 @@ export function MessageContentRenderer({
   accentColor,
   onOpenCodeInSandbox,
   onInspectSteganography,
+  onOpenReconstructor,
+  onOpenLightbox,
 }: MessageContentRendererProps) {
   // Check if message is solely emojis (1 to 4 emoji characters)
   const trimmed = text.trim();
+
+  // Check for Shamir Secret Share token: SHAMIR_SHARE::...
+  if (trimmed.startsWith('SHAMIR_SHARE::')) {
+    return (
+      <ShamirShareCard
+        payload={trimmed}
+        isMe={isMe}
+        accentColor={accentColor}
+        onOpenReconstructor={onOpenReconstructor}
+      />
+    );
+  }
+
+  // Check for Scratch-to-Reveal image: SCRATCH_IMAGE::...
+  const scratchData = parseScratchImage(trimmed);
+  if (scratchData) {
+    return (
+      <ScratchRevealImageCard
+        imageSrc={scratchData.imageSrc}
+        caption={scratchData.caption}
+        isMe={isMe}
+        accentColor={accentColor}
+        onOpenLightbox={onOpenLightbox}
+      />
+    );
+  }
+
+  // Check for Interactive / Markdown Data Table: TABLE_DATA:: or [TABLE:...] or Markdown
+  const tableData = parseTableFromText(trimmed);
+  if (tableData) {
+    return (
+      <MarkdownTableCard
+        data={tableData}
+        accentColor={accentColor}
+        isMe={isMe}
+      />
+    );
+  }
 
   // Check for Burn-On-Read confidential secret payload
   if (trimmed.startsWith('BURN_SECRET::')) {
@@ -253,6 +300,49 @@ export function MessageContentRenderer({
       <BurnOnReadCapsule
         payload={trimmed}
         isMe={isMe}
+        accentColor={accentColor}
+      />
+    );
+  }
+
+  // Check for Time-Locked message capsule
+  if (trimmed.startsWith('TIMELOCK::')) {
+    return (
+      <TimeLockCapsule
+        payload={trimmed}
+        isMe={isMe}
+        accentColor={accentColor}
+      />
+    );
+  }
+
+  // Check for Confidential Veil syntax: [VEIL:Label:Secret] or [VEIL:Secret] or VEIL::label::secret
+  const veilBracketMatch = trimmed.match(/^🛡️?\s*\[VEIL:(?:([^:]+):)?([^\]]+)\]$/i);
+  if (veilBracketMatch) {
+    const label = veilBracketMatch[1]?.trim() || 'Confidential Data';
+    const content = veilBracketMatch[2]?.trim() || '';
+    return (
+      <ConfidentialVeilCard
+        label={label}
+        hiddenContent={content}
+        accentColor={accentColor}
+      />
+    );
+  }
+
+  if (trimmed.startsWith('VEIL::')) {
+    const parts = trimmed.split('::');
+    const label = parts[1] || 'Confidential Veil';
+    let content = parts[2] || '';
+    try {
+      content = decodeURIComponent(escape(atob(content)));
+    } catch {
+      // raw
+    }
+    return (
+      <ConfidentialVeilCard
+        label={label}
+        hiddenContent={content}
         accentColor={accentColor}
       />
     );

@@ -107,6 +107,11 @@ import { BurnOnReadModal } from './components/BurnOnReadModal';
 import { SteganographyModal } from './components/SteganographyModal';
 import { AcousticShieldModal } from './components/AcousticShieldModal';
 import { FileShredderModal } from './components/FileShredderModal';
+import { TimeLockModal } from './components/TimeLockModal';
+import { VoiceDisguiseModal } from './components/VoiceDisguiseModal';
+import { ShamirSecretModal } from './components/ShamirSecretModal';
+import { TableGeneratorModal } from './components/TableGeneratorModal';
+import { PhotoObfuscatorModal } from './components/PhotoObfuscatorModal';
 import { addPersonalNote } from './lib/personal-notes';
 import { getDisplaySettings, saveDisplaySettings, DisplaySettings } from './lib/display-settings';
 import { stopSpeaking } from './lib/text-to-speech';
@@ -118,6 +123,7 @@ import { QuickDrawModal } from './components/QuickDrawModal';
 import { ScheduleMessageModal } from './components/ScheduleMessageModal';
 import { ScheduledMessagesTray } from './components/ScheduledMessagesTray';
 import ImageEditorModal from './components/ImageEditorModal';
+import ImageLightboxModal from './components/ImageLightboxModal';
 import { CodeSandboxModal } from './components/CodeSandboxModal';
 import { BlurGuardShield } from './components/BlurGuardShield';
 import { ChatSearchBar, SearchFilterType } from './components/ChatSearchBar';
@@ -360,6 +366,15 @@ export default function App() {
   const [steganographyInspectText, setSteganographyInspectText] = useState('');
   const [acousticShieldModalOpen, setAcousticShieldModalOpen] = useState(false);
   const [fileShredderModalOpen, setFileShredderModalOpen] = useState(false);
+  const [timeLockModalOpen, setTimeLockModalOpen] = useState(false);
+  const [voiceDisguiseModalOpen, setVoiceDisguiseModalOpen] = useState(false);
+  const [shamirModalOpen, setShamirModalOpen] = useState(false);
+  const [shamirInitialShare, setShamirInitialShare] = useState('');
+  const [tableGeneratorModalOpen, setTableGeneratorModalOpen] = useState(false);
+  const [photoObfuscatorModalOpen, setPhotoObfuscatorModalOpen] = useState(false);
+  const [photoToObfuscate, setPhotoToObfuscate] = useState<File | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxImageSrc, setLightboxImageSrc] = useState('');
 
   const handleSaveToNotes = useCallback((msg: ChatMessage) => {
     const textContent = msg.text || (msg.file ? `[File Attachment: ${msg.file.fileName}]` : '');
@@ -2396,6 +2411,33 @@ export default function App() {
     setSecurityToastMessage('Edited & redacted image applied');
   };
 
+  const handleSendProcessedImage = (dataUrl: string, isScratchReveal: boolean, caption?: string) => {
+    if (isScratchReveal) {
+      const scratchPayload = `SCRATCH_IMAGE::${caption ? encodeURIComponent(caption) : ''}::${dataUrl}`;
+      handleSendMessage(scratchPayload);
+      setSecurityToastMessage('Holographic Scratch-to-Reveal image sent to chat!');
+    } else {
+      try {
+        const arr = dataUrl.split(',');
+        const mimeMatch = arr[0].match(/:(.*?);/);
+        const mime = mimeMatch ? mimeMatch[1] : 'image/png';
+        const bstr = atob(arr[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+          u8arr[n] = bstr.charCodeAt(n);
+        }
+        const fileName = `redacted_photo_${Date.now()}.png`;
+        const file = new File([u8arr], fileName, { type: mime });
+        processAndUploadFile(file, caption || '🔒 Redacted Confidential Photo');
+        setSecurityToastMessage('Redacted photo dispatched to secure enclave!');
+      } catch (err) {
+        console.error('Failed to convert processed image:', err);
+        setSecurityToastMessage('Failed to process image');
+      }
+    }
+  };
+
   const handleFileSelect = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -2609,6 +2651,28 @@ export default function App() {
         setInputText('🎲 [CHOICE:Decision Picker:Option Alpha, Option Beta, Option Gamma]');
       }
       textareaRef.current?.focus();
+    } else if (cmd.id === 'capsule') {
+      setTimeLockModalOpen(true);
+      setInputText('');
+    } else if (cmd.id === 'veil') {
+      const match = inputText.match(/^\/(?:veil|hidecard)(?:\s+(.+))?$/i);
+      if (match && match[1]?.trim()) {
+        const raw = match[1].trim();
+        const colonIdx = raw.indexOf(':');
+        if (colonIdx > 0) {
+          const label = raw.slice(0, colonIdx).trim();
+          const secret = raw.slice(colonIdx + 1).trim();
+          setInputText(`🛡️ [VEIL:${label}:${secret}]`);
+        } else {
+          setInputText(`🛡️ [VEIL:Confidential Note:${raw}]`);
+        }
+      } else {
+        setInputText('🛡️ [VEIL:Protected Credential:api_secret_key_994827104]');
+      }
+      textareaRef.current?.focus();
+    } else if (cmd.id === 'disguise') {
+      setVoiceDisguiseModalOpen(true);
+      setInputText('');
     } else if (cmd.id === 'timer') {
       const match = inputText.match(/^\/(?:timer|countdown)(?:\s+(\d+))?(?:\s+(.*))?$/i);
       const minutes = match && match[1] ? parseInt(match[1], 10) : 5;
@@ -2624,6 +2688,27 @@ export default function App() {
       const flip = Math.random() < 0.5 ? 'Heads' : 'Tails';
       setInputText((prev) => (prev.startsWith('/') ? '' : prev) + `🪙 Coin Flip: ${flip}! `);
       textareaRef.current?.focus();
+    } else if (cmd.id === 'split') {
+      setShamirInitialShare('');
+      setShamirModalOpen(true);
+      setInputText('');
+    } else if (cmd.id === 'reconstruct') {
+      const match = inputText.match(/^\/(?:reconstruct|combine)(?:\s+(.+))?$/i);
+      const token = match && match[1]?.trim() ? match[1].trim() : '';
+      setShamirInitialShare(token);
+      setShamirModalOpen(true);
+      setInputText('');
+    } else if (cmd.id === 'table') {
+      setTableGeneratorModalOpen(true);
+      setInputText('');
+    } else if (cmd.id === 'photo') {
+      setPhotoToObfuscate(null);
+      setPhotoObfuscatorModalOpen(true);
+      setInputText('');
+    } else if (cmd.id === 'scratch') {
+      setPhotoToObfuscate(null);
+      setPhotoObfuscatorModalOpen(true);
+      setInputText('');
     }
   };
 
@@ -3585,6 +3670,8 @@ export default function App() {
         }}
         onOpenAcousticShield={() => setAcousticShieldModalOpen(true)}
         onOpenFileShredder={() => setFileShredderModalOpen(true)}
+        onOpenTimeLock={() => setTimeLockModalOpen(true)}
+        onOpenVoiceDisguise={() => setVoiceDisguiseModalOpen(true)}
       />
 
       {/* Real-time In-Chat Search Bar */}
@@ -3809,6 +3896,14 @@ export default function App() {
                       setSteganographyInspectText(txt);
                       setSteganographyModalOpen(true);
                     }}
+                    onOpenReconstructor={(shareToken) => {
+                      setShamirInitialShare(shareToken);
+                      setShamirModalOpen(true);
+                    }}
+                    onOpenLightbox={(src) => {
+                      setLightboxImageSrc(src);
+                      setLightboxOpen(true);
+                    }}
                   />
                 );
               })}
@@ -3952,6 +4047,17 @@ export default function App() {
             }}
             onOpenAcousticShield={() => setAcousticShieldModalOpen(true)}
             onOpenFileShredder={() => setFileShredderModalOpen(true)}
+            onOpenTimeLock={() => setTimeLockModalOpen(true)}
+            onOpenVoiceDisguise={() => setVoiceDisguiseModalOpen(true)}
+            onOpenShamirSecret={() => {
+              setShamirInitialShare('');
+              setShamirModalOpen(true);
+            }}
+            onOpenTableGenerator={() => setTableGeneratorModalOpen(true)}
+            onOpenPhotoObfuscator={() => {
+              setPhotoToObfuscate(null);
+              setPhotoObfuscatorModalOpen(true);
+            }}
             sendKeyPreference={displaySettings.sendKeyPreference}
             showCharacterCount={displaySettings.showCharacterCount !== false}
             showWordCount={displaySettings.showWordCount !== false}
@@ -4398,6 +4504,85 @@ export default function App() {
           if (textareaRef.current) {
             textareaRef.current.focus();
           }
+        }}
+        accentColor={currentTheme.accentColor}
+      />
+
+      {/* Time-Locked Temporal Escrow Capsule Modal */}
+      <TimeLockModal
+        isOpen={timeLockModalOpen}
+        onClose={() => setTimeLockModalOpen(false)}
+        onInsertToChat={(payload) => {
+          setInputText(payload);
+          if (textareaRef.current) {
+            textareaRef.current.focus();
+          }
+        }}
+        accentColor={currentTheme.accentColor}
+      />
+
+      {/* Voice Disguise Studio & Audio Anonymizer Modal */}
+      <VoiceDisguiseModal
+        isOpen={voiceDisguiseModalOpen}
+        onClose={() => setVoiceDisguiseModalOpen(false)}
+        onSendDisguisedAudio={(file) => {
+          processAndUploadFile(file, '🎙️ Disguised Voice Note');
+        }}
+        accentColor={currentTheme.accentColor}
+      />
+
+      {/* Shamir's Secret Sharing (GF(256) Polynomial Split & Lagrange Reconstruct) */}
+      <ShamirSecretModal
+        isOpen={shamirModalOpen}
+        onClose={() => {
+          setShamirModalOpen(false);
+          setShamirInitialShare('');
+        }}
+        onSendShareToChat={(shareString) => {
+          handleSendMessage(shareString);
+          setSecurityToastMessage('Shamir secret share dispatched to chat enclave!');
+        }}
+        initialShareToReconstruct={shamirInitialShare}
+        accentColor={currentTheme.accentColor}
+      />
+
+      {/* Interactive Table & Matrix Generator Modal */}
+      <TableGeneratorModal
+        isOpen={tableGeneratorModalOpen}
+        onClose={() => setTableGeneratorModalOpen(false)}
+        onInsertTable={(serializedTable) => {
+          handleSendMessage(serializedTable);
+          setSecurityToastMessage('Data table published to encrypted stream!');
+        }}
+        accentColor={currentTheme.accentColor}
+      />
+
+      {/* Photo Obfuscation & Holographic Scratch Foil Studio Modal */}
+      <PhotoObfuscatorModal
+        isOpen={photoObfuscatorModalOpen}
+        onClose={() => {
+          setPhotoObfuscatorModalOpen(false);
+          setPhotoToObfuscate(null);
+        }}
+        onSendProcessedImage={handleSendProcessedImage}
+        initialImageFile={photoToObfuscate}
+        accentColor={currentTheme.accentColor}
+      />
+
+      {/* Image Lightbox & Inspection Modal */}
+      <ImageLightboxModal
+        isOpen={lightboxOpen}
+        imageUrl={lightboxImageSrc}
+        fileName="confidential_media.png"
+        onClose={() => setLightboxOpen(false)}
+        onDownload={() => {
+          if (!lightboxImageSrc) return;
+          const a = document.createElement('a');
+          a.href = lightboxImageSrc;
+          a.download = `secure_image_${Date.now()}.png`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
         }}
         accentColor={currentTheme.accentColor}
       />

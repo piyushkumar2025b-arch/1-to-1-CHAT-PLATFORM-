@@ -26,6 +26,10 @@ import {
   KeyRound,
   Radio,
   Trash2,
+  Lock,
+  Split,
+  Table,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { ConnectionState, ChatTheme, EphemeralTimerOption, ReplyReference, ChatMessage } from '../types';
 import ReplyBanner from './ReplyBanner';
@@ -74,6 +78,11 @@ export interface ChatInputBarProps {
   onOpenSteganography?: () => void;
   onOpenAcousticShield?: () => void;
   onOpenFileShredder?: () => void;
+  onOpenTimeLock?: () => void;
+  onOpenVoiceDisguise?: () => void;
+  onOpenShamirSecret?: () => void;
+  onOpenTableGenerator?: () => void;
+  onOpenPhotoObfuscator?: () => void;
   sendKeyPreference?: 'enter' | 'ctrl_enter';
   showCharacterCount?: boolean;
   showWordCount?: boolean;
@@ -132,6 +141,11 @@ export const ChatInputBar = memo<ChatInputBarProps>(
     onOpenSteganography,
     onOpenAcousticShield,
     onOpenFileShredder,
+    onOpenTimeLock,
+    onOpenVoiceDisguise,
+    onOpenShamirSecret,
+    onOpenTableGenerator,
+    onOpenPhotoObfuscator,
     sendKeyPreference = 'enter',
     showCharacterCount = true,
     showWordCount = true,
@@ -489,6 +503,79 @@ export const ChatInputBar = memo<ChatInputBarProps>(
                   </button>
                 )}
 
+                {onOpenTimeLock && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenTimeLock();
+                      setMobileToolsOpen(false);
+                    }}
+                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-amber-400 active:scale-95 transition-all text-[11px]"
+                  >
+                    <Lock className="w-4 h-4 text-amber-400" />
+                    <span>Capsule</span>
+                  </button>
+                )}
+
+                {onOpenVoiceDisguise && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenVoiceDisguise();
+                      setMobileToolsOpen(false);
+                    }}
+                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-purple-400 active:scale-95 transition-all text-[11px]"
+                  >
+                    <Mic className="w-4 h-4 text-purple-400" />
+                    <span>Disguise</span>
+                  </button>
+                )}
+
+                {onOpenShamirSecret && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenShamirSecret();
+                      setMobileToolsOpen(false);
+                    }}
+                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-amber-400 active:scale-95 transition-all text-[11px]"
+                    title="Shamir's Secret Sharing (split/reconstruct)"
+                  >
+                    <Split className="w-4 h-4 text-amber-400" />
+                    <span>Shamir</span>
+                  </button>
+                )}
+
+                {onOpenTableGenerator && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenTableGenerator();
+                      setMobileToolsOpen(false);
+                    }}
+                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-cyan-400 active:scale-95 transition-all text-[11px]"
+                    title="Interactive Table & Matrix Builder"
+                  >
+                    <Table className="w-4 h-4 text-cyan-400" />
+                    <span>Table</span>
+                  </button>
+                )}
+
+                {onOpenPhotoObfuscator && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenPhotoObfuscator();
+                      setMobileToolsOpen(false);
+                    }}
+                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-rose-400 active:scale-95 transition-all text-[11px]"
+                    title="Photo Redaction & Scratch Foil Studio"
+                  >
+                    <ImageIcon className="w-4 h-4 text-rose-400" />
+                    <span>Redact</span>
+                  </button>
+                )}
+
                 {onToggleDictate && (
                   <button
                     type="button"
@@ -788,6 +875,34 @@ export const ChatInputBar = memo<ChatInputBarProps>(
                     className="p-2 rounded-xl hover:bg-white/10 text-neutral-400 hover:text-rose-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                   >
                     <Trash2 className="w-4 h-4 text-rose-400" />
+                  </button>
+                )}
+
+                {/* Time-Locked Message Capsule */}
+                {onOpenTimeLock && (
+                  <button
+                    type="button"
+                    id="timelock-desktop-button"
+                    onClick={onOpenTimeLock}
+                    disabled={!isConnected}
+                    title="Time-Locked Message Capsule (/capsule)"
+                    className="p-2 rounded-xl hover:bg-white/10 text-neutral-400 hover:text-amber-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <Lock className="w-4 h-4 text-amber-400" />
+                  </button>
+                )}
+
+                {/* Voice Disguise Studio */}
+                {onOpenVoiceDisguise && (
+                  <button
+                    type="button"
+                    id="voice-disguise-desktop-button"
+                    onClick={onOpenVoiceDisguise}
+                    disabled={!isConnected}
+                    title="Voice Disguise Studio (DSP vocal pitch & morph) (/disguise)"
+                    className="p-2 rounded-xl hover:bg-white/10 text-neutral-400 hover:text-purple-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <Mic className="w-4 h-4 text-purple-400" />
                   </button>
                 )}
 

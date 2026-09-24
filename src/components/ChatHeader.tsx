@@ -40,6 +40,7 @@ import {
   KeyRound,
   Radio,
   Trash2,
+  Mic,
 } from 'lucide-react';
 import { ConnectionState, ChatTheme, EphemeralTimerOption } from '../types';
 
@@ -100,6 +101,8 @@ interface ChatHeaderProps {
   onOpenSteganography?: () => void;
   onOpenAcousticShield?: () => void;
   onOpenFileShredder?: () => void;
+  onOpenTimeLock?: () => void;
+  onOpenVoiceDisguise?: () => void;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -159,6 +162,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   onOpenSteganography,
   onOpenAcousticShield,
   onOpenFileShredder,
+  onOpenTimeLock,
+  onOpenVoiceDisguise,
 }) => {
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -795,6 +800,48 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                     </div>
                     <kbd className="text-[9px] font-mono px-1 py-0.5 rounded bg-neutral-800 text-neutral-400 border border-neutral-700">
                       /shred
+                    </kbd>
+                  </button>
+                )}
+
+                {/* Time-Locked Message Capsule */}
+                {onOpenTimeLock && (
+                  <button
+                    type="button"
+                    id="header-timelock-btn"
+                    onClick={() => {
+                      onOpenTimeLock();
+                      setMoreMenuOpen(false);
+                    }}
+                    className="w-full px-3.5 py-2 text-left text-xs text-neutral-200 hover:text-white hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Lock className="w-4 h-4 text-amber-400" />
+                      <span>Time-Locked Capsule</span>
+                    </div>
+                    <kbd className="text-[9px] font-mono px-1 py-0.5 rounded bg-neutral-800 text-neutral-400 border border-neutral-700">
+                      /capsule
+                    </kbd>
+                  </button>
+                )}
+
+                {/* Voice Disguise Studio */}
+                {onOpenVoiceDisguise && (
+                  <button
+                    type="button"
+                    id="header-voice-disguise-btn"
+                    onClick={() => {
+                      onOpenVoiceDisguise();
+                      setMoreMenuOpen(false);
+                    }}
+                    className="w-full px-3.5 py-2 text-left text-xs text-neutral-200 hover:text-white hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Mic className="w-4 h-4 text-purple-400" />
+                      <span>Voice Disguise Studio</span>
+                    </div>
+                    <kbd className="text-[9px] font-mono px-1 py-0.5 rounded bg-neutral-800 text-neutral-400 border border-neutral-700">
+                      /disguise
                     </kbd>
                   </button>
                 )}

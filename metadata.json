@@ -1,6 +1,6 @@
 {
   "name": "Private Chat",
-  "description": "A private, secure 1-to-1 chat featuring end-to-end encrypted messaging, acoustic privacy sound jamming shield, digital file shredder, CSPRNG decision pickers, self-destructing burn-on-read notes, zero-width steganography invisible ink, interactive checklist cards, in-bubble AES decryptors, live countdown timers, password generator, crypto cipher toolkit, and privacy shielding.",
+  "description": "A private, secure 1-to-1 chat featuring end-to-end encrypted messaging, time-locked message capsules, confidential tap-to-reveal veils, voice disguise studio with DSP pitch-shifting, acoustic sound jamming privacy shield, digital file shredder, CSPRNG decision pickers, self-destructing burn notes, steganography, and zero-knowledge communications.",
   "requestFramePermissions": ["microphone", "camera", "display-capture"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
