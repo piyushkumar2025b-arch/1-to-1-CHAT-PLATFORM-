@@ -32,6 +32,9 @@ import {
   AlertOctagon,
   Key,
   Waves,
+  FileSignature,
+  Bird,
+  Hourglass,
 } from 'lucide-react';
 
 export interface SlashCommand {
@@ -238,6 +241,38 @@ export function SlashCommandMenu({
       alias: '/sonar',
       description: 'Modulate secret messages into Dual-Tone FSK / ultrasonic soundwaves',
       icon: <Waves className="w-4 h-4 text-cyan-400" />,
+      category: 'Tools',
+    },
+    {
+      id: 'handshake',
+      name: '/handshake',
+      alias: '/contract',
+      description: 'Propose and countersign mutual 2-of-2 cryptographic NDA or security pact',
+      icon: <FileSignature className="w-4 h-4 text-amber-400" />,
+      category: 'Tools',
+    },
+    {
+      id: 'canary',
+      name: '/canary',
+      alias: '/sentinel',
+      description: 'Publish tamper-evident Warrant Canary & Transparency Declaration',
+      icon: <Bird className="w-4 h-4 text-emerald-400" />,
+      category: 'Tools',
+    },
+    {
+      id: 'covert',
+      name: '/covert',
+      alias: '/stealthmsg',
+      description: 'Send bifurcated decoy camouflage message with hidden compartment',
+      icon: <EyeOff className="w-4 h-4 text-purple-400" />,
+      category: 'Tools',
+    },
+    {
+      id: 'roomtimer',
+      name: '/roomtimer',
+      alias: '/burner',
+      description: 'Arm disposable burner room self-destruct countdown timer',
+      icon: <Hourglass className="w-4 h-4 text-orange-400" />,
       category: 'Tools',
     },
     {

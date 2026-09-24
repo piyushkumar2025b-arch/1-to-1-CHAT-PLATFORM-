@@ -47,6 +47,7 @@ import {
   Terminal,
   Flame,
   ShieldAlert,
+  Hourglass,
 } from 'lucide-react';
 import {
   doc,
@@ -116,6 +117,10 @@ import { DeadMansSwitchModal } from './components/DeadMansSwitchModal';
 import { OneTimePadModal } from './components/OneTimePadModal';
 import { ExifScrubberModal } from './components/ExifScrubberModal';
 import { AudioSteganographyModal } from './components/AudioSteganographyModal';
+import { DualHandshakeModal } from './components/DualHandshakeModal';
+import { WarrantCanaryModal } from './components/WarrantCanaryModal';
+import { CovertCamouflageModal } from './components/CovertCamouflageModal';
+import { RoomLifespanModal } from './components/RoomLifespanModal';
 import { addPersonalNote } from './lib/personal-notes';
 import { getDisplaySettings, saveDisplaySettings, DisplaySettings } from './lib/display-settings';
 import { stopSpeaking } from './lib/text-to-speech';
@@ -383,6 +388,12 @@ export default function App() {
   const [oneTimePadModalOpen, setOneTimePadModalOpen] = useState(false);
   const [exifScrubberModalOpen, setExifScrubberModalOpen] = useState(false);
   const [audioStegoModalOpen, setAudioStegoModalOpen] = useState(false);
+  const [dualHandshakeModalOpen, setDualHandshakeModalOpen] = useState(false);
+  const [warrantCanaryModalOpen, setWarrantCanaryModalOpen] = useState(false);
+  const [covertCamouflageModalOpen, setCovertCamouflageModalOpen] = useState(false);
+  const [roomLifespanModalOpen, setRoomLifespanModalOpen] = useState(false);
+  const [roomExpiresAt, setRoomExpiresAt] = useState<number | null>(null);
+  const [roomLifespanMinutes, setRoomLifespanMinutes] = useState<number>(0);
 
   const handleSaveToNotes = useCallback((msg: ChatMessage) => {
     const textContent = msg.text || (msg.file ? `[File Attachment: ${msg.file.fileName}]` : '');
@@ -975,6 +986,17 @@ export default function App() {
           }
         }
 
+        // Sync room-wide lifespan/burner settings if set
+        if (data?.roomLifespan?.expiresAt) {
+          setRoomExpiresAt(data.roomLifespan.expiresAt);
+          if (data.roomLifespan.durationMinutes) {
+            setRoomLifespanMinutes(data.roomLifespan.durationMinutes);
+          }
+        } else {
+          setRoomExpiresAt(null);
+          setRoomLifespanMinutes(0);
+        }
+
         if (count >= 2) {
           setConnectionState('connected');
         } else {
@@ -1551,6 +1573,29 @@ export default function App() {
     setMessages((prev) => prev.filter((m) => m.id !== messageId));
   }, [activeRoomId]);
 
+  const handleSetRoomLifespan = async (minutes: number) => {
+    if (!activeRoomId) return;
+    if (minutes <= 0) {
+      setRoomExpiresAt(null);
+      setRoomLifespanMinutes(0);
+      await updateDoc(doc(db, 'rooms', activeRoomId), {
+        roomLifespan: deleteField(),
+      }).catch(() => {});
+      setSecurityToastMessage('Burner room self-destruct timer turned off.');
+    } else {
+      const expiresAt = Date.now() + minutes * 60 * 1000;
+      setRoomExpiresAt(expiresAt);
+      setRoomLifespanMinutes(minutes);
+      await updateDoc(doc(db, 'rooms', activeRoomId), {
+        roomLifespan: {
+          expiresAt,
+          durationMinutes: minutes,
+        },
+      }).catch(() => {});
+      setSecurityToastMessage(`Burner room armed: Self-destruct in ${minutes} minutes.`);
+    }
+  };
+
   // Continuous background checker to delete any expired messages
   useEffect(() => {
     if (!activeRoomId || messages.length === 0) return;
@@ -1566,6 +1611,22 @@ export default function App() {
     }, 2000);
     return () => clearInterval(interval);
   }, [activeRoomId, messages]);
+
+  // Disposable Burner Room auto-evacuation countdown timer
+  useEffect(() => {
+    if (!roomExpiresAt || connectionState !== 'connected') return;
+
+    const timer = setInterval(() => {
+      const now = Date.now();
+      if (now >= roomExpiresAt) {
+        clearInterval(timer);
+        setSecurityToastMessage('⚠️ Burner Room Lifespan Expired. Enclave auto-purged.');
+        handleLeaveRoom();
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [roomExpiresAt, connectionState]);
 
   // Send regular text message (with optional reply reference or direct text)
   const handleSendMessage = async (e?: FormEvent, customText?: string) => {
@@ -2729,6 +2790,18 @@ export default function App() {
     } else if (cmd.id === 'chirp' || cmd.id === 'sonar') {
       setAudioStegoModalOpen(true);
       setInputText('');
+    } else if (cmd.id === 'handshake' || cmd.id === 'contract') {
+      setDualHandshakeModalOpen(true);
+      setInputText('');
+    } else if (cmd.id === 'canary' || cmd.id === 'sentinel') {
+      setWarrantCanaryModalOpen(true);
+      setInputText('');
+    } else if (cmd.id === 'covert' || cmd.id === 'stealthmsg') {
+      setCovertCamouflageModalOpen(true);
+      setInputText('');
+    } else if (cmd.id === 'roomtimer' || cmd.id === 'burner') {
+      setRoomLifespanModalOpen(true);
+      setInputText('');
     }
   };
 
@@ -3377,6 +3450,8 @@ export default function App() {
     purgeEnclaveKey();
     activePasswordRef.current = '';
     setActiveRoomId('');
+    setRoomExpiresAt(null);
+    setRoomLifespanMinutes(0);
     setConnectionState('unauthenticated');
     setMessages([]);
     setAuthError('');
@@ -3749,6 +3824,28 @@ export default function App() {
         </div>
       )}
 
+      {/* Disposable Burner Room Lifespan Banner */}
+      {roomExpiresAt && (
+        <div className="w-full px-4 py-2 bg-gradient-to-r from-orange-950/90 via-red-950/80 to-neutral-900 border-b border-orange-500/30 text-orange-200 text-xs flex items-center justify-between gap-3 shrink-0 backdrop-blur-md z-20 animate-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center gap-2">
+            <Hourglass className="w-4 h-4 text-orange-400 animate-pulse shrink-0" />
+            <span>
+              <strong>DISPOSABLE BURNER ROOM ACTIVE:</strong> Automatic purge and evacuation in{' '}
+              <span className="font-mono font-bold text-white bg-black/40 px-2 py-0.5 rounded border border-orange-500/30">
+                {formatRemainingTime(Math.max(0, Math.floor((roomExpiresAt - Date.now()) / 1000)) * 1000)}
+              </span>
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setRoomLifespanModalOpen(true)}
+            className="text-[11px] underline text-orange-300 hover:text-white transition-colors cursor-pointer"
+          >
+            Adjust lifespan
+          </button>
+        </div>
+      )}
+
       {/* Main Full-Screen Chat Feed */}
       <main
         id="messages-feed"
@@ -4082,6 +4179,10 @@ export default function App() {
             onOpenOneTimePad={() => setOneTimePadModalOpen(true)}
             onOpenExifScrubber={() => setExifScrubberModalOpen(true)}
             onOpenAudioSteganography={() => setAudioStegoModalOpen(true)}
+            onOpenDualHandshake={() => setDualHandshakeModalOpen(true)}
+            onOpenWarrantCanary={() => setWarrantCanaryModalOpen(true)}
+            onOpenCovertCamouflage={() => setCovertCamouflageModalOpen(true)}
+            onOpenRoomLifespan={() => setRoomLifespanModalOpen(true)}
             sendKeyPreference={displaySettings.sendKeyPreference}
             showCharacterCount={displaySettings.showCharacterCount !== false}
             showWordCount={displaySettings.showWordCount !== false}
@@ -4653,6 +4754,51 @@ export default function App() {
           handleSendMessage(chirpPayload);
           setSecurityToastMessage('Acoustic FSK chirp transmission sent to chat!');
         }}
+        accentColor={currentTheme.accentColor}
+      />
+
+      {/* Dual Multisig Handshake & Contract Modal */}
+      <DualHandshakeModal
+        isOpen={dualHandshakeModalOpen}
+        onClose={() => setDualHandshakeModalOpen(false)}
+        myUserId={myUserId}
+        targetName={targetName || 'Peer'}
+        onSendHandshake={(handshakePayload) => {
+          handleSendMessage(handshakePayload);
+          setSecurityToastMessage('Cryptographic handshake pact dispatched to room!');
+        }}
+        accentColor={currentTheme.accentColor}
+      />
+
+      {/* Warrant Canary & Transparency Declaration Modal */}
+      <WarrantCanaryModal
+        isOpen={warrantCanaryModalOpen}
+        onClose={() => setWarrantCanaryModalOpen(false)}
+        myUserId={myUserId}
+        onSendCanary={(canaryPayload) => {
+          handleSendMessage(canaryPayload);
+          setSecurityToastMessage('Tamper-evident Warrant Canary published!');
+        }}
+        accentColor={currentTheme.accentColor}
+      />
+
+      {/* Covert Decoy Camouflage Modal */}
+      <CovertCamouflageModal
+        isOpen={covertCamouflageModalOpen}
+        onClose={() => setCovertCamouflageModalOpen(false)}
+        onSendCovert={(covertPayload) => {
+          handleSendMessage(covertPayload);
+          setSecurityToastMessage('Covert camouflage capsule dispatched!');
+        }}
+        accentColor={currentTheme.accentColor}
+      />
+
+      {/* Disposable Burner Room Lifespan Modal */}
+      <RoomLifespanModal
+        isOpen={roomLifespanModalOpen}
+        onClose={() => setRoomLifespanModalOpen(false)}
+        currentLifespanMinutes={roomLifespanMinutes}
+        onSetRoomLifespan={handleSetRoomLifespan}
         accentColor={currentTheme.accentColor}
       />
     </div>

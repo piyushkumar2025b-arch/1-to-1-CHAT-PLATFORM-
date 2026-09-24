@@ -434,6 +434,7 @@ export const ChatMessageItem = memo<ChatMessageItemProps>(
                     text={msg.text}
                     isMe={isMe}
                     myUserId={myUserId}
+                    targetName={targetName}
                     accentColor={currentTheme.accentColor}
                     onOpenCodeInSandbox={onOpenCodeInSandbox}
                     onInspectSteganography={onInspectSteganography}

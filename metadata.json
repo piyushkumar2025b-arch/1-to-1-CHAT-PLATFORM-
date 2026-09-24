@@ -1,6 +1,6 @@
 {
   "name": "Private Chat",
-  "description": "A private, secure 1-to-1 chat featuring end-to-end encrypted messaging, Dead Man's Switch fail-safe escrow, One-Time Pad Shannon ciphers, forensic EXIF & GPS metadata scrubbing, acoustic FSK sonar steganography, Shamir's secret sharing, time-locked capsules, confidential veils, and zero-knowledge privacy.",
+  "description": "A private, secure 1-to-1 chat featuring end-to-end encrypted messaging, 2-of-2 multisig cryptographic contracts, disposable burner rooms, warrant canaries, covert decoy camouflage, Dead Man's Switch, One-Time Pad Shannon ciphers, and zero-knowledge privacy.",
   "requestFramePermissions": ["microphone", "camera", "display-capture"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

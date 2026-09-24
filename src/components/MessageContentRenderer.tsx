@@ -18,11 +18,15 @@ import { ScratchRevealImageCard, parseScratchImage } from './ScratchRevealImageC
 import { DeadMansSwitchCard } from './DeadMansSwitchCard';
 import { OneTimePadCard } from './OneTimePadCard';
 import { AudioSteganographyCard } from './AudioSteganographyCard';
+import { DualHandshakeCard } from './DualHandshakeCard';
+import { WarrantCanaryCard } from './WarrantCanaryCard';
+import { CovertCamouflageCard } from './CovertCamouflageCard';
 
 interface MessageContentRendererProps {
   text: string;
   isMe: boolean;
   myUserId?: string;
+  targetName?: string;
   accentColor?: string;
   onOpenCodeInSandbox?: (code: string, language?: string) => void;
   onInspectSteganography?: (text: string) => void;
@@ -252,6 +256,7 @@ export function MessageContentRenderer({
   text,
   isMe,
   myUserId,
+  targetName,
   accentColor,
   onOpenCodeInSandbox,
   onInspectSteganography,
@@ -260,6 +265,41 @@ export function MessageContentRenderer({
 }: MessageContentRendererProps) {
   // Check if message is solely emojis (1 to 4 emoji characters)
   const trimmed = text.trim();
+
+  // Check for Dual Multisig Handshake / Contract: HANDSHAKE::...
+  if (trimmed.startsWith('HANDSHAKE::')) {
+    return (
+      <DualHandshakeCard
+        payload={trimmed}
+        isMe={isMe}
+        myUserId={myUserId}
+        targetName={targetName}
+        accentColor={accentColor}
+      />
+    );
+  }
+
+  // Check for Warrant Canary: CANARY::...
+  if (trimmed.startsWith('CANARY::')) {
+    return (
+      <WarrantCanaryCard
+        payload={trimmed}
+        isMe={isMe}
+        accentColor={accentColor}
+      />
+    );
+  }
+
+  // Check for Covert Camouflage Decoy: COVERT::...
+  if (trimmed.startsWith('COVERT::')) {
+    return (
+      <CovertCamouflageCard
+        payload={trimmed}
+        isMe={isMe}
+        accentColor={accentColor}
+      />
+    );
+  }
 
   // Check for Dead Man's Switch: DEADMAN::...
   if (trimmed.startsWith('DEADMAN::')) {

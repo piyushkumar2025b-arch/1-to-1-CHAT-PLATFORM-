@@ -34,6 +34,9 @@ import {
   Key,
   Waves,
   ShieldCheck,
+  FileSignature,
+  Bird,
+  Hourglass,
 } from 'lucide-react';
 import { ConnectionState, ChatTheme, EphemeralTimerOption, ReplyReference, ChatMessage } from '../types';
 import ReplyBanner from './ReplyBanner';
@@ -91,6 +94,10 @@ export interface ChatInputBarProps {
   onOpenOneTimePad?: () => void;
   onOpenExifScrubber?: () => void;
   onOpenAudioSteganography?: () => void;
+  onOpenDualHandshake?: () => void;
+  onOpenWarrantCanary?: () => void;
+  onOpenCovertCamouflage?: () => void;
+  onOpenRoomLifespan?: () => void;
   sendKeyPreference?: 'enter' | 'ctrl_enter';
   showCharacterCount?: boolean;
   showWordCount?: boolean;
@@ -158,6 +165,10 @@ export const ChatInputBar = memo<ChatInputBarProps>(
     onOpenOneTimePad,
     onOpenExifScrubber,
     onOpenAudioSteganography,
+    onOpenDualHandshake,
+    onOpenWarrantCanary,
+    onOpenCovertCamouflage,
+    onOpenRoomLifespan,
     sendKeyPreference = 'enter',
     showCharacterCount = true,
     showWordCount = true,
@@ -645,6 +656,66 @@ export const ChatInputBar = memo<ChatInputBarProps>(
                   >
                     <Waves className="w-4 h-4 text-cyan-400" />
                     <span>Sonar</span>
+                  </button>
+                )}
+
+                {onOpenDualHandshake && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenDualHandshake();
+                      setMobileToolsOpen(false);
+                    }}
+                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-amber-400 active:scale-95 transition-all text-[11px]"
+                    title="2-of-2 Multisig Cryptographic Handshake & NDA"
+                  >
+                    <FileSignature className="w-4 h-4 text-amber-400" />
+                    <span>Handshake</span>
+                  </button>
+                )}
+
+                {onOpenWarrantCanary && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenWarrantCanary();
+                      setMobileToolsOpen(false);
+                    }}
+                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-emerald-400 active:scale-95 transition-all text-[11px]"
+                    title="Publish Warrant Canary Transparency Declaration"
+                  >
+                    <Bird className="w-4 h-4 text-emerald-400" />
+                    <span>Canary</span>
+                  </button>
+                )}
+
+                {onOpenCovertCamouflage && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenCovertCamouflage();
+                      setMobileToolsOpen(false);
+                    }}
+                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-purple-400 active:scale-95 transition-all text-[11px]"
+                    title="Covert Decoy Camouflage (Anti-Shoulder Surfer)"
+                  >
+                    <EyeOff className="w-4 h-4 text-purple-400" />
+                    <span>Covert</span>
+                  </button>
+                )}
+
+                {onOpenRoomLifespan && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenRoomLifespan();
+                      setMobileToolsOpen(false);
+                    }}
+                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-orange-400 active:scale-95 transition-all text-[11px]"
+                    title="Disposable Burner Room Lifespan Timer"
+                  >
+                    <Hourglass className="w-4 h-4 text-orange-400" />
+                    <span>Burner</span>
                   </button>
                 )}
 
