@@ -15,10 +15,14 @@ import { hasSteganography } from '../lib/steganography';
 import { ShamirShareCard } from './ShamirShareCard';
 import { MarkdownTableCard, parseTableFromText } from './MarkdownTableCard';
 import { ScratchRevealImageCard, parseScratchImage } from './ScratchRevealImageCard';
+import { DeadMansSwitchCard } from './DeadMansSwitchCard';
+import { OneTimePadCard } from './OneTimePadCard';
+import { AudioSteganographyCard } from './AudioSteganographyCard';
 
 interface MessageContentRendererProps {
   text: string;
   isMe: boolean;
+  myUserId?: string;
   accentColor?: string;
   onOpenCodeInSandbox?: (code: string, language?: string) => void;
   onInspectSteganography?: (text: string) => void;
@@ -247,6 +251,7 @@ function renderFormattedInlineText(content: string): React.ReactNode[] {
 export function MessageContentRenderer({
   text,
   isMe,
+  myUserId,
   accentColor,
   onOpenCodeInSandbox,
   onInspectSteganography,
@@ -255,6 +260,40 @@ export function MessageContentRenderer({
 }: MessageContentRendererProps) {
   // Check if message is solely emojis (1 to 4 emoji characters)
   const trimmed = text.trim();
+
+  // Check for Dead Man's Switch: DEADMAN::...
+  if (trimmed.startsWith('DEADMAN::')) {
+    return (
+      <DeadMansSwitchCard
+        payload={trimmed}
+        isMe={isMe}
+        myUserId={myUserId}
+        accentColor={accentColor}
+      />
+    );
+  }
+
+  // Check for One-Time Pad cipher: OTP_CIPHER::...
+  if (trimmed.startsWith('OTP_CIPHER::')) {
+    return (
+      <OneTimePadCard
+        payload={trimmed}
+        isMe={isMe}
+        accentColor={accentColor}
+      />
+    );
+  }
+
+  // Check for Acoustic Sonar / Ultrasonic chirp: SONAR_CHIRP::...
+  if (trimmed.startsWith('SONAR_CHIRP::')) {
+    return (
+      <AudioSteganographyCard
+        payload={trimmed}
+        isMe={isMe}
+        accentColor={accentColor}
+      />
+    );
+  }
 
   // Check for Shamir Secret Share token: SHAMIR_SHARE::...
   if (trimmed.startsWith('SHAMIR_SHARE::')) {

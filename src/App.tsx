@@ -112,6 +112,10 @@ import { VoiceDisguiseModal } from './components/VoiceDisguiseModal';
 import { ShamirSecretModal } from './components/ShamirSecretModal';
 import { TableGeneratorModal } from './components/TableGeneratorModal';
 import { PhotoObfuscatorModal } from './components/PhotoObfuscatorModal';
+import { DeadMansSwitchModal } from './components/DeadMansSwitchModal';
+import { OneTimePadModal } from './components/OneTimePadModal';
+import { ExifScrubberModal } from './components/ExifScrubberModal';
+import { AudioSteganographyModal } from './components/AudioSteganographyModal';
 import { addPersonalNote } from './lib/personal-notes';
 import { getDisplaySettings, saveDisplaySettings, DisplaySettings } from './lib/display-settings';
 import { stopSpeaking } from './lib/text-to-speech';
@@ -375,6 +379,10 @@ export default function App() {
   const [photoToObfuscate, setPhotoToObfuscate] = useState<File | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxImageSrc, setLightboxImageSrc] = useState('');
+  const [deadManModalOpen, setDeadManModalOpen] = useState(false);
+  const [oneTimePadModalOpen, setOneTimePadModalOpen] = useState(false);
+  const [exifScrubberModalOpen, setExifScrubberModalOpen] = useState(false);
+  const [audioStegoModalOpen, setAudioStegoModalOpen] = useState(false);
 
   const handleSaveToNotes = useCallback((msg: ChatMessage) => {
     const textContent = msg.text || (msg.file ? `[File Attachment: ${msg.file.fileName}]` : '');
@@ -2709,6 +2717,18 @@ export default function App() {
       setPhotoToObfuscate(null);
       setPhotoObfuscatorModalOpen(true);
       setInputText('');
+    } else if (cmd.id === 'deadman' || cmd.id === 'switch') {
+      setDeadManModalOpen(true);
+      setInputText('');
+    } else if (cmd.id === 'otp' || cmd.id === 'pad') {
+      setOneTimePadModalOpen(true);
+      setInputText('');
+    } else if (cmd.id === 'exif' || cmd.id === 'scrub') {
+      setExifScrubberModalOpen(true);
+      setInputText('');
+    } else if (cmd.id === 'chirp' || cmd.id === 'sonar') {
+      setAudioStegoModalOpen(true);
+      setInputText('');
     }
   };
 
@@ -4058,6 +4078,10 @@ export default function App() {
               setPhotoToObfuscate(null);
               setPhotoObfuscatorModalOpen(true);
             }}
+            onOpenDeadMansSwitch={() => setDeadManModalOpen(true)}
+            onOpenOneTimePad={() => setOneTimePadModalOpen(true)}
+            onOpenExifScrubber={() => setExifScrubberModalOpen(true)}
+            onOpenAudioSteganography={() => setAudioStegoModalOpen(true)}
             sendKeyPreference={displaySettings.sendKeyPreference}
             showCharacterCount={displaySettings.showCharacterCount !== false}
             showWordCount={displaySettings.showWordCount !== false}
@@ -4583,6 +4607,51 @@ export default function App() {
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);
+        }}
+        accentColor={currentTheme.accentColor}
+      />
+
+      {/* Dead Man's Switch Escrow Modal */}
+      <DeadMansSwitchModal
+        isOpen={deadManModalOpen}
+        onClose={() => setDeadManModalOpen(false)}
+        myUserId={myUserId}
+        onArmSwitch={(switchPayload) => {
+          handleSendMessage(switchPayload);
+          setSecurityToastMessage("Dead Man's Switch armed in room enclave!");
+        }}
+        accentColor={currentTheme.accentColor}
+      />
+
+      {/* One-Time Pad (OTP) Studio Modal */}
+      <OneTimePadModal
+        isOpen={oneTimePadModalOpen}
+        onClose={() => setOneTimePadModalOpen(false)}
+        onSendCipherToChat={(otpPayload) => {
+          handleSendMessage(otpPayload);
+          setSecurityToastMessage('One-Time Pad sealed capsule dispatched!');
+        }}
+        accentColor={currentTheme.accentColor}
+      />
+
+      {/* Forensic EXIF & Geolocation Metadata Scrubber Modal */}
+      <ExifScrubberModal
+        isOpen={exifScrubberModalOpen}
+        onClose={() => setExifScrubberModalOpen(false)}
+        onSendSanitizedImage={(file) => {
+          processAndUploadFile(file, '🛡️ Forensic Clean Photo (0-byte EXIF/GPS leakage)');
+          setSecurityToastMessage('Metadata-scrubbed photo dispatched to room!');
+        }}
+        accentColor={currentTheme.accentColor}
+      />
+
+      {/* Acoustic Sonar & Ultrasonic Steganography Modal */}
+      <AudioSteganographyModal
+        isOpen={audioStegoModalOpen}
+        onClose={() => setAudioStegoModalOpen(false)}
+        onSendChirpToChat={(chirpPayload) => {
+          handleSendMessage(chirpPayload);
+          setSecurityToastMessage('Acoustic FSK chirp transmission sent to chat!');
         }}
         accentColor={currentTheme.accentColor}
       />

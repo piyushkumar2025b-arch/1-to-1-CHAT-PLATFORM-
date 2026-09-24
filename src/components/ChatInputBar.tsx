@@ -30,6 +30,10 @@ import {
   Split,
   Table,
   Image as ImageIcon,
+  AlertOctagon,
+  Key,
+  Waves,
+  ShieldCheck,
 } from 'lucide-react';
 import { ConnectionState, ChatTheme, EphemeralTimerOption, ReplyReference, ChatMessage } from '../types';
 import ReplyBanner from './ReplyBanner';
@@ -83,6 +87,10 @@ export interface ChatInputBarProps {
   onOpenShamirSecret?: () => void;
   onOpenTableGenerator?: () => void;
   onOpenPhotoObfuscator?: () => void;
+  onOpenDeadMansSwitch?: () => void;
+  onOpenOneTimePad?: () => void;
+  onOpenExifScrubber?: () => void;
+  onOpenAudioSteganography?: () => void;
   sendKeyPreference?: 'enter' | 'ctrl_enter';
   showCharacterCount?: boolean;
   showWordCount?: boolean;
@@ -146,6 +154,10 @@ export const ChatInputBar = memo<ChatInputBarProps>(
     onOpenShamirSecret,
     onOpenTableGenerator,
     onOpenPhotoObfuscator,
+    onOpenDeadMansSwitch,
+    onOpenOneTimePad,
+    onOpenExifScrubber,
+    onOpenAudioSteganography,
     sendKeyPreference = 'enter',
     showCharacterCount = true,
     showWordCount = true,
@@ -573,6 +585,66 @@ export const ChatInputBar = memo<ChatInputBarProps>(
                   >
                     <ImageIcon className="w-4 h-4 text-rose-400" />
                     <span>Redact</span>
+                  </button>
+                )}
+
+                {onOpenDeadMansSwitch && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenDeadMansSwitch();
+                      setMobileToolsOpen(false);
+                    }}
+                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-rose-400 active:scale-95 transition-all text-[11px]"
+                    title="Fail-Safe Dead Man's Switch Escrow"
+                  >
+                    <AlertOctagon className="w-4 h-4 text-rose-400" />
+                    <span>Dead Man</span>
+                  </button>
+                )}
+
+                {onOpenOneTimePad && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenOneTimePad();
+                      setMobileToolsOpen(false);
+                    }}
+                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-amber-400 active:scale-95 transition-all text-[11px]"
+                    title="One-Time Pad Shannon Secrecy Studio"
+                  >
+                    <Key className="w-4 h-4 text-amber-400" />
+                    <span>OTP</span>
+                  </button>
+                )}
+
+                {onOpenExifScrubber && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenExifScrubber();
+                      setMobileToolsOpen(false);
+                    }}
+                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-emerald-400 active:scale-95 transition-all text-[11px]"
+                    title="Forensic EXIF & GPS Metadata Cleaner"
+                  >
+                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    <span>EXIF</span>
+                  </button>
+                )}
+
+                {onOpenAudioSteganography && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenAudioSteganography();
+                      setMobileToolsOpen(false);
+                    }}
+                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-cyan-400 active:scale-95 transition-all text-[11px]"
+                    title="Acoustic Sonar & Ultrasonic Steganography"
+                  >
+                    <Waves className="w-4 h-4 text-cyan-400" />
+                    <span>Sonar</span>
                   </button>
                 )}
 

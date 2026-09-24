@@ -29,6 +29,9 @@ import {
   Split,
   Table,
   Image as ImageIcon,
+  AlertOctagon,
+  Key,
+  Waves,
 } from 'lucide-react';
 
 export interface SlashCommand {
@@ -203,6 +206,38 @@ export function SlashCommandMenu({
       alias: '/foil',
       description: 'Send photo veiled with interactive silver scratch-to-reveal foil',
       icon: <Sparkles className="w-4 h-4 text-amber-300" />,
+      category: 'Tools',
+    },
+    {
+      id: 'deadman',
+      name: '/deadman',
+      alias: '/switch',
+      description: "Configure fail-safe Dead Man's Switch with inactivity heartbeat timer",
+      icon: <AlertOctagon className="w-4 h-4 text-rose-400" />,
+      category: 'Tools',
+    },
+    {
+      id: 'otp',
+      name: '/otp',
+      alias: '/pad',
+      description: 'One-Time Pad Studio: mathematically unbreakable Shannon cipher',
+      icon: <Key className="w-4 h-4 text-amber-400" />,
+      category: 'Tools',
+    },
+    {
+      id: 'exif',
+      name: '/exif',
+      alias: '/scrub',
+      description: 'Inspect and deep-scrub GPS coordinates, camera serials, and EXIF tags',
+      icon: <ShieldCheck className="w-4 h-4 text-emerald-400" />,
+      category: 'Tools',
+    },
+    {
+      id: 'chirp',
+      name: '/chirp',
+      alias: '/sonar',
+      description: 'Modulate secret messages into Dual-Tone FSK / ultrasonic soundwaves',
+      icon: <Waves className="w-4 h-4 text-cyan-400" />,
       category: 'Tools',
     },
     {

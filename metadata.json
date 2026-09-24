@@ -1,6 +1,6 @@
 {
   "name": "Private Chat",
-  "description": "A private, secure 1-to-1 chat featuring end-to-end encrypted messaging, time-locked message capsules, confidential tap-to-reveal veils, voice disguise studio with DSP pitch-shifting, acoustic sound jamming privacy shield, digital file shredder, CSPRNG decision pickers, self-destructing burn notes, steganography, and zero-knowledge communications.",
+  "description": "A private, secure 1-to-1 chat featuring end-to-end encrypted messaging, Dead Man's Switch fail-safe escrow, One-Time Pad Shannon ciphers, forensic EXIF & GPS metadata scrubbing, acoustic FSK sonar steganography, Shamir's secret sharing, time-locked capsules, confidential veils, and zero-knowledge privacy.",
   "requestFramePermissions": ["microphone", "camera", "display-capture"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
