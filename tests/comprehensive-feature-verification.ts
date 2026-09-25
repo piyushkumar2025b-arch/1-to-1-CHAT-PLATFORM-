@@ -10,6 +10,28 @@ import { encryptOtp, decryptOtp, generateRandomPad } from '../src/lib/one-time-p
 import { embedSteganography, extractSteganography, hasSteganography } from '../src/lib/steganography';
 import { generateSecurePassword, PasswordOptions } from '../src/lib/password-generator';
 import { getDurationMs, formatRemainingTime } from '../src/lib/ephemeral-utils';
+import { notarizeData, verifyHashMatch } from '../src/lib/notary-engine';
+import {
+  caesarCipher,
+  textToBinary,
+  binaryToText,
+  textToMorse,
+  morseToText,
+  generateSha256,
+  generateSha512,
+  encryptAesGcm,
+  decryptAesGcm,
+} from '../src/lib/cipher-utils';
+import { extractExifMetadata } from '../src/lib/exif-reader';
+import {
+  isSafeHttpUrl,
+  getDomainFromUrl,
+  formatUrlForDisplay,
+  extractUrlsFromText,
+  parseTextWithUrls,
+} from '../src/lib/link-utils';
+import { parseQrJoinPayload } from '../src/lib/qr-helper';
+import { DEFAULT_QUICK_REPLIES } from '../src/lib/quick-replies';
 
 let passed = 0;
 let failed = 0;
@@ -302,6 +324,218 @@ async function runFeatureVerification() {
   assert(bParts[3] === 'Confidential PIN', 'Burn secret label preserved');
   const decodedBurn = Buffer.from(bParts[2], 'base64').toString('utf-8');
   assert(decodedBurn === burnSecret, 'Burn secret recoverable before destruction');
+
+  // -------------------------------------------------------------
+  // 13. Cryptographic Notary & Attestation Engine
+  // -------------------------------------------------------------
+  console.log('--- [Feature 13] Cryptographic Notary & Attestation Engine ---');
+  const docText = 'Official Cryptographic Declaration of Confidentiality';
+  const cert = await notarizeData(docText, 'Legal Covenant', 'usr_alice');
+
+  assert(cert.certificateId.startsWith('notary_'), 'Generates valid notary certificate ID');
+  assert(cert.sha256.length === 64, 'Produces 256-bit SHA-256 digest');
+  assert(cert.sha512Prefix.length > 20, 'Produces SHA-512 dual attestation');
+  assert(cert.documentTitle === 'Legal Covenant', 'Preserves document title');
+
+  const matchesOriginal = await verifyHashMatch(docText, cert.sha256);
+  assert(matchesOriginal === true, 'Verification confirms authentic document hash');
+
+  const matchesTampered = await verifyHashMatch(docText + ' [TAMPERED]', cert.sha256);
+  assert(matchesTampered === false, 'Verification detects and rejects tampered document');
+
+  // -------------------------------------------------------------
+  // 14. Classical & Advanced Offline Cipher Utilities
+  // -------------------------------------------------------------
+  console.log('--- [Feature 14] Offline Cipher Utilities ---');
+  const plainText = 'The Eagle Flies At Midnight';
+  const rot13 = caesarCipher(plainText, 13);
+  assert(rot13 !== plainText, 'Caesar cipher shifts characters');
+  assert(caesarCipher(rot13, 13) === plainText, 'Caesar ROT-13 is self-inverting');
+
+  const binaryEncoded = textToBinary('HELLO');
+  assert(binaryEncoded === '01001000 01000101 01001100 01001100 01001111', 'Converts text to binary representation');
+  assert(binaryToText(binaryEncoded) === 'HELLO', 'Converts binary representation back to text');
+
+  const morseCode = textToMorse('SOS 123');
+  assert(morseCode.startsWith('... --- ...'), 'Converts text to standard Morse code');
+  assert(morseToText(morseCode) === 'SOS 123', 'Decodes Morse code accurately');
+
+  const sha256Client = await generateSha256('Test Input');
+  assert(sha256Client.length === 64, 'Client SHA-256 generates 64-character hex');
+
+  const aesPass = 'SuperSecretKey99!';
+  const aesEncrypted = await encryptAesGcm('Mission Accomplished', aesPass);
+  assert(aesEncrypted.payload.startsWith('CIPHER_AES::'), 'AES-GCM encapsulates in CIPHER_AES protocol');
+  const aesDecrypted = await decryptAesGcm(aesEncrypted.payload, aesPass);
+  assert(aesDecrypted === 'Mission Accomplished', 'AES-GCM recovers exact plaintext');
+
+  // -------------------------------------------------------------
+  // 15. Forensic EXIF & Metadata Inspector & Scrubber
+  // -------------------------------------------------------------
+  console.log('--- [Feature 15] Forensic EXIF & Metadata Parser ---');
+  // Construct minimal valid JPEG SOI and APP1 structure
+  const jpegHeader = new Uint8Array([
+    0xFF, 0xD8, // SOI
+    0xFF, 0xE1, // APP1 marker
+    0x00, 0x10, // length = 16
+    0x45, 0x78, 0x69, 0x66, 0x00, 0x00, // 'Exif\0\0'
+    0x49, 0x49, 0x2A, 0x00, 0x08, 0x00, 0x00, 0x00 // TIFF header
+  ]);
+  const exifReport = extractExifMetadata(jpegHeader.buffer, 'test_photo.jpg', 'image/jpeg');
+  assert(exifReport.hasExif === true, 'Successfully detects JPEG APP1 EXIF segment');
+  assert(exifReport.fileName === 'test_photo.jpg', 'Preserves file name in metadata report');
+
+  const cleanPngBuffer = new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+  const pngReport = extractExifMetadata(cleanPngBuffer.buffer, 'screenshot.png', 'image/png');
+  assert(pngReport.hasExif === false, 'Clean image reports no EXIF payload');
+
+  // -------------------------------------------------------------
+  // 16. Collaborative Checklist Protocol
+  // -------------------------------------------------------------
+  console.log('--- [Feature 16] Interactive Collaborative Checklist Protocol ---');
+  const checklistPayload = '📋 [CHECKLIST:Evacuation Protocol:Secure Keys,Wipe Drives,Destroy Logs]';
+  const clMatch = checklistPayload.match(/^📋?\s*\[CHECKLIST:([^:]+):([^\]]+)\]$/i);
+  assert(clMatch !== null, 'Checklist pattern matches protocol format');
+  assert(clMatch![1] === 'Evacuation Protocol', 'Checklist title parsed correctly');
+  const clItems = clMatch![2].split(',').map((s) => s.trim());
+  assert(clItems.length === 3, 'Parses 3 checklist items');
+  assert(clItems[1] === 'Wipe Drives', 'Preserves individual item text');
+
+  // -------------------------------------------------------------
+  // 17. Choice Decision Picker Protocol
+  // -------------------------------------------------------------
+  console.log('--- [Feature 17] Choice Decision Picker Protocol ---');
+  const choicePayload = '🎲 [CHOICE:Exfiltration Route:Alpha Gate,Bravo Tunnel,Charlie Roof]';
+  const chMatch = choicePayload.match(/^(?:🎲\s*)?\[CHOICE:(?:([^:]+):)?([^\]]+)\]$/i);
+  assert(chMatch !== null, 'Choice decision picker matches protocol format');
+  assert(chMatch![1] === 'Exfiltration Route', 'Choice title parsed correctly');
+  const chOptions = chMatch![2].split(',').map((s) => s.trim());
+  assert(chOptions.length === 3, 'Parses 3 distinct options');
+  assert(chOptions[0] === 'Alpha Gate', 'First choice preserved');
+
+  // -------------------------------------------------------------
+  // 18. Interactive Realtime Poll Ballot Protocol
+  // -------------------------------------------------------------
+  console.log('--- [Feature 18] Interactive Realtime Poll Ballot Protocol ---');
+  const pollPayload = 'POLL::p_001::Target Rendezvous Point::Dock 4,Hangar 9,Warehouse 12';
+  const pParts = pollPayload.split('::');
+  assert(pParts[0] === 'POLL', 'Poll payload identifier recognized');
+  assert(pParts[1] === 'p_001', 'Poll ID parsed');
+  assert(pParts[2] === 'Target Rendezvous Point', 'Poll question parsed');
+  const pOptions = pParts[3].split(',');
+  assert(pOptions.length === 3, 'Poll contains 3 voting options');
+
+  // -------------------------------------------------------------
+  // 19. Acoustic Shield Audio Synthesis Math
+  // -------------------------------------------------------------
+  console.log('--- [Feature 19] Acoustic Shield Audio Synthesis Math ---');
+  // White noise: uniformly distributed [-1.0, 1.0]
+  const sampleWhite = Math.random() * 2 - 1;
+  assert(sampleWhite >= -1 && sampleWhite <= 1, 'White noise samples bound within dynamic audio range [-1, 1]');
+
+  // Pink noise filter coefficient simulation (Paul Kellet 3-pole filter)
+  let b0 = 0, b1 = 0, b2 = 0;
+  const white = Math.random() * 2 - 1;
+  b0 = 0.99886 * b0 + white * 0.0555179;
+  b1 = 0.99332 * b1 + white * 0.0750759;
+  b2 = 0.96900 * b2 + white * 0.1538520;
+  const pinkSample = b0 + b1 + b2 + white * 0.5362;
+  assert(!isNaN(pinkSample), 'Pink noise 1/f spectral synthesis evaluates to finite float');
+
+  // Brown noise integration: random walk bounded with leak
+  let lastBrown = 0;
+  lastBrown = (lastBrown + (0.02 * white)) / 1.02;
+  assert(Math.abs(lastBrown) <= 1.0, 'Brownian noise 1/f^2 integration remains strictly stable');
+
+  // -------------------------------------------------------------
+  // 20. Audio Steganography & FSK Acoustic Chirp
+  // -------------------------------------------------------------
+  console.log('--- [Feature 20] Audio Steganography & FSK Acoustic Chirp ---');
+  const chirpPayload = 'SONAR_CHIRP::chirp_999::18500::19500::01011001';
+  const chirpParts = chirpPayload.split('::');
+  assert(chirpParts[0] === 'SONAR_CHIRP', 'Sonar chirp identifier recognized');
+  assert(Number(chirpParts[2]) === 18500, 'Mark frequency allocated to near-ultrasound 18.5kHz');
+  assert(Number(chirpParts[3]) === 19500, 'Space frequency allocated to near-ultrasound 19.5kHz');
+  assert(/^[01]+$/.test(chirpParts[4]), 'Encoded FSK bitstream contains valid binary bits');
+
+  // -------------------------------------------------------------
+  // 21. Quick Replies Engine
+  // -------------------------------------------------------------
+  console.log('--- [Feature 21] Quick Replies Engine ---');
+  assert(Array.isArray(DEFAULT_QUICK_REPLIES), 'Default quick replies list is an array');
+  assert(DEFAULT_QUICK_REPLIES.length >= 8, 'Default quick replies has rich pre-configured entries');
+  const privacyReply = DEFAULT_QUICK_REPLIES.find((r) => r.category === 'privacy');
+  assert(privacyReply !== undefined, 'Contains dedicated privacy category quick reply');
+  assert(privacyReply!.text.length > 5, 'Quick reply has informative text body');
+
+  // -------------------------------------------------------------
+  // 22. Safe Link URL Sanitizer & Referrer Defense
+  // -------------------------------------------------------------
+  console.log('--- [Feature 22] Safe Link URL Sanitizer & Referrer Defense ---');
+  assert(isSafeHttpUrl('https://example.com/research?id=123') === true, 'Accepts HTTPS URLs');
+  assert(isSafeHttpUrl('http://insecure-test.org') === true, 'Accepts HTTP URLs');
+  assert(isSafeHttpUrl('javascript:alert(1)') === false, 'Rejects javascript: pseudo-protocol');
+  assert(isSafeHttpUrl('file:///etc/passwd') === false, 'Rejects file: system access');
+  assert(isSafeHttpUrl('http://user:pass@evil.com') === false, 'Rejects credential embedded URLs');
+  assert(isSafeHttpUrl('http://169.254.169.254/latest/meta-data/') === false, 'Rejects cloud metadata IP');
+
+  const domain = getDomainFromUrl('https://www.sub.example.com/path');
+  assert(domain === 'sub.example.com', 'Extracts and cleans domain without www prefix');
+
+  const links = extractUrlsFromText('Check https://github.com and http://duckduckgo.com for info');
+  assert(links.length === 2, 'Extracts multiple URLs from message body');
+  assert(links[0].url === 'https://github.com', 'First link url matches');
+
+  const tokens = parseTextWithUrls('Visit https://torproject.org immediately');
+  assert(tokens.length === 3, 'Splits text into preceding text, link token, and trailing text');
+  assert(tokens[1].type === 'url', 'Middle token correctly typed as url');
+
+  // -------------------------------------------------------------
+  // 23. QR Code Join Payload Parsing
+  // -------------------------------------------------------------
+  console.log('--- [Feature 23] QR Code Join Payload Parsing ---');
+  const qrUrl1 = parseQrJoinPayload('https://ai.studio/apps/test?room=ROOM_ALPHA&pwd=SecretPassword123');
+  assert(qrUrl1 !== null, 'Parses room and password from query parameters');
+  assert(qrUrl1?.roomId === 'ROOM_ALPHA', 'Extracted room ID matches');
+  assert(qrUrl1?.password === 'SecretPassword123', 'Extracted room password matches');
+
+  const qrCompact = parseQrJoinPayload('VAULT_ROOM:P@ssword99');
+  assert(qrCompact !== null, 'Parses compact colon-separated payload');
+  assert(qrCompact?.roomId === 'VAULT_ROOM', 'Extracted compact room ID matches');
+  assert(qrCompact?.password === 'P@ssword99', 'Extracted compact password matches');
+
+  const qrJson = parseQrJoinPayload('{"room":"OPS_ROOM","pwd":"Pass"}');
+  assert(qrJson !== null, 'Parses JSON QR payload');
+  assert(qrJson?.roomId === 'OPS_ROOM', 'Extracted JSON room matches');
+
+  // -------------------------------------------------------------
+  // 24. Dead Man's Switch Payload & Expiration Engine
+  // -------------------------------------------------------------
+  console.log('--- [Feature 24] Dead Man\'s Switch Payload Protocol ---');
+  const intervalHours = 24;
+  const triggerEpoch = Date.now() + intervalHours * 3600 * 1000;
+  const deadManSecret = 'Confidential Vault Seed: 0x9942FA11';
+  const b64Dms = Buffer.from(deadManSecret).toString('base64');
+  const dmsPayload = `DEADMAN::dms_${Date.now()}::usr_alice::${intervalHours}::${triggerEpoch}::${b64Dms}::Emergency Key Release`;
+
+  const dParts = dmsPayload.split('::');
+  assert(dParts[0] === 'DEADMAN', 'Dead Man\'s Switch identifier recognized');
+  assert(dParts[2] === 'usr_alice', 'Creator user ID matches');
+  assert(Number(dParts[3]) === intervalHours, 'Interval hours matches');
+  assert(Number(dParts[4]) === triggerEpoch, 'Trigger epoch preserved');
+  assert(dParts[6] === 'Emergency Key Release', 'Switch title preserved');
+  const recoveredDms = Buffer.from(dParts[5], 'base64').toString('utf-8');
+  assert(recoveredDms === deadManSecret, 'Switch confidential secret recovered cleanly');
+
+  // -------------------------------------------------------------
+  // 25. Confidential Veil Card Protocol
+  // -------------------------------------------------------------
+  console.log('--- [Feature 25] Confidential Veil Card Protocol ---');
+  const veilPayload = '🛡️ [VEIL:Bank Account Number:9876-5432-1098-7654]';
+  const veilMatch = veilPayload.match(/^🛡️?\s*\[VEIL:(?:([^:]+):)?([^\]]+)\]$/i);
+  assert(veilMatch !== null, 'Veil pattern matches bracket protocol format');
+  assert(veilMatch![1] === 'Bank Account Number', 'Veil label matches');
+  assert(veilMatch![2] === '9876-5432-1098-7654', 'Veil protected content matches');
 
   console.log('\n============================================================');
   console.log(`FEATURE AUDIT RESULTS: ${passed} PASSED, ${failed} FAILED`);

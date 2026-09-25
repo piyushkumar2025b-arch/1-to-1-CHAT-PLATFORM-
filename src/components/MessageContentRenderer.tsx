@@ -21,6 +21,8 @@ import { AudioSteganographyCard } from './AudioSteganographyCard';
 import { DualHandshakeCard } from './DualHandshakeCard';
 import { WarrantCanaryCard } from './WarrantCanaryCard';
 import { CovertCamouflageCard } from './CovertCamouflageCard';
+import { NotaryAttestationCard } from './NotaryAttestationCard';
+import { ZkpChallengeCard } from './ZkpChallengeCard';
 
 interface MessageContentRendererProps {
   text: string;
@@ -296,6 +298,29 @@ export function MessageContentRenderer({
       <CovertCamouflageCard
         payload={trimmed}
         isMe={isMe}
+        accentColor={accentColor}
+      />
+    );
+  }
+
+  // Check for Notary Attestation Seal: NOTARY_SEAL::...
+  if (trimmed.startsWith('NOTARY_SEAL::')) {
+    return (
+      <NotaryAttestationCard
+        payload={trimmed}
+        isMe={isMe}
+        accentColor={accentColor}
+      />
+    );
+  }
+
+  // Check for Zero-Knowledge Proof Challenge: ZKP_CHALLENGE::...
+  if (trimmed.startsWith('ZKP_CHALLENGE::')) {
+    return (
+      <ZkpChallengeCard
+        payload={trimmed}
+        isMe={isMe}
+        myUserId={myUserId}
         accentColor={accentColor}
       />
     );

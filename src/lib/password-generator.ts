@@ -77,29 +77,69 @@ export function generateSecurePassword(options: PasswordOptions): string {
   }
 
   // Regular password mode
-  let chars = '';
   const upper = options.excludeAmbiguous ? 'ABCDEFGHJKLMNPQRSTUVWXYZ' : 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   const lower = options.excludeAmbiguous ? 'abcdefghijkmnopqrstuvwxyz' : 'abcdefghijklmnopqrstuvwxyz';
   const numbers = options.excludeAmbiguous ? '23456789' : '0123456789';
   const symbols = '!@#$%^&*()_+-=[]{}|;:,.<>?';
 
-  if (options.includeUppercase) chars += upper;
-  if (options.includeLowercase) chars += lower;
-  if (options.includeNumbers) chars += numbers;
-  if (options.includeSymbols) chars += symbols;
+  const requiredPools: string[] = [];
+  let chars = '';
 
-  if (!chars) chars = lower + numbers; // fallback
-
-  const passLength = Math.max(6, Math.min(128, options.length));
-  const randomBytes = new Uint32Array(passLength);
-  crypto.getRandomValues(randomBytes);
-
-  let result = '';
-  for (let i = 0; i < passLength; i++) {
-    result += chars[randomBytes[i] % chars.length];
+  if (options.includeUppercase) {
+    requiredPools.push(upper);
+    chars += upper;
+  }
+  if (options.includeLowercase) {
+    requiredPools.push(lower);
+    chars += lower;
+  }
+  if (options.includeNumbers) {
+    requiredPools.push(numbers);
+    chars += numbers;
+  }
+  if (options.includeSymbols) {
+    requiredPools.push(symbols);
+    chars += symbols;
   }
 
-  return result;
+  if (!chars) {
+    chars = lower + numbers;
+    requiredPools.push(lower, numbers);
+  }
+
+  const passLength = Math.max(6, Math.min(128, options.length));
+  const resultChars: string[] = [];
+
+  // Guarantee at least one character from each enabled category if length permits
+  if (passLength >= requiredPools.length) {
+    for (const pool of requiredPools) {
+      const randBuf = new Uint32Array(1);
+      crypto.getRandomValues(randBuf);
+      resultChars.push(pool[randBuf[0] % pool.length]);
+    }
+  }
+
+  // Fill remaining slots
+  const remainingCount = passLength - resultChars.length;
+  if (remainingCount > 0) {
+    const randomBytes = new Uint32Array(remainingCount);
+    crypto.getRandomValues(randomBytes);
+    for (let i = 0; i < remainingCount; i++) {
+      resultChars.push(chars[randomBytes[i] % chars.length]);
+    }
+  }
+
+  // Cryptographically secure Fisher-Yates shuffle
+  for (let i = resultChars.length - 1; i > 0; i--) {
+    const randBuf = new Uint32Array(1);
+    crypto.getRandomValues(randBuf);
+    const j = randBuf[0] % (i + 1);
+    const temp = resultChars[i];
+    resultChars[i] = resultChars[j];
+    resultChars[j] = temp;
+  }
+
+  return resultChars.join('');
 }
 
 export function analyzeEntropy(text: string): EntropyAnalysis {
