@@ -394,6 +394,21 @@ export default function App() {
   const [roomLifespanModalOpen, setRoomLifespanModalOpen] = useState(false);
   const [roomExpiresAt, setRoomExpiresAt] = useState<number | null>(null);
   const [roomLifespanMinutes, setRoomLifespanMinutes] = useState<number>(0);
+  const [secondsUntilBurn, setSecondsUntilBurn] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!roomExpiresAt) {
+      setSecondsUntilBurn(null);
+      return;
+    }
+    const update = () => {
+      const diff = Math.max(0, Math.floor((roomExpiresAt - Date.now()) / 1000));
+      setSecondsUntilBurn(diff);
+    };
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [roomExpiresAt]);
 
   const handleSaveToNotes = useCallback((msg: ChatMessage) => {
     const textContent = msg.text || (msg.file ? `[File Attachment: ${msg.file.fileName}]` : '');
@@ -4083,6 +4098,38 @@ export default function App() {
         className={`w-full border-t backdrop-blur-md p-3 sm:p-4 z-30 shrink-0 ${currentTheme.inputStyle}`}
       >
         <div className="max-w-4xl mx-auto flex flex-col gap-1.5">
+          {/* Burner Room Lifespan Active Status Banner */}
+          {roomExpiresAt && secondsUntilBurn !== null && (
+            <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-orange-950/60 border border-orange-500/40 text-orange-200 text-xs animate-in fade-in duration-200 shadow-sm shadow-orange-950/40">
+              <div className="flex items-center gap-2 font-medium">
+                <Hourglass className="w-3.5 h-3.5 text-orange-400 animate-pulse" />
+                <span>
+                  Burner Room self-destruct in{' '}
+                  <strong className="font-mono text-orange-300">
+                    {Math.floor(secondsUntilBurn / 60)}:{(secondsUntilBurn % 60).toString().padStart(2, '0')}
+                  </strong>
+                </span>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setRoomLifespanModalOpen(true)}
+                  className="underline hover:text-white transition-colors cursor-pointer text-xs font-semibold"
+                >
+                  Adjust timer
+                </button>
+                <span className="text-orange-600/70">•</span>
+                <button
+                  type="button"
+                  onClick={() => handleBurnRoom()}
+                  className="px-2 py-0.5 rounded-md bg-rose-900/60 hover:bg-rose-800 text-rose-200 hover:text-white transition-colors cursor-pointer text-[11px] font-medium"
+                >
+                  Burn now
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Ephemeral / Auto-Disappearing Messages Active Status Banner */}
           {ephemeralEnabled && (
             <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-amber-950/40 border border-amber-500/30 text-amber-300 text-xs animate-in fade-in duration-200">
