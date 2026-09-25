@@ -23,7 +23,7 @@ export interface OtpResult {
  */
 export function generateRandomPad(length: number, mode: 'xor_hex' | 'modular_alpha'): string {
   if (length <= 0) return '';
-  const cryptoObj = window.crypto || (window as any).msCrypto;
+  const cryptoObj = typeof window !== 'undefined' ? (window.crypto || (window as any).msCrypto) : globalThis.crypto;
 
   if (mode === 'modular_alpha') {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';

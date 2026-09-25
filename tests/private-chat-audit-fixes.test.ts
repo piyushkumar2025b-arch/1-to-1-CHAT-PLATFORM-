@@ -124,7 +124,7 @@ async function runAuditFixesTests() {
   // BUG 5: Room capacity check race protection in server.ts
   // -------------------------------------------------------------
   console.log('--- [Bug 5] Room Capacity Race Protection Fix ---');
-  const raceRoomId = 'CAPACITY_TEST_' + Math.random().toString(36).substring(2, 6);
+  const raceRoomId = ('CAPACITY_TEST_' + Math.random().toString(36).substring(2, 6)).toUpperCase();
   const racePass = 'CapacityPass123!';
 
   const peerA = new WebSocket('ws://localhost:3000/ws', { headers: { Origin: 'http://localhost:3000' } });
@@ -135,14 +135,24 @@ async function runAuditFixesTests() {
     new Promise((res) => peerB.on('open', res)),
   ]);
 
+  const peerAMessages: any[] = [];
+  peerA.on('message', (d) => {
+    try { peerAMessages.push(JSON.parse(d.toString())); } catch {}
+  });
+
   const peerBMessages: any[] = [];
   peerB.on('message', (d) => {
     try { peerBMessages.push(JSON.parse(d.toString())); } catch {}
   });
 
   peerA.send(JSON.stringify({ type: 'auth', roomId: raceRoomId, password: racePass, userId: 'UserA' }));
-  // Small tick to ensure room initialization
-  await new Promise((res) => setTimeout(res, 50));
+  
+  // Wait for Peer A to complete authentication & room initialization
+  for (let t = 0; t < 40; t++) {
+    if (peerAMessages.some((m) => m.type === 'auth_ok')) break;
+    await new Promise((res) => setTimeout(res, 50));
+  }
+
   peerB.send(JSON.stringify({ type: 'auth', roomId: raceRoomId, password: racePass, userId: 'UserB' }));
 
   // Wait until peer B is connected
@@ -165,12 +175,15 @@ async function runAuditFixesTests() {
 
   peerC.send(JSON.stringify({ type: 'auth', roomId: raceRoomId, password: racePass, userId: 'UserC' }));
 
-  for (let t = 0; t < 30; t++) {
+  for (let t = 0; t < 40; t++) {
     if (peerCMessages.some((m) => m.status === 'room_full') || peerCCloseCode === 4003) break;
     await new Promise((res) => setTimeout(res, 50));
   }
 
   const roomFullReceived = peerCMessages.some((m) => m.status === 'room_full');
+  if (!roomFullReceived) {
+    console.log('DEBUG Bug 5: peerA:', peerAMessages, 'peerB:', peerBMessages, 'peerC:', peerCMessages, 'closeCode:', peerCCloseCode);
+  }
   assert(roomFullReceived, 'Client C received status: "room_full" (capacity check enforced)');
   assert(peerCCloseCode === 4003 || peerC.readyState === WebSocket.CLOSED, 'Client C connection rejected with code 4003');
 

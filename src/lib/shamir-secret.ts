@@ -1,7 +1,7 @@
 // Shamir's Secret Sharing (SSS) over Galois Field GF(256)
 // Allows splitting a secret into N shares such that any K shares (threshold) can reconstruct the secret.
 
-// Exponent and Logarithm tables for GF(256) with irreducible polynomial 0x11b (x^8 + x^4 + x^3 + x + 1)
+// Exponent and Logarithm tables for GF(256) with primitive polynomial 0x11d (x^8 + x^4 + x^3 + x^2 + 1)
 const EXP_TABLE = new Uint8Array(512);
 const LOG_TABLE = new Uint8Array(256);
 
@@ -13,7 +13,7 @@ const LOG_TABLE = new Uint8Array(256);
     LOG_TABLE[x] = i;
     x <<= 1;
     if (x & 0x100) {
-      x ^= 0x11b;
+      x ^= 0x11d;
     }
   }
   LOG_TABLE[0] = 0; // undefined in theory, 0 for safety

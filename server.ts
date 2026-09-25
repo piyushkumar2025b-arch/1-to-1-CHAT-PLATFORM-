@@ -171,7 +171,12 @@ function validateWebSocketMessage(data: any): { valid: boolean; error?: string }
       return { valid: false, error: 'Invalid user ID format.' };
     }
   } else if (data.type === 'encrypted_message' || data.type === 'message') {
-    const p = data.payload || data.envelope || data.message;
+    let p = data.payload || data.envelope || data.message;
+    if (typeof p === 'string') {
+      try {
+        p = JSON.parse(p);
+      } catch {}
+    }
     if (!p || typeof p !== 'object') {
       return { valid: false, error: 'Missing encrypted message payload.' };
     }
@@ -697,7 +702,12 @@ async function startServer() {
 
         // Step 2: Instant 0ms-relay for Encrypted Messages (E2EE payload)
         if (data.type === 'encrypted_message' || data.type === 'message') {
-          const rawPayload = data.payload || data.envelope || data.message;
+          let rawPayload = data.payload || data.envelope || data.message;
+          if (typeof rawPayload === 'string') {
+            try {
+              rawPayload = JSON.parse(rawPayload);
+            } catch {}
+          }
           const nonce = rawPayload?.nonce;
           const msgTs = rawPayload?.ts || data.timestamp || Date.now();
 
@@ -719,7 +729,7 @@ async function startServer() {
                 type: data.type,
                 senderId: assignedUserId,
                 payload: rawPayload,
-                message: rawPayload,
+                message: typeof data.message === 'string' ? data.message : JSON.stringify(rawPayload),
                 timestamp: Date.now(),
               })
             );
