@@ -98,6 +98,10 @@ export interface ChatInputBarProps {
   onOpenWarrantCanary?: () => void;
   onOpenCovertCamouflage?: () => void;
   onOpenRoomLifespan?: () => void;
+  onOpenNotaryAttestation?: () => void;
+  onOpenZkpChallenge?: () => void;
+  onOpenDuressCalculator?: () => void;
+  onOpenCustomerService?: () => void;
   sendKeyPreference?: 'enter' | 'ctrl_enter';
   showCharacterCount?: boolean;
   showWordCount?: boolean;
@@ -169,6 +173,10 @@ export const ChatInputBar = memo<ChatInputBarProps>(
     onOpenWarrantCanary,
     onOpenCovertCamouflage,
     onOpenRoomLifespan,
+    onOpenNotaryAttestation,
+    onOpenZkpChallenge,
+    onOpenDuressCalculator,
+    onOpenCustomerService,
     sendKeyPreference = 'enter',
     showCharacterCount = true,
     showWordCount = true,
@@ -716,6 +724,66 @@ export const ChatInputBar = memo<ChatInputBarProps>(
                   >
                     <Hourglass className="w-4 h-4 text-orange-400" />
                     <span>Burner</span>
+                  </button>
+                )}
+
+                {onOpenNotaryAttestation && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenNotaryAttestation();
+                      setMobileToolsOpen(false);
+                    }}
+                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-emerald-400 active:scale-95 transition-all text-[11px]"
+                    title="Cryptographic Notary & Attestation"
+                  >
+                    <FileSignature className="w-4 h-4 text-emerald-400" />
+                    <span>Notary</span>
+                  </button>
+                )}
+
+                {onOpenZkpChallenge && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenZkpChallenge();
+                      setMobileToolsOpen(false);
+                    }}
+                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-cyan-400 active:scale-95 transition-all text-[11px]"
+                    title="Zero-Knowledge Proof Challenge"
+                  >
+                    <ShieldCheck className="w-4 h-4 text-cyan-400" />
+                    <span>ZKP</span>
+                  </button>
+                )}
+
+                {onOpenDuressCalculator && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenDuressCalculator();
+                      setMobileToolsOpen(false);
+                    }}
+                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-rose-400 active:scale-95 transition-all text-[11px]"
+                    title="Covert Decoy Calculator & Duress PIN"
+                  >
+                    <Lock className="w-4 h-4 text-rose-400" />
+                    <span>Duress</span>
+                  </button>
+                )}
+
+                {onOpenCustomerService && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenCustomerService();
+                      setMobileToolsOpen(false);
+                    }}
+                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-sky-400 active:scale-95 transition-all text-[11px]"
+                    title="Diagnostics, Speed Boost & Customer Help"
+                  >
+                    <Zap className="w-4 h-4 text-sky-400" />
+                    <span>Help</span>
                   </button>
                 )}
 

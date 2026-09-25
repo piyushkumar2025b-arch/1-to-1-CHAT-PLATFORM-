@@ -121,6 +121,10 @@ import { DualHandshakeModal } from './components/DualHandshakeModal';
 import { WarrantCanaryModal } from './components/WarrantCanaryModal';
 import { CovertCamouflageModal } from './components/CovertCamouflageModal';
 import { RoomLifespanModal } from './components/RoomLifespanModal';
+import { NotaryAttestationModal } from './components/NotaryAttestationModal';
+import { ZkpChallengeModal } from './components/ZkpChallengeModal';
+import { DuressCalculatorModal } from './components/DuressCalculatorModal';
+import { CustomerServiceModal } from './components/CustomerServiceModal';
 import { addPersonalNote } from './lib/personal-notes';
 import { getDisplaySettings, saveDisplaySettings, DisplaySettings } from './lib/display-settings';
 import { stopSpeaking } from './lib/text-to-speech';
@@ -392,6 +396,10 @@ export default function App() {
   const [warrantCanaryModalOpen, setWarrantCanaryModalOpen] = useState(false);
   const [covertCamouflageModalOpen, setCovertCamouflageModalOpen] = useState(false);
   const [roomLifespanModalOpen, setRoomLifespanModalOpen] = useState(false);
+  const [notaryAttestationModalOpen, setNotaryAttestationModalOpen] = useState(false);
+  const [zkpChallengeModalOpen, setZkpChallengeModalOpen] = useState(false);
+  const [duressCalculatorModalOpen, setDuressCalculatorModalOpen] = useState(false);
+  const [customerServiceModalOpen, setCustomerServiceModalOpen] = useState(false);
   const [roomExpiresAt, setRoomExpiresAt] = useState<number | null>(null);
   const [roomLifespanMinutes, setRoomLifespanMinutes] = useState<number>(0);
   const [secondsUntilBurn, setSecondsUntilBurn] = useState<number | null>(null);
@@ -2817,6 +2825,18 @@ export default function App() {
     } else if (cmd.id === 'roomtimer' || cmd.id === 'burner') {
       setRoomLifespanModalOpen(true);
       setInputText('');
+    } else if (cmd.id === 'notary' || cmd.id === 'attest') {
+      setNotaryAttestationModalOpen(true);
+      setInputText('');
+    } else if (cmd.id === 'zkp' || cmd.id === 'proof') {
+      setZkpChallengeModalOpen(true);
+      setInputText('');
+    } else if (cmd.id === 'calc' || cmd.id === 'duress') {
+      setDuressCalculatorModalOpen(true);
+      setInputText('');
+    } else if (cmd.id === 'support' || cmd.id === 'help') {
+      setCustomerServiceModalOpen(true);
+      setInputText('');
     }
   };
 
@@ -3724,6 +3744,7 @@ export default function App() {
         avgPingMs={avgPingMs}
         targetName={targetName}
         onOpenDiagnostics={() => setDiagnosticsModalOpen(true)}
+        onOpenCustomerService={() => setCustomerServiceModalOpen(true)}
         onOpenShortcuts={() => setShortcutsModalOpen(true)}
         onStartVoiceCall={handleStartVoiceCall}
         onStartVideoCall={handleStartVideoCall}
@@ -4230,6 +4251,10 @@ export default function App() {
             onOpenWarrantCanary={() => setWarrantCanaryModalOpen(true)}
             onOpenCovertCamouflage={() => setCovertCamouflageModalOpen(true)}
             onOpenRoomLifespan={() => setRoomLifespanModalOpen(true)}
+            onOpenNotaryAttestation={() => setNotaryAttestationModalOpen(true)}
+            onOpenZkpChallenge={() => setZkpChallengeModalOpen(true)}
+            onOpenDuressCalculator={() => setDuressCalculatorModalOpen(true)}
+            onOpenCustomerService={() => setCustomerServiceModalOpen(true)}
             sendKeyPreference={displaySettings.sendKeyPreference}
             showCharacterCount={displaySettings.showCharacterCount !== false}
             showWordCount={displaySettings.showWordCount !== false}
@@ -4847,6 +4872,54 @@ export default function App() {
         currentLifespanMinutes={roomLifespanMinutes}
         onSetRoomLifespan={handleSetRoomLifespan}
         accentColor={currentTheme.accentColor}
+      />
+
+      {/* Cryptographic Notary & Attestation Modal */}
+      <NotaryAttestationModal
+        isOpen={notaryAttestationModalOpen}
+        onClose={() => setNotaryAttestationModalOpen(false)}
+        myUserId={myUserId}
+        onSendNotarySeal={(notaryPayload) => {
+          handleSendMessage(notaryPayload);
+          setSecurityToastMessage('Cryptographic Notary Attestation seal published to room!');
+        }}
+        accentColor={currentTheme.accentColor}
+      />
+
+      {/* Zero-Knowledge Proof Challenge Modal */}
+      <ZkpChallengeModal
+        isOpen={zkpChallengeModalOpen}
+        onClose={() => setZkpChallengeModalOpen(false)}
+        myUserId={myUserId}
+        onSendChallenge={(zkpPayload) => {
+          handleSendMessage(zkpPayload);
+          setSecurityToastMessage('Zero-Knowledge Proof challenge dispatched to room!');
+        }}
+        accentColor={currentTheme.accentColor}
+      />
+
+      {/* Duress Decoy Calculator Modal */}
+      <DuressCalculatorModal
+        isOpen={duressCalculatorModalOpen}
+        onClose={() => setDuressCalculatorModalOpen(false)}
+        onEmergencyPurge={() => {
+          handleLeaveRoom();
+          setSecurityToastMessage('🚨 Duress panic wipe executed: session keys eradicated!');
+        }}
+        accentColor={currentTheme.accentColor}
+      />
+
+      {/* Customer Service & Diagnostics Modal */}
+      <CustomerServiceModal
+        isOpen={customerServiceModalOpen}
+        onClose={() => setCustomerServiceModalOpen(false)}
+        pingMs={pingMs}
+        pingQuality={pingQuality}
+        jitterMs={jitterMs}
+        activeRoomId={activeRoomId}
+        onRunSpeedBoost={() => {
+          setSecurityToastMessage('⚡ Network ping pulse and memory optimization completed');
+        }}
       />
     </div>
   );
