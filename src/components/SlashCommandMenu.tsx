@@ -64,6 +64,7 @@ export function SlashCommandMenu({
 }: SlashCommandMenuProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   // Available commands definitions
   const commands: Omit<SlashCommand, 'action'>[] = [
@@ -540,6 +541,13 @@ export function SlashCommandMenu({
     setSelectedIndex(0);
   }, [filter]);
 
+  useEffect(() => {
+    const el = itemRefs.current[selectedIndex];
+    if (el) {
+      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }, [selectedIndex]);
+
   // Handle keyboard navigation when menu is open
   useEffect(() => {
     if (!isOpen) return;
@@ -594,6 +602,7 @@ export function SlashCommandMenu({
         return (
           <button
             key={cmd.id}
+            ref={(el) => (itemRefs.current[idx] = el)}
             type="button"
             onClick={() => onExecuteCommand(cmd as any)}
             onMouseEnter={() => setSelectedIndex(idx)}

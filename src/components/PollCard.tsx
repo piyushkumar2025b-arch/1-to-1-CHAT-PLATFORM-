@@ -156,11 +156,19 @@ export const PollCard: React.FC<PollCardProps> = ({
                 <div className="flex items-center gap-2.5 min-w-0">
                   {/* Indicator Box/Circle */}
                   <div
-                    className={`w-4 h-4 rounded-${
-                      poll.allowMultiple ? 'md' : 'full'
+                    style={
+                      isSelected
+                        ? {
+                            borderColor: accentColor,
+                            backgroundColor: accentColor,
+                          }
+                        : {}
+                    }
+                    className={`w-4 h-4 ${
+                      poll.allowMultiple ? 'rounded-md' : 'rounded-full'
                     } border flex items-center justify-center shrink-0 transition-colors ${
                       isSelected
-                        ? 'border-amber-400 bg-amber-400 text-neutral-950 font-bold'
+                        ? 'text-neutral-950 font-bold'
                         : 'border-neutral-600 bg-neutral-900 group-hover:border-neutral-400'
                     }`}
                   >

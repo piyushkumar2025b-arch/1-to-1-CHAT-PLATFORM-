@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckSquare, Square, CheckCircle2, ListTodo, Plus, Trash2 } from 'lucide-react';
+import { CheckSquare, Square, CheckCircle2, ListTodo, Plus, Trash2, Copy, Check } from 'lucide-react';
 
 interface ChecklistCardProps {
   title: string;
@@ -22,11 +22,28 @@ export const ChecklistCard: React.FC<ChecklistCardProps> = ({
 
   const [newItemText, setNewItemText] = useState('');
   const [showAdd, setShowAdd] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const toggleItem = (id: string) => {
     setItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, done: !item.done } : item))
     );
+  };
+
+  const deleteItem = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setItems((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const text = [
+      `📋 ${title || 'Checklist'}:`,
+      ...items.map((i) => `[${i.done ? 'x' : ' '}] ${i.text}`),
+    ].join('\n');
+    navigator.clipboard?.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleAddItem = (e: React.FormEvent) => {
@@ -58,9 +75,19 @@ export const ChecklistCard: React.FC<ChecklistCardProps> = ({
             {title || 'Interactive Checklist'}
           </span>
         </div>
-        <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/20 px-1.5 py-0.5 rounded">
-          {completedCount}/{totalCount} ({percent}%)
-        </span>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="p-1 rounded text-neutral-400 hover:text-white hover:bg-emerald-500/20 transition-colors cursor-pointer"
+            title="Copy checklist state to clipboard"
+          >
+            {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+          </button>
+          <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/20 px-1.5 py-0.5 rounded">
+            {completedCount}/{totalCount} ({percent}%)
+          </span>
+        </div>
       </div>
 
       {/* Progress Bar */}
@@ -77,18 +104,28 @@ export const ChecklistCard: React.FC<ChecklistCardProps> = ({
           <div
             key={item.id}
             onClick={() => toggleItem(item.id)}
-            className={`flex items-center gap-2.5 p-2 rounded-lg cursor-pointer transition-colors ${
+            className={`group flex items-center justify-between gap-2.5 p-2 rounded-lg cursor-pointer transition-colors ${
               item.done
                 ? 'bg-neutral-900/40 text-neutral-500 line-through'
                 : 'hover:bg-neutral-900 text-neutral-200'
             }`}
           >
-            {item.done ? (
-              <CheckSquare className="w-4 h-4 text-emerald-400 shrink-0" />
-            ) : (
-              <Square className="w-4 h-4 text-neutral-400 shrink-0 hover:text-white" />
-            )}
-            <span className="text-xs break-words">{item.text}</span>
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+              {item.done ? (
+                <CheckSquare className="w-4 h-4 text-emerald-400 shrink-0" />
+              ) : (
+                <Square className="w-4 h-4 text-neutral-400 shrink-0 hover:text-white" />
+              )}
+              <span className="text-xs break-words">{item.text}</span>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => deleteItem(item.id, e)}
+              className="opacity-0 group-hover:opacity-100 p-1 text-neutral-500 hover:text-rose-400 rounded transition-all cursor-pointer"
+              title="Delete item"
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
           </div>
         ))}
 

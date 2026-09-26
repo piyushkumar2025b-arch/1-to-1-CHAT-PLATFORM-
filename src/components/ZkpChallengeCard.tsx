@@ -8,6 +8,9 @@ import {
   Sparkles,
   Lock,
   Unlock,
+  Eye,
+  EyeOff,
+  UserCheck,
 } from 'lucide-react';
 import { verifyZkpCandidate } from '../lib/zkp-engine';
 
@@ -40,6 +43,7 @@ export const ZkpChallengeCard: React.FC<ZkpChallengeCardProps> = ({
   }
 
   const [inputAnswer, setInputAnswer] = useState('');
+  const [showSecret, setShowSecret] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
   const [errorStatus, setErrorStatus] = useState<string | null>(null);
@@ -47,7 +51,7 @@ export const ZkpChallengeCard: React.FC<ZkpChallengeCardProps> = ({
   const isOwner = myUserId ? myUserId === creatorId : isMe;
 
   const handleVerify = async () => {
-    if (!inputAnswer.trim()) return;
+    if (!inputAnswer.trim() || isVerifying) return;
     setIsVerifying(true);
     setErrorStatus(null);
 
@@ -91,13 +95,20 @@ export const ZkpChallengeCard: React.FC<ZkpChallengeCardProps> = ({
             {isVerified ? 'ZKP VERIFIED (KNOWLEDGE PROVEN)' : 'ZERO-KNOWLEDGE PROOF CHALLENGE'}
           </span>
         </div>
-        <span
-          className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${
-            isVerified ? 'bg-emerald-500/20 text-emerald-300' : 'bg-cyan-500/20 text-cyan-300'
-          }`}
-        >
-          #{challengeId.slice(0, 7)}
-        </span>
+        <div className="flex items-center gap-1.5">
+          {isOwner && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400 font-medium">
+              You Created
+            </span>
+          )}
+          <span
+            className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${
+              isVerified ? 'bg-emerald-500/20 text-emerald-300' : 'bg-cyan-500/20 text-cyan-300'
+            }`}
+          >
+            #{challengeId.slice(0, 7)}
+          </span>
+        </div>
       </div>
 
       {/* Body */}
@@ -132,16 +143,33 @@ export const ZkpChallengeCard: React.FC<ZkpChallengeCardProps> = ({
         {!isVerified && (
           <div className="space-y-2 pt-1">
             <div className="flex items-center gap-1.5">
-              <input
-                type="password"
-                value={inputAnswer}
-                onChange={(e) => {
-                  setInputAnswer(e.target.value);
-                  setErrorStatus(null);
-                }}
-                placeholder="Enter secret answer to prove..."
-                className="flex-1 px-3 py-1.5 rounded-xl bg-neutral-900 border border-neutral-800 text-xs text-neutral-100 font-mono focus:outline-none focus:border-cyan-400"
-              />
+              <div className="relative flex-1">
+                <input
+                  type={showSecret ? 'text' : 'password'}
+                  value={inputAnswer}
+                  onChange={(e) => {
+                    setInputAnswer(e.target.value);
+                    setErrorStatus(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleVerify();
+                    }
+                  }}
+                  placeholder="Enter secret answer to prove..."
+                  className="w-full px-3 py-1.5 pr-8 rounded-xl bg-neutral-900 border border-neutral-800 text-xs text-neutral-100 font-mono focus:outline-none focus:border-cyan-400"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowSecret(!showSecret)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white transition-colors cursor-pointer p-0.5"
+                  title={showSecret ? 'Hide secret' : 'Show secret'}
+                >
+                  {showSecret ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+
               <button
                 type="button"
                 onClick={handleVerify}
@@ -154,7 +182,7 @@ export const ZkpChallengeCard: React.FC<ZkpChallengeCardProps> = ({
             </div>
 
             {errorStatus && (
-              <div className="text-[11px] text-rose-400 flex items-center gap-1">
+              <div className="text-[11px] text-rose-400 flex items-center gap-1 animate-in fade-in duration-100">
                 <XCircle className="w-3.5 h-3.5 shrink-0" />
                 <span>{errorStatus}</span>
               </div>

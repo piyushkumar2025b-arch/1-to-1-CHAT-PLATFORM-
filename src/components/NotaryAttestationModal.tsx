@@ -34,6 +34,15 @@ export const NotaryAttestationModal: React.FC<NotaryAttestationModalProps> = ({
   const [isComputing, setIsComputing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const handleComputeNotarization = async () => {
@@ -77,8 +86,14 @@ export const NotaryAttestationModal: React.FC<NotaryAttestationModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="w-full max-w-xl rounded-2xl bg-neutral-925 border border-emerald-500/30 shadow-2xl shadow-emerald-950/30 overflow-hidden flex flex-col max-h-[92vh]">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-xl rounded-2xl bg-neutral-925 border border-emerald-500/30 shadow-2xl shadow-emerald-950/30 overflow-hidden flex flex-col max-h-[92vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-emerald-950/40 via-neutral-900 to-neutral-900 border-b border-emerald-500/20">
           <div className="flex items-center gap-2.5">

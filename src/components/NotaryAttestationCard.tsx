@@ -41,6 +41,7 @@ export const NotaryAttestationCard: React.FC<NotaryAttestationCardProps> = ({
   }
 
   const [copiedSha, setCopiedSha] = useState(false);
+  const [copiedCert, setCopiedCert] = useState(false);
   const [verifyStatus, setVerifyStatus] = useState<'idle' | 'matching' | 'mismatch'>('idle');
   const fileCheckRef = useRef<HTMLInputElement | null>(null);
 
@@ -48,6 +49,27 @@ export const NotaryAttestationCard: React.FC<NotaryAttestationCardProps> = ({
     navigator.clipboard.writeText(sha256).then(() => {
       setCopiedSha(true);
       setTimeout(() => setCopiedSha(false), 2000);
+    });
+  };
+
+  const handleCopyCert = () => {
+    const certJson = JSON.stringify(
+      {
+        certificateId: certId,
+        title,
+        fileName,
+        sha256,
+        sha512Prefix,
+        timestamp,
+        sealedAt: new Date(timestamp).toISOString(),
+        signerId,
+      },
+      null,
+      2
+    );
+    navigator.clipboard?.writeText(certJson).then(() => {
+      setCopiedCert(true);
+      setTimeout(() => setCopiedCert(false), 2000);
     });
   };
 
@@ -114,32 +136,43 @@ export const NotaryAttestationCard: React.FC<NotaryAttestationCardProps> = ({
           <span>ID: #{certId.slice(-8)}</span>
         </div>
 
-        {/* Verification Checker */}
-        <div className="pt-1 border-t border-neutral-900 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => fileCheckRef.current?.click()}
-            className="text-[11px] text-neutral-400 hover:text-emerald-300 flex items-center gap-1 transition-colors cursor-pointer"
-          >
-            <Upload className="w-3 h-3" />
-            <span>Verify Local File Integrity</span>
-          </button>
-          <input
-            ref={fileCheckRef}
-            type="file"
-            onChange={handleCheckFile}
-            className="hidden"
-          />
+        {/* Verification Checker & Certificate Export */}
+        <div className="pt-2 border-t border-neutral-900 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => fileCheckRef.current?.click()}
+              className="text-[11px] text-neutral-400 hover:text-emerald-300 flex items-center gap-1 transition-colors cursor-pointer"
+            >
+              <Upload className="w-3 h-3" />
+              <span>Verify File Integrity</span>
+            </button>
+            <input
+              ref={fileCheckRef}
+              type="file"
+              onChange={handleCheckFile}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={handleCopyCert}
+              className="text-[11px] text-neutral-500 hover:text-emerald-300 flex items-center gap-1 transition-colors cursor-pointer"
+              title="Copy full cryptographic certificate JSON"
+            >
+              {copiedCert ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+              <span>{copiedCert ? 'Copied' : 'Cert JSON'}</span>
+            </button>
+          </div>
 
           {verifyStatus === 'matching' && (
-            <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-bold">
+            <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-bold shrink-0">
               <CheckCircle2 className="w-3.5 h-3.5" />
               100% Hash Match
             </span>
           )}
 
           {verifyStatus === 'mismatch' && (
-            <span className="text-[10px] text-rose-400 flex items-center gap-1 font-bold">
+            <span className="text-[10px] text-rose-400 flex items-center gap-1 font-bold shrink-0">
               <XCircle className="w-3.5 h-3.5" />
               Tamper Detected / No Match
             </span>

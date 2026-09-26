@@ -51,6 +51,15 @@ export function CustomerServiceModal({
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const isWsActive = realTimeSocket.isConnected();
