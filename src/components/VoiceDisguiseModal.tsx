@@ -12,6 +12,7 @@ import {
   Shield,
   Radio,
   RefreshCw,
+  AlertCircle,
 } from 'lucide-react';
 
 interface VoiceDisguiseModalProps {
@@ -73,6 +74,7 @@ export const VoiceDisguiseModal: React.FC<VoiceDisguiseModalProps> = ({
   const [selectedProfile, setSelectedProfile] = useState<VoiceMaskProfile>('anonymous');
   const [isPlaying, setIsPlaying] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -82,6 +84,7 @@ export const VoiceDisguiseModal: React.FC<VoiceDisguiseModalProps> = ({
   if (!isOpen) return null;
 
   const startRecording = async () => {
+    setErrorMessage(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioChunksRef.current = [];
@@ -106,7 +109,7 @@ export const VoiceDisguiseModal: React.FC<VoiceDisguiseModalProps> = ({
         setRecordDuration((prev) => prev + 1);
       }, 1000);
     } catch {
-      alert('Microphone access denied or unavailable.');
+      setErrorMessage('Microphone access denied or unavailable.');
     }
   };
 
@@ -242,7 +245,7 @@ export const VoiceDisguiseModal: React.FC<VoiceDisguiseModalProps> = ({
       onSendDisguisedAudio(disguisedFile);
       onClose();
     } catch {
-      alert('Failed to process disguised audio');
+      setErrorMessage('Failed to process disguised audio. Please try another profile.');
       setIsProcessing(false);
     }
   };
@@ -288,6 +291,14 @@ export const VoiceDisguiseModal: React.FC<VoiceDisguiseModalProps> = ({
 
         {/* Modal Body */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+          {/* Error Banner */}
+          {errorMessage && (
+            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
           {/* Record Control Area */}
           <div className="p-4 rounded-xl bg-neutral-950 border border-neutral-800 text-center space-y-3">
             <div className="flex items-center justify-center gap-2 text-xs font-mono">

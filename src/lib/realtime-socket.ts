@@ -36,6 +36,8 @@ export interface RealTimeMessagePayload {
   file?: any;
   replyTo?: any;
   poll?: any;
+  isEdited?: boolean;
+  editedAt?: string | number;
 }
 
 type MessageHandler = (payload: RealTimeMessagePayload, senderId: string) => void;
@@ -44,6 +46,9 @@ type ReadReceiptHandler = (timestamp: number, senderId: string) => void;
 type WhiteboardHandler = (data: any, senderId: string) => void;
 type WebRtcSignalHandler = (signal: any, senderId: string) => void;
 type ReactionHandler = (payload: { messageId: string; emoji: string; type: 'add' | 'remove' }, senderId: string) => void;
+type MessageDeletedHandler = (data: { messageId: string; senderId?: string }) => void;
+type MessageEditedHandler = (data: { messageId: string; ct: string; iv: string; senderId?: string; editedAt?: number }) => void;
+type MediaBurnedHandler = (data: { messageId: string; senderId?: string }) => void;
 type StatusHandler = (status: RealTimeConnectionStatus, details?: any) => void;
 type LatencyHandler = (latencyMs: number) => void;
 type AckHandler = (messageId: string, timestamp: number) => void;
@@ -69,6 +74,9 @@ class RealTimeSocketClient {
   private whiteboardHandlers: Set<WhiteboardHandler> = new Set();
   private webrtcSignalHandlers: Set<WebRtcSignalHandler> = new Set();
   private reactionHandlers: Set<ReactionHandler> = new Set();
+  private messageDeletedHandlers: Set<MessageDeletedHandler> = new Set();
+  private messageEditedHandlers: Set<MessageEditedHandler> = new Set();
+  private mediaBurnedHandlers: Set<MediaBurnedHandler> = new Set();
   private statusHandlers: Set<StatusHandler> = new Set();
   private latencyHandlers: Set<LatencyHandler> = new Set();
   private ackHandlers: Set<AckHandler> = new Set();
@@ -228,6 +236,24 @@ class RealTimeSocketClient {
       case 'reaction': {
         if (data.payload) {
           this.reactionHandlers.forEach((cb) => cb(data.payload, data.senderId));
+        }
+        break;
+      }
+      case 'message_deleted': {
+        if (data.messageId) {
+          this.messageDeletedHandlers.forEach((cb) => cb(data));
+        }
+        break;
+      }
+      case 'message_edited': {
+        if (data.messageId) {
+          this.messageEditedHandlers.forEach((cb) => cb(data));
+        }
+        break;
+      }
+      case 'media_burned': {
+        if (data.messageId) {
+          this.mediaBurnedHandlers.forEach((cb) => cb(data));
         }
         break;
       }
@@ -448,6 +474,21 @@ class RealTimeSocketClient {
   public onReaction(handler: ReactionHandler): () => void {
     this.reactionHandlers.add(handler);
     return () => this.reactionHandlers.delete(handler);
+  }
+
+  public onMessageDeleted(handler: MessageDeletedHandler): () => void {
+    this.messageDeletedHandlers.add(handler);
+    return () => this.messageDeletedHandlers.delete(handler);
+  }
+
+  public onMessageEdited(handler: MessageEditedHandler): () => void {
+    this.messageEditedHandlers.add(handler);
+    return () => this.messageEditedHandlers.delete(handler);
+  }
+
+  public onMediaBurned(handler: MediaBurnedHandler): () => void {
+    this.mediaBurnedHandlers.add(handler);
+    return () => this.mediaBurnedHandlers.delete(handler);
   }
 
   public onStatus(handler: StatusHandler): () => void {

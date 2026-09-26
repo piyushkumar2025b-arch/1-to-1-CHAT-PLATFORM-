@@ -848,6 +848,9 @@ export default function App() {
       let decryptedText = payload.text || '';
       let decryptedFile = payload.file;
       let decryptedReplyTo = payload.replyTo;
+      let decryptedPoll = payload.poll;
+      let isEdited = Boolean(payload.isEdited);
+      let editedAt = payload.editedAt;
 
       if (payload.enc && payload.encryptedData) {
         try {
@@ -856,6 +859,9 @@ export default function App() {
             decryptedText = dec.text || '';
             if (dec.file) decryptedFile = dec.file;
             if (dec.replyTo) decryptedReplyTo = dec.replyTo;
+            if (dec.poll) decryptedPoll = dec.poll;
+            if (dec.isEdited !== undefined) isEdited = Boolean(dec.isEdited);
+            if (dec.editedAt !== undefined) editedAt = dec.editedAt;
           }
         } catch {
           // ignore decryption failure
@@ -871,6 +877,9 @@ export default function App() {
         status: 'sent',
         file: decryptedFile,
         replyTo: decryptedReplyTo,
+        poll: decryptedPoll,
+        isEdited: isEdited,
+        editedAt: typeof editedAt === 'number' ? new Date(editedAt).toISOString() : editedAt,
         isEphemeral: Boolean(payload.isEphemeral),
         ephemeralDuration: payload.ephemeralDuration,
         expiresAt: payload.expiresAt,
@@ -929,6 +938,52 @@ export default function App() {
             delete nextReactions[payload.emoji];
           }
           return { ...msg, reactions: nextReactions };
+        })
+      );
+    });
+
+    // Instant socket message deletion listener (<2ms)
+    const unsubSocketDelete = realTimeSocket.onMessageDeleted(({ messageId }) => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId
+            ? { ...m, isDeleted: true, deletedForEveryone: true, text: '', file: undefined }
+            : m
+        )
+      );
+    });
+
+    // Instant socket message edit listener (<5ms)
+    const unsubSocketEdit = realTimeSocket.onMessageEdited(async ({ messageId, ct, iv, editedAt }) => {
+      try {
+        const dec = await decryptWithEnclave({ ct, iv, v: 2 }, roomPwd, activeRoomId);
+        if (dec && dec.text) {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === messageId
+                ? { ...m, text: dec.text, isEdited: true, editedAt: editedAt || Date.now() }
+                : m
+            )
+          );
+        }
+      } catch {
+        // ignore
+      }
+    });
+
+    // Instant socket media burned listener (<2ms)
+    const unsubSocketBurn = realTimeSocket.onMediaBurned(({ messageId }) => {
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m.id === messageId) {
+            return {
+              ...m,
+              viewed: true,
+              burned: true,
+              file: m.file ? { ...m.file, viewed: true, burned: true } : undefined,
+            };
+          }
+          return m;
         })
       );
     });
@@ -1306,6 +1361,9 @@ export default function App() {
       unsubSocketTyping();
       unsubSocketRead();
       unsubSocketReaction();
+      unsubSocketDelete();
+      unsubSocketEdit();
+      unsubSocketBurn();
       realTimeSocket.disconnect();
     };
   }, [activeRoomId, myUserId]);

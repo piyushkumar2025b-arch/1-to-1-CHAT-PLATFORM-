@@ -257,16 +257,27 @@ export async function syncRoomState(roomId: string, count: number): Promise<void
   }
 }
 
+// In-memory cache of recently relayed messages to eliminate race conditions between real-time WebSocket relay and Firestore commits
+export const recentMessagesCache = new Map<string, any>();
+
 /**
  * Zero-Knowledge Room Self-Destruct executed privileged on backend (Fix Bug 12)
  */
 export async function burnRoomAndDestroyAllDataServer(roomId: string): Promise<{ ok: boolean; deletedCount: number }> {
   const db = getDatabase();
+  const cleanRoom = roomId.trim().toUpperCase();
+
+  // Clear in-memory recent messages cache for this room
+  for (const key of recentMessagesCache.keys()) {
+    if (key.startsWith(`${cleanRoom}::`)) {
+      recentMessagesCache.delete(key);
+    }
+  }
+
   if (!db) return { ok: false, deletedCount: 0 };
   let count = 0;
 
   try {
-    const cleanRoom = roomId.trim().toUpperCase();
     if (!isValidRoomId(cleanRoom)) return { ok: false, deletedCount: 0 };
 
     const subcollections = ['messages', 'files', 'calls', 'scratchpad'];
@@ -306,34 +317,79 @@ export async function deleteMessageServer(
   deleteForEveryone: boolean
 ): Promise<{ ok: boolean; error?: string }> {
   const db = getDatabase();
-  if (!db) return { ok: false, error: 'Database unavailable' };
+  const cleanRoom = roomId.trim().toUpperCase();
+  const cacheKey = `${cleanRoom}::${messageId}`;
+  let cached = recentMessagesCache.get(cacheKey);
 
-  try {
-    const msgRef = doc(db, 'rooms', roomId, 'messages', messageId);
-    const snap = await getDoc(msgRef);
-    if (!snap.exists()) return { ok: false, error: 'Message not found' };
+  let msgData: any = cached;
+  let snap: any = null;
 
-    const data = snap.data();
-    if (data.senderId !== userId) {
-      return { ok: false, error: 'Unauthorized: only the message sender can delete this message' };
-    }
-
-    if (deleteForEveryone) {
-      await updateDoc(msgRef, {
-        isDeleted: true,
-        deletedForEveryone: true,
-        deletedAt: new Date().toISOString(),
-        text: '',
-        ct: '',
-        file: null,
-      });
-    } else {
-      await deleteDoc(msgRef);
-    }
-    return { ok: true };
-  } catch (err: any) {
-    return { ok: false, error: err.message || 'Deletion failed' };
+  if (db) {
+    try {
+      const msgRef = doc(db, 'rooms', cleanRoom, 'messages', messageId);
+      snap = await getDoc(msgRef);
+      if (snap.exists()) {
+        msgData = snap.data();
+      } else if (!msgData) {
+        // Retry once after 75ms in case asynchronous Firestore write is in-flight
+        await new Promise((r) => setTimeout(r, 75));
+        snap = await getDoc(msgRef);
+        if (snap.exists()) {
+          msgData = snap.data();
+        }
+      }
+    } catch {}
   }
+
+  if (!msgData) return { ok: false, error: 'Message not found' };
+
+  if (msgData.senderId !== userId) {
+    return { ok: false, error: 'Unauthorized: only the message sender can delete this message' };
+  }
+
+  if (deleteForEveryone) {
+    if (cached) {
+      cached.isDeleted = true;
+      cached.deletedForEveryone = true;
+      cached.deletedAt = new Date().toISOString();
+      cached.text = '';
+      cached.ct = '';
+      cached.file = null;
+      recentMessagesCache.set(cacheKey, cached);
+    }
+    if (db) {
+      try {
+        const msgRef = doc(db, 'rooms', cleanRoom, 'messages', messageId);
+        await setDoc(
+          msgRef,
+          {
+            ...msgData,
+            isDeleted: true,
+            deletedForEveryone: true,
+            deletedAt: new Date().toISOString(),
+            text: '',
+            ct: '',
+            file: null,
+          },
+          { merge: true }
+        );
+      } catch (err: any) {
+        return { ok: false, error: err.message || 'Deletion failed' };
+      }
+    }
+  } else {
+    recentMessagesCache.delete(cacheKey);
+    if (db && snap?.exists?.()) {
+      try {
+        const msgRef = doc(db, 'rooms', cleanRoom, 'messages', messageId);
+        await deleteDoc(msgRef);
+      } catch (err: any) {
+        return { ok: false, error: err.message || 'Deletion failed' };
+      }
+    }
+  }
+
+  return { ok: true };
 }
 
 /**
@@ -347,36 +403,72 @@ export async function editMessageServer(
   newIv: string
 ): Promise<{ ok: boolean; error?: string }> {
   const db = getDatabase();
-  if (!db) return { ok: false, error: 'Database unavailable' };
+  const cleanRoom = roomId.trim().toUpperCase();
+  const cacheKey = `${cleanRoom}::${messageId}`;
+  let cached = recentMessagesCache.get(cacheKey);
 
-  try {
-    const msgRef = doc(db, 'rooms', roomId, 'messages', messageId);
-    const snap = await getDoc(msgRef);
-    if (!snap.exists()) return { ok: false, error: 'Message not found' };
+  let msgData: any = cached;
+  let snap: any = null;
 
-    const data = snap.data();
-    if (data.senderId !== userId) {
-      return { ok: false, error: 'Unauthorized: only the original sender can edit this message' };
-    }
-    if (data.isDeleted) {
-      return { ok: false, error: 'Cannot edit a deleted message' };
-    }
-
-    const createdTime = data.createdAt ? new Date(data.createdAt).getTime() : data.ts;
-    if (Date.now() - createdTime > 15 * 60 * 1000) {
-      return { ok: false, error: 'Message editing window expired (15-minute limit)' };
-    }
-
-    await updateDoc(msgRef, {
-      ct: newCt,
-      iv: newIv,
-      isEdited: true,
-      editedAt: new Date().toISOString(),
-    });
-    return { ok: true };
-  } catch (err: any) {
-    return { ok: false, error: err.message || 'Edit failed' };
+  if (db) {
+    try {
+      const msgRef = doc(db, 'rooms', cleanRoom, 'messages', messageId);
+      snap = await getDoc(msgRef);
+      if (snap.exists()) {
+        msgData = snap.data();
+      } else if (!msgData) {
+        // Retry once after 75ms in case asynchronous Firestore write is in-flight
+        await new Promise((r) => setTimeout(r, 75));
+        snap = await getDoc(msgRef);
+        if (snap.exists()) {
+          msgData = snap.data();
+        }
+      }
+    } catch {}
   }
+
+  if (!msgData) return { ok: false, error: 'Message not found' };
+
+  if (msgData.senderId !== userId) {
+    return { ok: false, error: 'Unauthorized: only the original sender can edit this message' };
+  }
+  if (msgData.isDeleted) {
+    return { ok: false, error: 'Cannot edit a deleted message' };
+  }
+
+  const createdTime = msgData.createdAt ? new Date(msgData.createdAt).getTime() : (msgData.ts || Date.now());
+  if (Date.now() - createdTime > 15 * 60 * 1000) {
+    return { ok: false, error: 'Message editing window expired (15-minute limit)' };
+  }
+
+  if (cached) {
+    cached.ct = newCt;
+    cached.iv = newIv;
+    cached.isEdited = true;
+    cached.editedAt = new Date().toISOString();
+    recentMessagesCache.set(cacheKey, cached);
+  }
+
+  if (db) {
+    try {
+      const msgRef = doc(db, 'rooms', cleanRoom, 'messages', messageId);
+      await setDoc(
+        msgRef,
+        {
+          ...msgData,
+          ct: newCt,
+          iv: newIv,
+          isEdited: true,
+          editedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+    } catch (err: any) {
+      return { ok: false, error: err.message || 'Edit failed' };
+    }
+  }
+
+  return { ok: true };
 }
 
 /**
@@ -387,65 +479,110 @@ export async function burnMediaServer(
   messageId: string
 ): Promise<{ ok: boolean; error?: string }> {
   const db = getDatabase();
-  if (!db) return { ok: false, error: 'Database unavailable' };
+  const cleanRoom = roomId.trim().toUpperCase();
+  const cacheKey = `${cleanRoom}::${messageId}`;
+  let cached = recentMessagesCache.get(cacheKey);
 
-  try {
-    const msgRef = doc(db, 'rooms', roomId, 'messages', messageId);
-    const snap = await getDoc(msgRef);
-    if (!snap.exists()) return { ok: false, error: 'Message not found' };
+  let msgData: any = cached;
 
-    await updateDoc(msgRef, {
-      viewed: true,
-      burned: true,
-      burnedAt: new Date().toISOString(),
-      'file.burned': true,
-    });
-    return { ok: true };
-  } catch (err: any) {
-    return { ok: false, error: err.message || 'Burn failed' };
+  if (db) {
+    try {
+      const msgRef = doc(db, 'rooms', cleanRoom, 'messages', messageId);
+      let snap = await getDoc(msgRef);
+      if (snap.exists()) {
+        msgData = snap.data();
+      } else if (!msgData) {
+        await new Promise((r) => setTimeout(r, 75));
+        snap = await getDoc(msgRef);
+        if (snap.exists()) {
+          msgData = snap.data();
+        }
+      }
+    } catch {}
   }
+
+  if (!msgData) return { ok: false, error: 'Message not found' };
+
+  if (cached) {
+    cached.viewed = true;
+    cached.burned = true;
+    cached.burnedAt = new Date().toISOString();
+    if (cached.file) cached.file.burned = true;
+    recentMessagesCache.set(cacheKey, cached);
+  }
+
+  if (db) {
+    try {
+      const msgRef = doc(db, 'rooms', cleanRoom, 'messages', messageId);
+      await setDoc(
+        msgRef,
+        {
+          viewed: true,
+          burned: true,
+          burnedAt: new Date().toISOString(),
+          'file.burned': true,
+        },
+        { merge: true }
+      );
+    } catch (err: any) {
+      return { ok: false, error: err.message || 'Burn failed' };
+    }
+  }
+
+  return { ok: true };
 }
 
 /**
  * Persists an end-to-end encrypted payload relayed over WebSocket into Firestore
- * with idempotent deduplication via document ID.
+ * with idempotent deduplication via document ID and updates in-memory cache.
  */
 export async function recordEncryptedPayload(
   roomId: string,
   senderId: string,
   payload: any
 ): Promise<void> {
+  if (!payload || typeof payload !== 'object') return;
+
+  const cleanRoom = roomId.trim().toUpperCase();
+  if (!isValidRoomId(cleanRoom)) return;
+
+  const docId = payload.messageId || payload.id || (payload.nonce ? `nonce_${String(payload.nonce).replace(/[^a-zA-Z0-9]/g, '')}` : null);
+
+  const messageData = {
+    roomId: cleanRoom,
+    senderId,
+    enc: Boolean(payload.enc || payload.encryptedData?.enc),
+    v: payload.v || payload.encryptedData?.v || 1,
+    iv: payload.iv || payload.encryptedData?.iv || '',
+    ct: payload.ct || payload.encryptedData?.ct || '',
+    nonce: payload.nonce || payload.encryptedData?.nonce || '',
+    ts: payload.ts || payload.encryptedData?.ts || Date.now(),
+    createdAt: payload.createdAt || new Date().toISOString(),
+    time: payload.time || '',
+    isEphemeral: Boolean(payload.isEphemeral),
+    ephemeralDuration: payload.ephemeralDuration || 0,
+    expiresAt: payload.expiresAt || null,
+  };
+
+  if (docId) {
+    recentMessagesCache.set(`${cleanRoom}::${docId}`, messageData);
+  }
+
   const db = getDatabase();
-  if (!db || !payload || typeof payload !== 'object') return;
+  if (!db) return;
 
   try {
-    const cleanRoom = roomId.trim().toUpperCase();
-    if (!isValidRoomId(cleanRoom)) return;
-
-    const docId = payload.messageId || payload.id || (payload.nonce ? `nonce_${String(payload.nonce).replace(/[^a-zA-Z0-9]/g, '')}` : null);
     const messagesCol = collection(db, 'rooms', cleanRoom, 'messages');
-
-    const messageData = {
-      roomId: cleanRoom,
-      senderId,
-      enc: Boolean(payload.enc),
-      v: payload.v || 1,
-      iv: payload.iv || '',
-      ct: payload.ct || '',
-      nonce: payload.nonce || '',
-      ts: payload.ts || Date.now(),
-      createdAt: payload.createdAt || new Date().toISOString(),
-      time: payload.time || '',
-      isEphemeral: Boolean(payload.isEphemeral),
-      ephemeralDuration: payload.ephemeralDuration || 0,
-      expiresAt: payload.expiresAt || null,
-      serverTimestamp: serverTimestamp(),
-    };
-
     if (docId) {
-      await setDoc(doc(db, 'rooms', cleanRoom, 'messages', docId), messageData, { merge: true });
+      await setDoc(doc(db, 'rooms', cleanRoom, 'messages', docId), {
+        ...messageData,
+        serverTimestamp: serverTimestamp(),
+      }, { merge: true });
     } else {
-      await addDoc(messagesCol, messageData);
+      await addDoc(messagesCol, {
+        ...messageData,
+        serverTimestamp: serverTimestamp(),
+      });
     }
   } catch (err) {
     console.warn('Error recording relayed encrypted message to Firestore:', err);

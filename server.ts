@@ -180,16 +180,19 @@ function validateWebSocketMessage(data: any): { valid: boolean; error?: string }
     if (!p || typeof p !== 'object') {
       return { valid: false, error: 'Missing encrypted message payload.' };
     }
-    if (p.enc !== true && !p.isDeleted) {
+    if (p.enc !== true && !p.isDeleted && !p.encryptedData?.enc) {
       return { valid: false, error: 'Unencrypted plaintext messages are strictly rejected.' };
     }
-    if (p.ct && (typeof p.ct !== 'string' || p.ct.length > 1048576)) {
+    const ct = p.ct || p.encryptedData?.ct;
+    if (ct && (typeof ct !== 'string' || ct.length > 1048576)) {
       return { valid: false, error: 'Message ciphertext exceeds 1MB limit.' };
     }
-    if (p.iv && (typeof p.iv !== 'string' || p.iv.length > 64)) {
+    const iv = p.iv || p.encryptedData?.iv;
+    if (iv && (typeof iv !== 'string' || iv.length > 64)) {
       return { valid: false, error: 'Invalid IV format.' };
     }
-    if (p.nonce && (typeof p.nonce !== 'string' || p.nonce.length > 64)) {
+    const nonce = p.nonce || p.encryptedData?.nonce;
+    if (nonce && (typeof nonce !== 'string' || nonce.length > 64)) {
       return { valid: false, error: 'Invalid nonce format.' };
     }
   } else if (data.type === 'typing') {
@@ -708,8 +711,13 @@ async function startServer() {
               rawPayload = JSON.parse(rawPayload);
             } catch {}
           }
-          const nonce = rawPayload?.nonce;
-          const msgTs = rawPayload?.ts || data.timestamp || Date.now();
+          const nonce = rawPayload?.nonce ||
+            rawPayload?.encryptedData?.nonce ||
+            rawPayload?.messageId ||
+            rawPayload?.id ||
+            rawPayload?.encryptedData?.id ||
+            (rawPayload?.iv ? `iv_${rawPayload.iv}` : (rawPayload?.encryptedData?.iv ? `iv_${rawPayload.encryptedData.iv}` : undefined));
+          const msgTs = rawPayload?.ts || rawPayload?.encryptedData?.ts || data.timestamp || Date.now();
 
           // Anti-replay protection check (Fix Bug 23)
           if (!checkAndRecordNonce(assignedRoomId, nonce, msgTs)) {
@@ -1015,6 +1023,23 @@ async function startServer() {
     }
 
     const result = await deleteMessageServer(session.roomId, messageId, session.userId, Boolean(deleteForEveryone));
+    if (result.ok && deleteForEveryone) {
+      const memRoom = rooms.get(session.roomId);
+      if (memRoom) {
+        const payload = JSON.stringify({
+          type: 'message_deleted',
+          messageId,
+          senderId: session.userId,
+        });
+        for (const u of memRoom.users) {
+          if (u.ws.readyState === WebSocket.OPEN) {
+            try {
+              u.ws.send(payload);
+            } catch {}
+          }
+        }
+      }
+    }
     return res.status(result.ok ? 200 : 400).json(result);
   });
 
@@ -1033,6 +1058,26 @@ async function startServer() {
     }
 
     const result = await editMessageServer(session.roomId, messageId, session.userId, ct, iv);
+    if (result.ok) {
+      const memRoom = rooms.get(session.roomId);
+      if (memRoom) {
+        const payload = JSON.stringify({
+          type: 'message_edited',
+          messageId,
+          ct,
+          iv,
+          senderId: session.userId,
+          editedAt: Date.now(),
+        });
+        for (const u of memRoom.users) {
+          if (u.ws.readyState === WebSocket.OPEN) {
+            try {
+              u.ws.send(payload);
+            } catch {}
+          }
+        }
+      }
+    }
     return res.status(result.ok ? 200 : 400).json(result);
   });
 
@@ -1051,6 +1096,23 @@ async function startServer() {
     }
 
     const result = await burnMediaServer(session.roomId, messageId);
+    if (result.ok) {
+      const memRoom = rooms.get(session.roomId);
+      if (memRoom) {
+        const payload = JSON.stringify({
+          type: 'media_burned',
+          messageId,
+          senderId: session.userId,
+        });
+        for (const u of memRoom.users) {
+          if (u.ws.readyState === WebSocket.OPEN) {
+            try {
+              u.ws.send(payload);
+            } catch {}
+          }
+        }
+      }
+    }
     return res.status(result.ok ? 200 : 400).json(result);
   });
 

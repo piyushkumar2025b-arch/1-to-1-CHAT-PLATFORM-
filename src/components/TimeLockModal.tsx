@@ -8,6 +8,7 @@ import {
   Sparkles,
   KeyRound,
   Shield,
+  AlertCircle,
 } from 'lucide-react';
 
 interface TimeLockModalProps {
@@ -37,6 +38,7 @@ export const TimeLockModal: React.FC<TimeLockModalProps> = ({
   const [selectedMinutes, setSelectedMinutes] = useState<number>(15);
   const [useCustomDate, setUseCustomDate] = useState(false);
   const [customDateTime, setCustomDateTime] = useState('');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -67,8 +69,9 @@ export const TimeLockModal: React.FC<TimeLockModalProps> = ({
       onClose();
       setSecretText('');
       setTitle('');
+      setErrorMessage(null);
     } catch {
-      alert('Failed to encode secret');
+      setErrorMessage('Failed to encode secret time-lock payload.');
     }
   };
 
@@ -113,6 +116,13 @@ export const TimeLockModal: React.FC<TimeLockModalProps> = ({
 
         {/* Modal Body */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+          {errorMessage && (
+            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
           {/* Capsule Title */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-neutral-300">

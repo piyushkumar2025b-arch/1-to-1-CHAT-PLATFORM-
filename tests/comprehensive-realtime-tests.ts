@@ -594,6 +594,167 @@ async function runRealtimeSuite() {
   );
   assert(postPurgeDecryption === null, 'Enclave strictly requires re-authentication after purge');
 
+  // -------------------------------------------------------------
+  // SUITE 14: REALTIME WEBSOCKET MUTATION BROADCAST (Edit, Delete, Burn)
+  // -------------------------------------------------------------
+  console.log('--- [Suite 14] Realtime Mutation Broadcast over WebSocket ---');
+
+  const mutateRoomId = `MUT_${Date.now()}`;
+  const mutatePassword = 'MutationTestPass99!';
+
+  // Connect Peer 1 (Alice)
+  const peerAlice = new WebSocket(WS_URL, { headers: { Origin: 'http://localhost:3000' } });
+  const aliceMsgs: any[] = [];
+  peerAlice.on('message', (d) => aliceMsgs.push(JSON.parse(d.toString())));
+  await new Promise<void>((r) => peerAlice.on('open', () => r()));
+  peerAlice.send(JSON.stringify({ type: 'auth', roomId: mutateRoomId, password: mutatePassword }));
+  const aliceAuthOk = await waitForMessage(aliceMsgs, (m) => m.type === 'auth_ok');
+  assert(Boolean(aliceAuthOk), 'Alice authenticated for mutation suite');
+  const aliceToken = aliceAuthOk.sessionToken;
+
+  // Connect Peer 2 (Bob)
+  const peerBob = new WebSocket(WS_URL, { headers: { Origin: 'http://localhost:3000' } });
+  const bobMsgs: any[] = [];
+  peerBob.on('message', (d) => bobMsgs.push(JSON.parse(d.toString())));
+  await new Promise<void>((r) => peerBob.on('open', () => r()));
+  peerBob.send(JSON.stringify({ type: 'auth', roomId: mutateRoomId, password: mutatePassword }));
+  const bobAuthOk = await waitForMessage(bobMsgs, (m) => m.type === 'auth_ok');
+  assert(Boolean(bobAuthOk), 'Bob authenticated for mutation suite');
+  const bobToken = bobAuthOk.sessionToken;
+
+  // Alice sends an initial test message
+  const testMsgId = `msg_mut_${Date.now()}`;
+  const envelopeToMutate = await encryptWithEnclave(
+    { text: 'Original message before edit' },
+    mutatePassword,
+    mutateRoomId
+  );
+
+  peerAlice.send(
+    JSON.stringify({
+      type: 'encrypted_message',
+      payload: {
+        messageId: testMsgId,
+        enc: true,
+        encryptedData: envelopeToMutate,
+        iv: envelopeToMutate.iv,
+        ct: envelopeToMutate.ct,
+        nonce: envelopeToMutate.nonce,
+        time: '12:00',
+      },
+    })
+  );
+
+  // Allow message frame to be delivered and cached
+  await wait(100);
+
+  // 14.1 Test Realtime Message Editing Broadcast
+  const editedEnvelope = await encryptWithEnclave(
+    { text: 'Updated content after edit' },
+    mutatePassword,
+    mutateRoomId
+  );
+
+  // Alice edits the message via server mutation endpoint
+  await new Promise<void>((resolve, reject) => {
+    const postData = JSON.stringify({
+      messageId: testMsgId,
+      ct: editedEnvelope.ct,
+      iv: editedEnvelope.iv,
+    });
+    const req = http.request(
+      `${HTTP_URL}/api/rooms/edit-message`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${aliceToken}`,
+        },
+      },
+      (res) => {
+        let d = '';
+        res.on('data', (c) => (d += c));
+        res.on('end', () => resolve());
+      }
+    );
+    req.on('error', reject);
+    req.write(postData);
+    req.end();
+  });
+
+  const bobReceivedEdit = await waitForMessage(
+    bobMsgs,
+    (m) => m.type === 'message_edited' && m.messageId === testMsgId
+  );
+  assert(Boolean(bobReceivedEdit), 'Bob received real-time WebSocket message_edited broadcast');
+  assert(bobReceivedEdit?.ct === editedEnvelope.ct, 'Edited ciphertext matches updated envelope');
+
+  // 14.2 Test Realtime Message Deletion Broadcast
+  await new Promise<void>((resolve, reject) => {
+    const postData = JSON.stringify({
+      messageId: testMsgId,
+      deleteForEveryone: true,
+    });
+    const req = http.request(
+      `${HTTP_URL}/api/rooms/delete-message`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${aliceToken}`,
+        },
+      },
+      (res) => {
+        let d = '';
+        res.on('data', (c) => (d += c));
+        res.on('end', () => resolve());
+      }
+    );
+    req.on('error', reject);
+    req.write(postData);
+    req.end();
+  });
+
+  const bobReceivedDelete = await waitForMessage(
+    bobMsgs,
+    (m) => m.type === 'message_deleted' && m.messageId === testMsgId
+  );
+  assert(Boolean(bobReceivedDelete), 'Bob received real-time WebSocket message_deleted broadcast');
+
+  // 14.3 Test Realtime View-Once Media Burn Broadcast
+  await new Promise<void>((resolve, reject) => {
+    const postData = JSON.stringify({
+      messageId: testMsgId,
+    });
+    const req = http.request(
+      `${HTTP_URL}/api/rooms/burn-media`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${bobToken}`,
+        },
+      },
+      (res) => {
+        let d = '';
+        res.on('data', (c) => (d += c));
+        res.on('end', () => resolve());
+      }
+    );
+    req.on('error', reject);
+    req.write(postData);
+    req.end();
+  });
+
+  const aliceReceivedBurn = await waitForMessage(
+    aliceMsgs,
+    (m) => m.type === 'media_burned' && m.messageId === testMsgId
+  );
+  assert(Boolean(aliceReceivedBurn), 'Alice received real-time WebSocket media_burned broadcast');
+
+  peerAlice.close();
+  peerBob.close();
+
   console.log('\n============================================================');
   console.log(`REALTIME TEST SUITE RESULTS: ${passed} PASSED, ${failed} FAILED`);
   console.log('============================================================\n');
