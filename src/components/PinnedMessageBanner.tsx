@@ -51,7 +51,8 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
   return (
     <div
       id="pinned-message-banner"
-      className="w-full bg-neutral-900/90 backdrop-blur-md border-b border-amber-500/20 px-4 py-2 z-20 flex items-center justify-between gap-3 text-xs shadow-sm transition-all"
+      style={{ borderBottomColor: `${accentColor}25` }}
+      className="w-full bg-neutral-900/90 backdrop-blur-md border-b px-4 py-2 z-20 flex items-center justify-between gap-3 text-xs shadow-sm transition-all"
     >
       <div
         onClick={() => onJumpTo(message.id)}
@@ -61,12 +62,15 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
           style={{ backgroundColor: `${accentColor}20`, borderColor: `${accentColor}40` }}
           className="w-7 h-7 rounded-lg border flex items-center justify-center shrink-0"
         >
-          <Pin className="w-3.5 h-3.5 text-amber-400 fill-amber-400/30" />
+          <Pin style={{ color: accentColor, fill: `${accentColor}40` }} className="w-3.5 h-3.5" />
         </div>
 
         <div className="flex flex-col min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold tracking-wider uppercase text-amber-400">
+            <span
+              style={{ color: accentColor }}
+              className="text-[10px] font-bold tracking-wider uppercase font-mono"
+            >
               Pinned Message
             </span>
             <span className="text-[10px] text-neutral-400">• {senderLabel}</span>

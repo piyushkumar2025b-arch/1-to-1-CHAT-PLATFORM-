@@ -18,6 +18,16 @@ export const ShreddedFileReceiptCard: React.FC<ShreddedFileReceiptCardProps> = (
 }) => {
   const [copied, setCopied] = useState(false);
 
+  const [copiedHash, setCopiedHash] = useState(false);
+
+  const handleCopyHashOnly = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(originalHash).then(() => {
+      setCopiedHash(true);
+      setTimeout(() => setCopiedHash(false), 2000);
+    });
+  };
+
   const handleCopy = () => {
     const text = `Certified Cryptographic Destruction Receipt:\nFile: ${fileName} (${fileSize})\nStandard: ${wipeStandard}\nOriginal SHA-256: ${originalHash}\nStatus: Sanitized & Purged from Client RAM`;
     navigator.clipboard.writeText(text).then(() => {
@@ -53,8 +63,15 @@ export const ShreddedFileReceiptCard: React.FC<ShreddedFileReceiptCardProps> = (
           </div>
         </div>
 
-        <div className="p-2 rounded-lg bg-neutral-900 border border-neutral-800 text-[10px] font-mono text-neutral-400 break-all space-y-0.5">
-          <div className="text-neutral-500">Original SHA-256 Fingerprint:</div>
+        <div
+          onClick={handleCopyHashOnly}
+          title="Click to copy SHA-256 hash"
+          className="p-2 rounded-lg bg-neutral-900 hover:bg-neutral-850 border border-neutral-800 text-[10px] font-mono text-neutral-400 break-all space-y-0.5 cursor-pointer transition-colors"
+        >
+          <div className="flex items-center justify-between text-neutral-500">
+            <span>Original SHA-256 Fingerprint:</span>
+            <span className="text-[9px] text-neutral-400">{copiedHash ? '✓ Copied' : 'Click to copy'}</span>
+          </div>
           <div className="text-rose-300">{originalHash}</div>
         </div>
 
