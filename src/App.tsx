@@ -637,6 +637,7 @@ export default function App() {
 
   // File sharing & drag states
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const dragCounterRef = useRef<number>(0);
   const [compressModal, setCompressModal] = useState<{
     fileName: string;
     fileSize: number;
@@ -2595,21 +2596,33 @@ export default function App() {
     }
   };
 
-  // Drag & Drop event handlers
+  // Drag & Drop event handlers with flicker prevention
+  const handleDragEnter = (e: DragEvent) => {
+    e.preventDefault();
+    dragCounterRef.current += 1;
+    if (connectionState === 'connected') {
+      setIsDraggingOver(true);
+    }
+  };
+
   const handleDragOver = (e: DragEvent) => {
     e.preventDefault();
-    if (connectionState === 'connected') {
+    if (connectionState === 'connected' && !isDraggingOver) {
       setIsDraggingOver(true);
     }
   };
 
   const handleDragLeave = (e: DragEvent) => {
     e.preventDefault();
-    setIsDraggingOver(false);
+    dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
+    if (dragCounterRef.current === 0) {
+      setIsDraggingOver(false);
+    }
   };
 
   const handleDrop = (e: DragEvent) => {
     e.preventDefault();
+    dragCounterRef.current = 0;
     setIsDraggingOver(false);
     if (connectionState === 'connected' && e.dataTransfer.files?.[0]) {
       stageFileForUpload(e.dataTransfer.files[0]);
@@ -3745,6 +3758,7 @@ export default function App() {
   return (
     <div
       id="chat-screen"
+      onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -4138,7 +4152,7 @@ export default function App() {
 
       {/* Drag & Drop Visual Overlay */}
       {isDraggingOver && (
-        <div className="absolute inset-0 z-40 bg-black/80 backdrop-blur-sm border-2 border-dashed border-amber-400 flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-150">
+        <div className="absolute inset-0 z-40 bg-black/80 backdrop-blur-sm border-2 border-dashed border-amber-400 flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-150 pointer-events-none">
           <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 mb-3">
             <UploadCloud className="w-10 h-10 animate-bounce" />
           </div>

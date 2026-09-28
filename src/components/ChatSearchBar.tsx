@@ -72,7 +72,8 @@ export const ChatSearchBar: React.FC<ChatSearchBarProps> = ({
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Search messages, files, links in this room..."
-            className="w-full bg-neutral-950/80 border border-neutral-750/90 rounded-xl pl-9 pr-8 py-1.5 text-xs text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/40 transition-all font-sans"
+            style={searchQuery ? { borderColor: `${accentColor}70` } : undefined}
+            className="w-full bg-neutral-950/80 border border-neutral-750/90 rounded-xl pl-9 pr-8 py-1.5 text-xs text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all font-sans"
           />
           {searchQuery && (
             <button
@@ -90,9 +91,18 @@ export const ChatSearchBar: React.FC<ChatSearchBarProps> = ({
         {searchQuery.trim() && (
           <div className="flex items-center gap-1.5">
             <span
+              style={
+                matchCount > 0
+                  ? {
+                      backgroundColor: `${accentColor}25`,
+                      color: accentColor,
+                      borderColor: `${accentColor}40`,
+                    }
+                  : undefined
+              }
               className={`text-xs px-2 py-0.5 rounded-md font-mono font-semibold ${
                 matchCount > 0
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                  ? 'border'
                   : 'bg-neutral-800 text-neutral-400'
               }`}
             >

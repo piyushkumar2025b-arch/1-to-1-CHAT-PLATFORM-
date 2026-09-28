@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Copy, Check, ArrowUpRight, Code2, Terminal, EyeOff } from 'lucide-react';
+import { Copy, Check, ArrowUpRight, Code2, Terminal, EyeOff, WrapText } from 'lucide-react';
 import { parseTextWithUrls, extractUrlsFromText } from '../lib/link-utils';
 import { LinkPreviewCard } from './LinkPreviewCard';
 import { highlightCode, TOKEN_COLOR_CLASSES } from '../lib/syntax-highlighter';
@@ -95,6 +95,7 @@ const CodeBlockView: React.FC<{
   onOpenInSandbox?: (code: string, language: string) => void;
 }> = ({ language, code, onOpenInSandbox }) => {
   const [copied, setCopied] = useState(false);
+  const [wrapLines, setWrapLines] = useState(false);
   const highlightedLines = highlightCode(code, language);
 
   const handleCopy = () => {
@@ -118,6 +119,20 @@ const CodeBlockView: React.FC<{
         </div>
 
         <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setWrapLines((prev) => !prev)}
+            className={`flex items-center gap-1 text-[11px] transition-colors cursor-pointer py-0.5 px-2 rounded ${
+              wrapLines
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                : 'hover:bg-white/10 text-neutral-400 hover:text-white'
+            }`}
+            title={wrapLines ? 'Disable line wrap' : 'Enable line wrap'}
+          >
+            <WrapText className="w-3 h-3" />
+            <span className="hidden sm:inline">Wrap</span>
+          </button>
+
           {onOpenInSandbox && (
             <button
               type="button"
@@ -158,7 +173,7 @@ const CodeBlockView: React.FC<{
               <span className="w-6 text-neutral-600 select-none text-right shrink-0">
                 {line.lineNumber}
               </span>
-              <span className="flex-1 whitespace-pre">
+              <span className={`flex-1 ${wrapLines ? 'whitespace-pre-wrap break-all' : 'whitespace-pre'}`}>
                 {line.tokens.length === 0 ? (
                   '\u00A0'
                 ) : (
@@ -199,8 +214,8 @@ const SpoilerText: React.FC<{ content: string }> = ({ content }) => {
 };
 
 function renderFormattedInlineText(content: string): React.ReactNode[] {
-  // Regex to match ||spoiler||, `code`, **bold**, *italic*, ~strikethrough~
-  const inlineRegex = /(\|\|[\s\S]+?\|\||`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|~[^~]+~)/g;
+  // Regex to match ||spoiler||, `code`, **bold**, *italic*, ~strikethrough~, ==highlight==, __underline__
+  const inlineRegex = /(\|\|[\s\S]+?\|\||`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|~[^~]+~|==[^=]+==|__[^_]+__)/g;
   const parts = content.split(inlineRegex);
 
   return parts.map((part, index) => {
@@ -247,6 +262,27 @@ function renderFormattedInlineText(content: string): React.ReactNode[] {
         <del key={index} className="line-through opacity-75 text-inherit">
           {inner}
         </del>
+      );
+    }
+
+    if (part.startsWith('==') && part.endsWith('==') && part.length >= 4) {
+      const inner = part.slice(2, -2);
+      return (
+        <mark
+          key={index}
+          className="px-1 py-0.2 rounded bg-amber-400/25 text-amber-200 border border-amber-400/30"
+        >
+          {inner}
+        </mark>
+      );
+    }
+
+    if (part.startsWith('__') && part.endsWith('__') && part.length >= 4) {
+      const inner = part.slice(2, -2);
+      return (
+        <span key={index} className="underline underline-offset-2 text-inherit">
+          {inner}
+        </span>
       );
     }
 

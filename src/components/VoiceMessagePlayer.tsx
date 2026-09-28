@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Play, Pause, Download, Loader2, FileText, Check, Copy, ChevronDown, ChevronUp, RotateCcw, RotateCw } from 'lucide-react';
 import { FileAttachment } from '../types';
 import { triggerBlobDownload } from '../lib/file-compression';
@@ -165,11 +165,27 @@ export default function VoiceMessagePlayer({
     : [0.3, 0.5, 0.8, 0.4, 0.6, 0.9, 0.7, 0.4, 0.6, 0.8, 0.5, 0.3, 0.7, 0.9, 0.4, 0.6, 0.8, 0.5, 0.4, 0.6];
 
   const playedFraction = duration > 0 ? currentTime / duration : 0;
+  const currentActiveBarIndex = Math.min(waveform.length - 1, Math.floor(playedFraction * waveform.length));
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === ' ' || e.key === 'Spacebar') {
+      e.preventDefault();
+      togglePlay();
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      handleSkipRelative(-5);
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      handleSkipRelative(5);
+    }
+  };
 
   return (
     <div
       id={`voice-player-${file.fileId}`}
-      className={`flex flex-col gap-2 p-3 rounded-xl min-w-[240px] sm:min-w-[280px] max-w-sm select-none ${
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      className={`flex flex-col gap-2 p-3 rounded-xl min-w-[240px] sm:min-w-[280px] max-w-sm select-none focus:outline-none focus:ring-1 focus:ring-amber-400/40 ${
         isMe
           ? 'bg-neutral-900/90 text-neutral-100 border border-neutral-700/60'
           : 'bg-neutral-800/95 text-neutral-100 border border-neutral-700/60'
@@ -183,7 +199,7 @@ export default function VoiceMessagePlayer({
           disabled={isLoadingAudio}
           style={{ backgroundColor: accentColor }}
           className="w-10 h-10 rounded-full flex items-center justify-center text-neutral-950 font-bold shrink-0 hover:opacity-90 transition-transform active:scale-95 cursor-pointer shadow-sm disabled:opacity-50"
-          title={isPlaying ? 'Pause' : 'Play voice message'}
+          title={isPlaying ? 'Pause (Space)' : 'Play voice message (Space)'}
         >
           {isLoadingAudio ? (
             <Loader2 className="w-5 h-5 animate-spin" />
@@ -199,6 +215,7 @@ export default function VoiceMessagePlayer({
           {waveform.map((val, idx) => {
             const barFraction = idx / waveform.length;
             const isPlayed = barFraction <= playedFraction;
+            const isCurrent = isPlaying && idx === currentActiveBarIndex;
             const heightPx = Math.max(6, Math.round(val * 26));
 
             return (
@@ -213,8 +230,12 @@ export default function VoiceMessagePlayer({
                     height: `${heightPx}px`,
                     backgroundColor: isPlayed ? accentColor : undefined,
                   }}
-                  className={`w-full rounded-full transition-colors ${
-                    isPlayed ? 'opacity-100' : 'bg-neutral-600/70'
+                  className={`w-full rounded-full transition-all duration-75 ${
+                    isCurrent
+                      ? 'scale-y-125 opacity-100 shadow-xs'
+                      : isPlayed
+                      ? 'opacity-100'
+                      : 'bg-neutral-600/70'
                   }`}
                 />
               </div>

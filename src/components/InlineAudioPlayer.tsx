@@ -118,6 +118,21 @@ export const InlineAudioPlayer: React.FC<InlineAudioPlayerProps> = ({
     }
   };
 
+  const toggleMute = () => {
+    if (audioRef.current) {
+      audioRef.current.muted = !isMuted;
+      setIsMuted(!isMuted);
+    }
+  };
+
+  const handleRewind5s = () => {
+    if (audioRef.current) {
+      const target = Math.max(0, audioRef.current.currentTime - 5);
+      audioRef.current.currentTime = target;
+      setCurrentTime(target);
+    }
+  };
+
   const formatTime = (secs: number) => {
     if (isNaN(secs) || secs < 0) return '0:00';
     const m = Math.floor(secs / 60);
@@ -138,20 +153,35 @@ export const InlineAudioPlayer: React.FC<InlineAudioPlayerProps> = ({
         />
       )}
 
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-2">
         <button
           type="button"
           onClick={togglePlay}
-          className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center hover:bg-emerald-500/30 transition-all cursor-pointer shrink-0"
+          style={{
+            backgroundColor: `${accentColor}25`,
+            borderColor: `${accentColor}50`,
+            color: accentColor,
+          }}
+          className="w-8 h-8 rounded-full border flex items-center justify-center hover:opacity-90 transition-all cursor-pointer shrink-0"
           title={isPlaying ? 'Pause audio' : 'Play audio stream'}
         >
           {isLoading ? (
-            <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+            <Loader2 className="w-4 h-4 animate-spin" />
           ) : isPlaying ? (
             <Pause className="w-4 h-4 fill-current" />
           ) : (
             <Play className="w-4 h-4 fill-current ml-0.5" />
           )}
+        </button>
+
+        {/* Quick Rewind 5s */}
+        <button
+          type="button"
+          onClick={handleRewind5s}
+          title="Rewind 5 seconds"
+          className="p-1 rounded text-neutral-400 hover:text-white transition-colors cursor-pointer shrink-0"
+        >
+          <RotateCcw className="w-3.5 h-3.5" />
         </button>
 
         <div className="flex-1 min-w-0">
@@ -171,14 +201,28 @@ export const InlineAudioPlayer: React.FC<InlineAudioPlayerProps> = ({
             step={0.1}
             value={currentTime}
             onChange={handleSeek}
-            className="w-full h-1 bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-emerald-400"
+            style={{ accentColor }}
+            className="w-full h-1 bg-neutral-800 rounded-lg appearance-none cursor-pointer"
           />
         </div>
+
+        {/* Mute Button */}
+        <button
+          type="button"
+          onClick={toggleMute}
+          title={isMuted ? 'Unmute' : 'Mute'}
+          className={`p-1 rounded transition-colors cursor-pointer shrink-0 ${
+            isMuted ? 'text-rose-400' : 'text-neutral-400 hover:text-white'
+          }`}
+        >
+          {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+        </button>
 
         <button
           type="button"
           onClick={cyclePlaybackRate}
-          className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-neutral-800 text-neutral-300 hover:text-emerald-400 border border-neutral-700 transition-colors cursor-pointer shrink-0"
+          style={{ borderColor: `${accentColor}30` }}
+          className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-neutral-850 text-neutral-300 hover:text-white border transition-colors cursor-pointer shrink-0"
           title="Playback speed"
         >
           {playbackRate}x
