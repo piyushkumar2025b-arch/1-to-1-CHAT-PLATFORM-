@@ -65,13 +65,28 @@ export const ChecklistCard: React.FC<ChecklistCardProps> = ({
   const totalCount = items.length;
   const percent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
+  const handleToggleAll = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const allDone = items.every((i) => i.done);
+    setItems((prev) => prev.map((item) => ({ ...item, done: !allDone })));
+  };
+
   return (
-    <div className="w-full max-w-sm rounded-xl overflow-hidden border border-emerald-500/30 bg-neutral-950/80 shadow-md my-1 text-left select-none">
+    <div
+      style={{ borderColor: `${accentColor}30` }}
+      className="w-full max-w-sm rounded-xl overflow-hidden border bg-neutral-950/80 shadow-md my-1 text-left select-none"
+    >
       {/* Header */}
-      <div className="px-3 py-2 bg-emerald-500/15 border-b border-emerald-500/20 flex items-center justify-between">
+      <div
+        style={{ backgroundColor: `${accentColor}15`, borderColor: `${accentColor}20` }}
+        className="px-3 py-2 border-b flex items-center justify-between"
+      >
         <div className="flex items-center gap-2">
-          <ListTodo className="w-4 h-4 text-emerald-400" />
-          <span className="text-[11px] font-bold uppercase tracking-wider font-mono text-emerald-300">
+          <ListTodo style={{ color: accentColor }} className="w-4 h-4" />
+          <span
+            style={{ color: accentColor }}
+            className="text-[11px] font-bold uppercase tracking-wider font-mono"
+          >
             {title || 'Interactive Checklist'}
           </span>
         </div>
@@ -79,12 +94,15 @@ export const ChecklistCard: React.FC<ChecklistCardProps> = ({
           <button
             type="button"
             onClick={handleCopy}
-            className="p-1 rounded text-neutral-400 hover:text-white hover:bg-emerald-500/20 transition-colors cursor-pointer"
+            className="p-1 rounded text-neutral-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
             title="Copy checklist state to clipboard"
           >
             {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
           </button>
-          <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/20 px-1.5 py-0.5 rounded">
+          <span
+            style={{ backgroundColor: `${accentColor}20`, color: accentColor }}
+            className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded"
+          >
             {completedCount}/{totalCount} ({percent}%)
           </span>
         </div>
@@ -93,8 +111,8 @@ export const ChecklistCard: React.FC<ChecklistCardProps> = ({
       {/* Progress Bar */}
       <div className="w-full h-1 bg-neutral-800 overflow-hidden">
         <div
-          className="h-full bg-emerald-400 transition-all duration-300"
-          style={{ width: `${percent}%` }}
+          className="h-full transition-all duration-300"
+          style={{ width: `${percent}%`, backgroundColor: accentColor }}
         />
       </div>
 
@@ -112,7 +130,7 @@ export const ChecklistCard: React.FC<ChecklistCardProps> = ({
           >
             <div className="flex items-center gap-2.5 min-w-0 flex-1">
               {item.done ? (
-                <CheckSquare className="w-4 h-4 text-emerald-400 shrink-0" />
+                <CheckSquare style={{ color: accentColor }} className="w-4 h-4 shrink-0" />
               ) : (
                 <Square className="w-4 h-4 text-neutral-400 shrink-0 hover:text-white" />
               )}
@@ -135,14 +153,18 @@ export const ChecklistCard: React.FC<ChecklistCardProps> = ({
               type="text"
               value={newItemText}
               onChange={(e) => setNewItemText(e.target.value)}
-              placeholder="Add checklist item..."
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') setShowAdd(false);
+              }}
+              placeholder="Add checklist item... (Esc to cancel)"
               autoFocus
-              className="flex-1 px-2.5 py-1.5 rounded-lg bg-neutral-900 border border-neutral-750 text-neutral-100 text-xs focus:outline-none focus:border-emerald-500"
+              className="flex-1 px-2.5 py-1.5 rounded-lg bg-neutral-900 border border-neutral-750 text-neutral-100 text-xs focus:outline-none focus:border-white/40"
             />
             <button
               type="submit"
               disabled={!newItemText.trim()}
-              className="px-2.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs cursor-pointer disabled:opacity-40"
+              style={{ backgroundColor: accentColor }}
+              className="px-2.5 py-1.5 rounded-lg text-neutral-950 font-bold text-xs cursor-pointer disabled:opacity-40"
             >
               Add
             </button>
@@ -155,14 +177,27 @@ export const ChecklistCard: React.FC<ChecklistCardProps> = ({
             </button>
           </form>
         ) : (
-          <button
-            type="button"
-            onClick={() => setShowAdd(true)}
-            className="flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-emerald-400 pt-1 font-medium transition-colors cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Add Item</span>
-          </button>
+          <div className="flex items-center justify-between pt-1">
+            <button
+              type="button"
+              onClick={() => setShowAdd(true)}
+              style={{ color: accentColor }}
+              className="flex items-center gap-1.5 text-[11px] font-medium transition-colors cursor-pointer hover:opacity-85"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Item</span>
+            </button>
+
+            {items.length > 0 && (
+              <button
+                type="button"
+                onClick={handleToggleAll}
+                className="text-[10px] text-neutral-400 hover:text-neutral-200 transition-colors cursor-pointer font-mono"
+              >
+                {items.every((i) => i.done) ? 'Uncheck All' : 'Check All'}
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>

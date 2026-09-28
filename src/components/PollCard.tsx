@@ -134,9 +134,17 @@ export const PollCard: React.FC<PollCardProps> = ({
               type="button"
               disabled={poll.isClosed || !onVoteOption}
               onClick={() => onVoteOption && onVoteOption(messageId, opt.id)}
+              style={
+                isSelected
+                  ? {
+                      borderColor: `${accentColor}90`,
+                      boxShadow: `0 0 0 1px ${accentColor}40`,
+                    }
+                  : undefined
+              }
               className={`w-full relative overflow-hidden text-left p-2.5 rounded-xl border transition-all cursor-pointer group ${
                 isSelected
-                  ? 'border-amber-500/80 bg-neutral-800/80 ring-1 ring-amber-500/40 shadow-xs'
+                  ? 'bg-neutral-800/80 shadow-xs'
                   : isLeader
                   ? 'border-neutral-700 bg-neutral-900/80 hover:border-neutral-600'
                   : 'border-neutral-800 bg-neutral-950/60 hover:border-neutral-700 hover:bg-neutral-900/60'
@@ -146,7 +154,7 @@ export const PollCard: React.FC<PollCardProps> = ({
               <div
                 style={{
                   width: `${percentage}%`,
-                  backgroundColor: isSelected ? `${accentColor}30` : isLeader ? 'rgba(245, 158, 11, 0.12)' : 'rgba(255,255,255,0.06)',
+                  backgroundColor: isSelected ? `${accentColor}35` : isLeader ? `${accentColor}18` : 'rgba(255,255,255,0.06)',
                 }}
                 className="absolute inset-y-0 left-0 transition-all duration-300 pointer-events-none rounded-xl"
               />
@@ -182,14 +190,19 @@ export const PollCard: React.FC<PollCardProps> = ({
                   >
                     <span>{opt.text}</span>
                     {isLeader && (
-                      <Crown className="w-3 h-3 text-amber-400 shrink-0" title="Leading Choice" />
+                      <Crown style={{ color: accentColor }} className="w-3 h-3 shrink-0" title="Leading Choice" />
                     )}
                   </span>
                 </div>
 
                 {/* Percentage & Vote Count */}
                 <div className="flex items-center gap-1.5 shrink-0 text-[11px] font-mono">
-                  <span className={`font-semibold ${isLeader ? 'text-amber-300' : 'text-neutral-300'}`}>{percentage}%</span>
+                  <span
+                    style={isLeader ? { color: accentColor } : undefined}
+                    className={`font-semibold ${!isLeader ? 'text-neutral-300' : ''}`}
+                  >
+                    {percentage}%
+                  </span>
                   <span className="text-neutral-500 text-[10px]">({voteCount})</span>
                 </div>
               </div>
