@@ -162,8 +162,6 @@ async function runAuditFixesTests() {
   }
 
   const peerC = new WebSocket('ws://localhost:3000/ws', { headers: { Origin: 'http://localhost:3000' } });
-  await new Promise((res) => peerC.on('open', res));
-
   const peerCMessages: any[] = [];
   let peerCCloseCode = 0;
   peerC.on('message', (d) => {
@@ -172,6 +170,9 @@ async function runAuditFixesTests() {
   peerC.on('close', (code) => {
     peerCCloseCode = code;
   });
+  peerC.on('error', () => {});
+
+  await new Promise<void>((res) => peerC.on('open', () => res()));
 
   peerC.send(JSON.stringify({ type: 'auth', roomId: raceRoomId, password: racePass, userId: 'UserC' }));
 
