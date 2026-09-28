@@ -30,6 +30,7 @@ export const MarkdownTableCard: React.FC<MarkdownTableCardProps> = ({
   isMe,
 }) => {
   const [copied, setCopied] = useState(false);
+  const [copiedTsv, setCopiedTsv] = useState(false);
   const [filterQuery, setFilterQuery] = useState('');
   const [sortColIndex, setSortColIndex] = useState<number | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -99,6 +100,18 @@ export const MarkdownTableCard: React.FC<MarkdownTableCardProps> = ({
     });
   };
 
+  const handleCopyTsv = () => {
+    const tsvContent = [
+      headers.join('\t'),
+      ...rows.map((row) => row.join('\t')),
+    ].join('\n');
+
+    navigator.clipboard.writeText(tsvContent).then(() => {
+      setCopiedTsv(true);
+      setTimeout(() => setCopiedTsv(false), 2000);
+    });
+  };
+
   const handleDownloadCsv = () => {
     const csvContent = [
       headers.map((h) => `"${h.replace(/"/g, '""')}"`).join(','),
@@ -126,7 +139,10 @@ export const MarkdownTableCard: React.FC<MarkdownTableCardProps> = ({
       {/* Table Header Bar */}
       <div className="px-4 py-3 bg-neutral-900/90 border-b border-neutral-800 flex flex-wrap items-center justify-between gap-2.5">
         <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30">
+          <div
+            style={{ backgroundColor: `${accentColor}20`, color: accentColor, borderColor: `${accentColor}30` }}
+            className="p-1.5 rounded-lg border"
+          >
             <TableIcon className="w-4 h-4" />
           </div>
           <div>
@@ -149,7 +165,7 @@ export const MarkdownTableCard: React.FC<MarkdownTableCardProps> = ({
               value={filterQuery}
               onChange={(e) => setFilterQuery(e.target.value)}
               placeholder="Filter table..."
-              className="pl-6 pr-2 py-1 rounded-lg bg-black/50 border border-neutral-700 text-[11px] text-neutral-200 placeholder-neutral-500 focus:outline-none focus:border-amber-400 w-28 sm:w-36 transition-all"
+              className="pl-6 pr-2 py-1 rounded-lg bg-black/50 border border-neutral-700 text-[11px] text-neutral-200 placeholder-neutral-500 focus:outline-none focus:border-white/40 w-28 sm:w-36 transition-all"
             />
           </div>
 
@@ -164,6 +180,15 @@ export const MarkdownTableCard: React.FC<MarkdownTableCardProps> = ({
             ) : (
               <Copy className="w-3.5 h-3.5" />
             )}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleCopyTsv}
+            className="px-2 py-1 rounded-lg bg-white/10 hover:bg-white/15 text-neutral-300 hover:text-white transition-colors cursor-pointer text-[10px] font-mono font-medium"
+            title="Copy as TSV (for Sheets/Excel paste)"
+          >
+            {copiedTsv ? 'Copied' : 'TSV'}
           </button>
 
           <button

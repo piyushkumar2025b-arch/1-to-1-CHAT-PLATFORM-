@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   FileText,
   FileArchive,
@@ -14,6 +14,7 @@ import {
   X,
   Play,
   Flame,
+  Copy,
 } from 'lucide-react';
 import { FileAttachment } from '../types';
 import {
@@ -137,9 +138,22 @@ export default function FileMessageBubble({
   const [videoModalOpen, setVideoModalOpen] = useState(false);
   const [textModalOpen, setTextModalOpen] = useState(false);
   const [textContent, setTextContent] = useState<string>('');
+  const [copiedText, setCopiedText] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [viewOnceModalOpen, setViewOnceModalOpen] = useState(false);
   const [viewOnceMediaUrl, setViewOnceMediaUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!textModalOpen && !videoModalOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setTextModalOpen(false);
+        setVideoModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [textModalOpen, videoModalOpen]);
 
   const downloadedBytesRef = useRef<Uint8Array | null>(null);
 
@@ -579,11 +593,26 @@ export default function FileMessageBubble({
             <div className="flex-1 overflow-y-auto my-3 p-3 rounded-xl bg-neutral-950 border border-neutral-800 font-mono text-xs text-neutral-300 whitespace-pre-wrap select-text">
               {textContent || 'No text content.'}
             </div>
-            <div className="flex justify-end pt-1">
+            <div className="flex items-center justify-between pt-1 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!textContent) return;
+                  navigator.clipboard?.writeText(textContent);
+                  setCopiedText(true);
+                  setTimeout(() => setCopiedText(false), 2000);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-medium cursor-pointer transition-colors"
+              >
+                {copiedText ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copiedText ? 'Copied' : 'Copy Text'}</span>
+              </button>
+
               <button
                 type="button"
                 onClick={handleDownload}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-neutral-100 hover:bg-white text-neutral-950 text-xs font-semibold cursor-pointer"
+                style={{ backgroundColor: accentColor }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-neutral-950 text-xs font-semibold cursor-pointer hover:opacity-90 transition-opacity"
               >
                 <Download className="w-3.5 h-3.5" /> Download Original ({formatBytes(file.fileSize)})
               </button>

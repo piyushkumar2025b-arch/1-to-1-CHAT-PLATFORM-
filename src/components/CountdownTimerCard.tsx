@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Timer, Play, Pause, RotateCcw, BellRing, CheckCircle2 } from 'lucide-react';
+import { Timer, Play, Pause, RotateCcw, CheckCircle2, Volume2, VolumeX, Plus, Minus } from 'lucide-react';
 
 interface CountdownTimerCardProps {
   totalSeconds: number;
@@ -15,6 +15,7 @@ export const CountdownTimerCard: React.FC<CountdownTimerCardProps> = ({
   const [remaining, setRemaining] = useState(initialSeconds);
   const [isRunning, setIsRunning] = useState(true);
   const [hasFinished, setHasFinished] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
   const audioPlayedRef = useRef(false);
 
   useEffect(() => {
@@ -37,7 +38,7 @@ export const CountdownTimerCard: React.FC<CountdownTimerCardProps> = ({
 
   // Audio chime when finished
   useEffect(() => {
-    if (remaining === 0 && !audioPlayedRef.current) {
+    if (remaining === 0 && !audioPlayedRef.current && soundEnabled) {
       audioPlayedRef.current = true;
       try {
         const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -59,13 +60,28 @@ export const CountdownTimerCard: React.FC<CountdownTimerCardProps> = ({
         // audio play failed or muted
       }
     }
-  }, [remaining]);
+  }, [remaining, soundEnabled]);
 
   const handleReset = () => {
     setRemaining(initialSeconds);
     setIsRunning(true);
     setHasFinished(false);
     audioPlayedRef.current = false;
+  };
+
+  const handleAdjustTime = (deltaSeconds: number) => {
+    setRemaining((prev) => {
+      const next = Math.max(0, prev + deltaSeconds);
+      if (next === 0) {
+        setIsRunning(false);
+        setHasFinished(true);
+      } else if (hasFinished) {
+        setHasFinished(false);
+        setIsRunning(true);
+        audioPlayedRef.current = false;
+      }
+      return next;
+    });
   };
 
   const minutes = Math.floor(remaining / 60);
@@ -87,17 +103,27 @@ export const CountdownTimerCard: React.FC<CountdownTimerCardProps> = ({
             {label}
           </span>
         </div>
-        <span
-          className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-semibold ${
-            hasFinished
-              ? 'bg-emerald-500/20 text-emerald-300'
-              : isRunning
-              ? 'bg-cyan-500/20 text-cyan-300'
-              : 'bg-neutral-800 text-neutral-400'
-          }`}
-        >
-          {hasFinished ? 'COMPLETED' : isRunning ? 'RUNNING' : 'PAUSED'}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setSoundEnabled(!soundEnabled)}
+            className="text-neutral-400 hover:text-white transition-colors cursor-pointer p-0.5"
+            title={soundEnabled ? 'Alert chime enabled (click to mute)' : 'Alert chime muted'}
+          >
+            {soundEnabled ? <Volume2 className="w-3 h-3 text-cyan-300" /> : <VolumeX className="w-3 h-3 text-neutral-500" />}
+          </button>
+          <span
+            className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-semibold ${
+              hasFinished
+                ? 'bg-emerald-500/20 text-emerald-300'
+                : isRunning
+                ? 'bg-cyan-500/20 text-cyan-300'
+                : 'bg-neutral-800 text-neutral-400'
+            }`}
+          >
+            {hasFinished ? 'COMPLETED' : isRunning ? 'RUNNING' : 'PAUSED'}
+          </span>
+        </div>
       </div>
 
       <div className="p-3 space-y-2.5">
@@ -108,6 +134,28 @@ export const CountdownTimerCard: React.FC<CountdownTimerCardProps> = ({
           </div>
 
           <div className="flex items-center gap-1">
+            {/* Quick adjust buttons */}
+            {!hasFinished && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handleAdjustTime(-15)}
+                  className="px-1.5 py-1 rounded bg-neutral-850 hover:bg-neutral-800 text-[10px] font-mono text-neutral-400 hover:text-white transition-colors cursor-pointer"
+                  title="Subtract 15s"
+                >
+                  -15s
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAdjustTime(30)}
+                  className="px-1.5 py-1 rounded bg-neutral-850 hover:bg-neutral-800 text-[10px] font-mono text-neutral-400 hover:text-white transition-colors cursor-pointer"
+                  title="Add 30s"
+                >
+                  +30s
+                </button>
+              </>
+            )}
+
             {!hasFinished && (
               <button
                 type="button"

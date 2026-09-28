@@ -80,8 +80,9 @@ export function LinkPreviewCard({ link, isMe, accentColor = '#f59e0b' }: LinkPre
           <button
             type="button"
             onClick={handleOpen}
+            style={{ backgroundColor: `${accentColor}20`, color: accentColor }}
             title="Open link in new tab"
-            className="p-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-medium"
+            className="p-1.5 rounded-lg hover:opacity-85 transition-opacity cursor-pointer flex items-center gap-1 text-[11px] font-medium border border-white/5"
           >
             <ExternalLink className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Open</span>
