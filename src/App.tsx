@@ -1696,7 +1696,7 @@ export default function App() {
 
   // Disposable Burner Room auto-evacuation countdown timer
   useEffect(() => {
-    if (!roomExpiresAt || connectionState !== 'connected') return;
+    if (!roomExpiresAt || (connectionState !== 'connected' && connectionState !== 'waiting')) return;
 
     const timer = setInterval(() => {
       const now = Date.now();
@@ -1714,7 +1714,7 @@ export default function App() {
   const handleSendMessage = async (e?: FormEvent, customText?: string) => {
     if (e) e.preventDefault();
     const rawContent = (customText !== undefined ? customText : inputText).trim();
-    if (!rawContent || connectionState !== 'connected' || !activeRoomId) return;
+    if (!rawContent || (connectionState !== 'connected' && connectionState !== 'waiting') || !activeRoomId) return;
 
     // Token-bucket rate limiting against automated spam scripts
     if (!floodLimiter.checkAndConsume()) {
@@ -2271,7 +2271,7 @@ export default function App() {
 
   // Scheduled message countdown timer check
   useEffect(() => {
-    if (scheduledMessages.length === 0 || !activeRoomId || connectionState !== 'connected') return;
+    if (scheduledMessages.length === 0 || !activeRoomId || (connectionState !== 'connected' && connectionState !== 'waiting')) return;
 
     const timer = setInterval(() => {
       const now = Date.now();
@@ -2289,7 +2289,7 @@ export default function App() {
 
   // Send a shared web link with optional description into encrypted chat stream
   const handleSendSharedLink = async (url: string, note?: string) => {
-    if (connectionState !== 'connected' || !activeRoomId) return;
+    if ((connectionState !== 'connected' && connectionState !== 'waiting') || !activeRoomId) return;
 
     const messageText = note ? `${note}\n${url}` : url;
     const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -2338,8 +2338,8 @@ export default function App() {
 
   // Upload and share ANY file format (photos, video, text, doc, code, zip, tar, pdf, ppt, etc.)
   const processAndUploadFile = async (file: File, customCaption?: string) => {
-    if (connectionState !== 'connected' || !activeRoomId) {
-      showToast('You must be connected to another participant in a room to share files.', 'warning');
+    if ((connectionState !== 'connected' && connectionState !== 'waiting') || !activeRoomId) {
+      showToast('You must be inside an active room to share files.', 'warning');
       return;
     }
 
@@ -2600,14 +2600,14 @@ export default function App() {
   const handleDragEnter = (e: DragEvent) => {
     e.preventDefault();
     dragCounterRef.current += 1;
-    if (connectionState === 'connected') {
+    if (connectionState === 'connected' || connectionState === 'waiting') {
       setIsDraggingOver(true);
     }
   };
 
   const handleDragOver = (e: DragEvent) => {
     e.preventDefault();
-    if (connectionState === 'connected' && !isDraggingOver) {
+    if ((connectionState === 'connected' || connectionState === 'waiting') && !isDraggingOver) {
       setIsDraggingOver(true);
     }
   };
@@ -2624,7 +2624,7 @@ export default function App() {
     e.preventDefault();
     dragCounterRef.current = 0;
     setIsDraggingOver(false);
-    if (connectionState === 'connected' && e.dataTransfer.files?.[0]) {
+    if ((connectionState === 'connected' || connectionState === 'waiting') && e.dataTransfer.files?.[0]) {
       stageFileForUpload(e.dataTransfer.files[0]);
     }
   };
@@ -2973,7 +2973,7 @@ export default function App() {
 
   // Voice recording engine handlers
   const handleStartVoiceRecording = async () => {
-    if (connectionState !== 'connected' || !activeRoomId) return;
+    if ((connectionState !== 'connected' && connectionState !== 'waiting') || !activeRoomId) return;
     try {
       await voiceRecorderRef.current.start((vol) => setVoiceVolume(vol));
       setIsRecordingVoice(true);
@@ -3965,53 +3965,59 @@ export default function App() {
       <main
         id="messages-feed"
         onScroll={handleFeedScroll}
-        className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 w-full flex flex-col relative z-10"
+        className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 w-full flex flex-col relative z-10"
       >
-        <div className="max-w-4xl w-full mx-auto flex-1 flex flex-col justify-end space-y-4">
+        <div className="max-w-4xl w-full mx-auto flex-1 flex flex-col space-y-3.5 min-h-full">
+          {/* Top spacer so short conversations rest at bottom, but long conversations scroll all the way up without clipping */}
+          {messages.length > 0 && <div className="mt-auto" />}
           {messages.length === 0 ? (
-            <div className="my-auto flex flex-col items-center justify-center text-center p-8 space-y-4 select-none">
-              {connectionState === 'connected' ? (
-                <ConversationStarters
-                  onSendMessage={(text) => handleSendMessage(undefined, text)}
-                  onOpenVoice={handleStartVoiceRecording}
-                  onOpenFile={() => fileInputRef.current?.click()}
-                  onOpenPoll={() => setCreatePollModalOpen(true)}
-                  onOpenDraw={() => setQuickDrawModalOpen(true)}
-                  accentColor={currentTheme.accentColor}
-                />
-              ) : (
-                <div className="space-y-3 max-w-md">
-                  <h2 className="text-base font-semibold">
-                    Waiting for the second person
-                  </h2>
-                  <p className="text-xs opacity-75 leading-relaxed">
-                    Share your room code{' '}
-                    <span className="font-mono text-amber-300 font-bold bg-black/40 px-2 py-0.5 rounded border border-white/10">
-                      {activeRoomId}
-                    </span>{' '}
-                    and room password with your peer to begin chatting in full screen.
-                  </p>
-                  <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
+            <div className="my-auto flex flex-col items-center justify-center text-center p-4 sm:p-8 space-y-5 select-none w-full max-w-lg mx-auto animate-in fade-in duration-200">
+              {connectionState === 'waiting' && (
+                <div className="w-full p-4 sm:p-5 rounded-2xl bg-neutral-900/85 border border-white/10 backdrop-blur-md shadow-2xl text-center space-y-3.5">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold">
+                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                    <span>Private Room Ready</span>
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-neutral-100">
+                      Welcome to Room{' '}
+                      <span className="font-mono text-amber-300" style={{ color: currentTheme.accentColor }}>
+                        {activeRoomId}
+                      </span>
+                    </h2>
+                    <p className="text-xs text-neutral-400 mt-1 leading-relaxed max-w-sm mx-auto">
+                      Share the room code & password to chat together in real time, or start sending messages now — they will decrypt automatically when your peer joins!
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
                     <button
                       type="button"
                       onClick={handleCopyRoomId}
-                      className="inline-flex items-center gap-2 text-xs font-bold text-neutral-950 bg-emerald-400 hover:bg-emerald-300 px-4 py-2.5 rounded-xl transition-all cursor-pointer shadow-md"
+                      className="inline-flex items-center gap-2 text-xs font-bold text-neutral-950 bg-emerald-400 hover:bg-emerald-300 px-4 py-2.5 rounded-xl transition-all cursor-pointer shadow-md active:scale-95"
                     >
                       {copiedCode ? <Check className="w-4 h-4 text-neutral-950" /> : <Copy className="w-4 h-4" />}
-                      {copiedCode ? 'Room Code Copied!' : 'Copy Room Code (Manual Join)'}
+                      <span>{copiedCode ? 'Room Code Copied!' : 'Copy Room Code'}</span>
                     </button>
                     <button
                       id="waiting-show-qr-button"
                       type="button"
                       onClick={() => setRoomQrOpen(true)}
-                      className="inline-flex items-center gap-2 text-xs opacity-90 hover:opacity-100 bg-black/40 hover:bg-black/60 px-4 py-2.5 rounded-xl border border-white/10 transition-colors cursor-pointer text-emerald-300"
+                      className="inline-flex items-center gap-2 text-xs text-neutral-200 hover:text-white bg-black/40 hover:bg-black/60 px-4 py-2.5 rounded-xl border border-white/10 transition-colors cursor-pointer"
                     >
-                      <QrCode className="w-4 h-4" />
-                      <span>Show QR Code (Optional)</span>
+                      <QrCode className="w-4 h-4 text-emerald-400" />
+                      <span>Show QR</span>
                     </button>
                   </div>
                 </div>
               )}
+              <ConversationStarters
+                onSendMessage={(text) => handleSendMessage(undefined, text)}
+                onOpenVoice={handleStartVoiceRecording}
+                onOpenFile={() => fileInputRef.current?.click()}
+                onOpenPoll={() => setCreatePollModalOpen(true)}
+                onOpenDraw={() => setQuickDrawModalOpen(true)}
+                accentColor={currentTheme.accentColor}
+              />
             </div>
           ) : visibleMessages.length === 0 && messages.length > 0 ? (
             <div className="my-auto text-center p-6 text-xs text-neutral-400">

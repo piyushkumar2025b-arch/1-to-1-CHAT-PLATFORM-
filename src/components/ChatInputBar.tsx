@@ -1,4 +1,4 @@
-import React, { memo, useState } from 'react';
+import React, { memo, useState, useEffect, useRef } from 'react';
 import {
   Paperclip,
   Mic,
@@ -7,7 +7,6 @@ import {
   Flame,
   Link2,
   Send,
-  MoreHorizontal,
   X,
   Code2,
   Pencil,
@@ -37,6 +36,10 @@ import {
   FileSignature,
   Bird,
   Hourglass,
+  Plus,
+  Type,
+  Search,
+  Sparkles,
 } from 'lucide-react';
 import { ConnectionState, ChatTheme, EphemeralTimerOption, ReplyReference, ChatMessage } from '../types';
 import ReplyBanner from './ReplyBanner';
@@ -192,8 +195,39 @@ export const ChatInputBar = memo<ChatInputBarProps>(
     onTextareaChange,
     onTextareaKeyDown,
   }) => {
-    const isConnected = connectionState === 'connected';
-    const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
+    // Both 'connected' and 'waiting' mean the user is inside an authenticated private room!
+    const isInRoom = connectionState === 'connected' || connectionState === 'waiting';
+
+    const [toolsMenuOpen, setToolsMenuOpen] = useState(false);
+    const [formatToolbarOpen, setFormatToolbarOpen] = useState(false);
+    const [toolCategory, setToolCategory] = useState<'all' | 'interactive' | 'security' | 'tools'>('all');
+    const [toolSearchQuery, setToolSearchQuery] = useState('');
+    const toolsMenuRef = useRef<HTMLDivElement | null>(null);
+
+    // Close popovers on outside click or Escape
+    useEffect(() => {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          if (toolsMenuOpen) setToolsMenuOpen(false);
+          if (formatToolbarOpen) setFormatToolbarOpen(false);
+        }
+      };
+      const handleOutsideClick = (e: MouseEvent) => {
+        if (toolsMenuRef.current && !toolsMenuRef.current.contains(e.target as Node)) {
+          setToolsMenuOpen(false);
+        }
+      };
+      if (toolsMenuOpen || formatToolbarOpen) {
+        document.addEventListener('keydown', handleKeyDown);
+      }
+      if (toolsMenuOpen) {
+        document.addEventListener('mousedown', handleOutsideClick);
+      }
+      return () => {
+        document.removeEventListener('keydown', handleKeyDown);
+        document.removeEventListener('mousedown', handleOutsideClick);
+      };
+    }, [toolsMenuOpen, formatToolbarOpen]);
 
     const insertFormatting = (prefix: string, suffix: string, placeholder = 'text') => {
       const textarea = textareaRef.current;
@@ -228,6 +262,354 @@ export const ChatInputBar = memo<ChatInputBarProps>(
         }
       }, 30);
     };
+
+    const handleToolSelect = (action?: () => void) => {
+      if (action) {
+        action();
+      }
+      setToolsMenuOpen(false);
+    };
+
+    // All available tools with metadata for search & categorisation
+    const allTools = [
+      // 1. Interactive & Media
+      {
+        id: 'create-poll-input-button',
+        title: 'Encrypted Poll',
+        desc: 'Single or multi-choice instant voting',
+        icon: BarChart2,
+        color: 'text-amber-400',
+        bg: 'hover:bg-amber-500/10 hover:border-amber-500/40',
+        category: 'interactive',
+        action: onOpenCreatePoll,
+        available: Boolean(onOpenCreatePoll),
+      },
+      {
+        id: 'quick-draw-input-button',
+        title: 'Quick Sketch',
+        desc: 'Draw doodle or diagram on canvas',
+        icon: PenTool,
+        color: 'text-emerald-400',
+        bg: 'hover:bg-emerald-500/10 hover:border-emerald-500/40',
+        category: 'interactive',
+        action: onOpenQuickDraw,
+        available: Boolean(onOpenQuickDraw),
+      },
+      {
+        id: 'code-sandbox-input-button',
+        title: 'Code Sandbox',
+        desc: 'Syntax-highlighted code snippet & runner',
+        icon: Code2,
+        color: 'text-cyan-400',
+        bg: 'hover:bg-cyan-500/10 hover:border-cyan-500/40',
+        category: 'interactive',
+        action: onOpenCodeSandbox,
+        available: Boolean(onOpenCodeSandbox),
+      },
+      {
+        id: 'table-generator-desktop-button',
+        title: 'Table Matrix',
+        desc: 'Interactive encrypted data table builder',
+        icon: Table,
+        color: 'text-teal-400',
+        bg: 'hover:bg-teal-500/10 hover:border-teal-500/40',
+        category: 'interactive',
+        action: onOpenTableGenerator,
+        available: Boolean(onOpenTableGenerator),
+      },
+      {
+        id: 'photo-obfuscator-desktop-button',
+        title: 'Photo Redactor',
+        desc: 'Scratch-to-reveal foil & face blur',
+        icon: ImageIcon,
+        color: 'text-rose-400',
+        bg: 'hover:bg-rose-500/10 hover:border-rose-500/40',
+        category: 'interactive',
+        action: onOpenPhotoObfuscator,
+        available: Boolean(onOpenPhotoObfuscator),
+      },
+      {
+        id: 'share-link-input-button',
+        title: 'Share Web Link',
+        desc: 'Post verified URL preview card',
+        icon: Link2,
+        color: 'text-purple-400',
+        bg: 'hover:bg-purple-500/10 hover:border-purple-500/40',
+        category: 'interactive',
+        action: onOpenShareLinkModal,
+        available: true,
+      },
+
+      // 2. Cryptographic Security Enclave
+      {
+        id: 'burn-on-read-desktop-button',
+        title: 'Burn Note',
+        desc: 'Self-destructing secret on first view',
+        icon: Flame,
+        color: 'text-orange-400',
+        bg: 'hover:bg-orange-500/10 hover:border-orange-500/40',
+        category: 'security',
+        action: onOpenBurnOnRead,
+        available: Boolean(onOpenBurnOnRead),
+      },
+      {
+        id: 'timelock-desktop-button',
+        title: 'Time Capsule',
+        desc: 'Message locked until future timestamp',
+        icon: Lock,
+        color: 'text-amber-400',
+        bg: 'hover:bg-amber-500/10 hover:border-amber-500/40',
+        category: 'security',
+        action: onOpenTimeLock,
+        available: Boolean(onOpenTimeLock),
+      },
+      {
+        id: 'steganography-desktop-button',
+        title: 'Steganography',
+        desc: 'Conceal invisible text in zero-width unicode',
+        icon: EyeOff,
+        color: 'text-cyan-300',
+        bg: 'hover:bg-cyan-500/10 hover:border-cyan-500/40',
+        category: 'security',
+        action: onOpenSteganography,
+        available: Boolean(onOpenSteganography),
+      },
+      {
+        id: 'file-shredder-desktop-button',
+        title: 'File Shredder',
+        desc: 'DoD 5220.22-M digital multi-pass sanitization',
+        icon: Trash2,
+        color: 'text-rose-400',
+        bg: 'hover:bg-rose-500/10 hover:border-rose-500/40',
+        category: 'security',
+        action: onOpenFileShredder,
+        available: Boolean(onOpenFileShredder),
+      },
+      {
+        id: 'otp-desktop-button',
+        title: 'One-Time Pad',
+        desc: 'Information-theoretic Shannon secrecy cipher',
+        icon: Key,
+        color: 'text-amber-300',
+        bg: 'hover:bg-amber-500/10 hover:border-amber-500/40',
+        category: 'security',
+        action: onOpenOneTimePad,
+        available: Boolean(onOpenOneTimePad),
+      },
+      {
+        id: 'shamir-desktop-button',
+        title: 'Shamir Split',
+        desc: 'Threshold secret sharing & key recovery',
+        icon: Split,
+        color: 'text-amber-400',
+        bg: 'hover:bg-amber-500/10 hover:border-amber-500/40',
+        category: 'security',
+        action: onOpenShamirSecret,
+        available: Boolean(onOpenShamirSecret),
+      },
+      {
+        id: 'deadman-desktop-button',
+        title: "Dead Man's Switch",
+        desc: 'Automated release escrow upon inactivity',
+        icon: AlertOctagon,
+        color: 'text-rose-400',
+        bg: 'hover:bg-rose-500/10 hover:border-rose-500/40',
+        category: 'security',
+        action: onOpenDeadMansSwitch,
+        available: Boolean(onOpenDeadMansSwitch),
+      },
+      {
+        id: 'acoustic-shield-desktop-button',
+        title: 'Acoustic Shield',
+        desc: 'Mic jamming & speech privacy frequencies',
+        icon: Radio,
+        color: 'text-amber-400',
+        bg: 'hover:bg-amber-500/10 hover:border-amber-500/40',
+        category: 'security',
+        action: onOpenAcousticShield,
+        available: Boolean(onOpenAcousticShield),
+      },
+      {
+        id: 'voice-disguise-desktop-button',
+        title: 'Voice Disguise',
+        desc: 'DSP vocal pitch shifter & formant morph',
+        icon: Mic,
+        color: 'text-purple-400',
+        bg: 'hover:bg-purple-500/10 hover:border-purple-500/40',
+        category: 'security',
+        action: onOpenVoiceDisguise,
+        available: Boolean(onOpenVoiceDisguise),
+      },
+      {
+        id: 'exif-scrubber-desktop-button',
+        title: 'EXIF Scrubber',
+        desc: 'Sanitize GPS coordinates & camera metadata',
+        icon: ShieldCheck,
+        color: 'text-emerald-400',
+        bg: 'hover:bg-emerald-500/10 hover:border-emerald-500/40',
+        category: 'security',
+        action: onOpenExifScrubber,
+        available: Boolean(onOpenExifScrubber),
+      },
+      {
+        id: 'sonar-desktop-button',
+        title: 'Stego Sonar',
+        desc: 'Acoustic ultrasonic FSK data chirp transmitter',
+        icon: Waves,
+        color: 'text-cyan-400',
+        bg: 'hover:bg-cyan-500/10 hover:border-cyan-500/40',
+        category: 'security',
+        action: onOpenAudioSteganography,
+        available: Boolean(onOpenAudioSteganography),
+      },
+      {
+        id: 'handshake-desktop-button',
+        title: 'Dual Handshake',
+        desc: '2-of-2 multisig cryptographic contract pact',
+        icon: FileSignature,
+        color: 'text-amber-400',
+        bg: 'hover:bg-amber-500/10 hover:border-amber-500/40',
+        category: 'security',
+        action: onOpenDualHandshake,
+        available: Boolean(onOpenDualHandshake),
+      },
+      {
+        id: 'warrant-canary-desktop-button',
+        title: 'Warrant Canary',
+        desc: 'Signed integrity declaration against coercion',
+        icon: Bird,
+        color: 'text-emerald-400',
+        bg: 'hover:bg-emerald-500/10 hover:border-emerald-500/40',
+        category: 'security',
+        action: onOpenWarrantCanary,
+        available: Boolean(onOpenWarrantCanary),
+      },
+      {
+        id: 'covert-camouflage-desktop-button',
+        title: 'Covert Decoy',
+        desc: 'Disguise screen into innocent spreadsheet',
+        icon: EyeOff,
+        color: 'text-purple-400',
+        bg: 'hover:bg-purple-500/10 hover:border-purple-500/40',
+        category: 'security',
+        action: onOpenCovertCamouflage,
+        available: Boolean(onOpenCovertCamouflage),
+      },
+      {
+        id: 'room-lifespan-desktop-button',
+        title: 'Burner Lifespan',
+        desc: 'Automatic room wipe countdown timer',
+        icon: Hourglass,
+        color: 'text-orange-400',
+        bg: 'hover:bg-orange-500/10 hover:border-orange-500/40',
+        category: 'security',
+        action: onOpenRoomLifespan,
+        available: Boolean(onOpenRoomLifespan),
+      },
+      {
+        id: 'notary-attestation-desktop-button',
+        title: 'Notary Seal',
+        desc: 'Cryptographic SHA-256 attestation seal',
+        icon: FileSignature,
+        color: 'text-emerald-400',
+        bg: 'hover:bg-emerald-500/10 hover:border-emerald-500/40',
+        category: 'security',
+        action: onOpenNotaryAttestation,
+        available: Boolean(onOpenNotaryAttestation),
+      },
+      {
+        id: 'zkp-challenge-desktop-button',
+        title: 'ZKP Proof',
+        desc: 'Zero-knowledge proof challenge authentication',
+        icon: ShieldCheck,
+        color: 'text-cyan-400',
+        bg: 'hover:bg-cyan-500/10 hover:border-cyan-500/40',
+        category: 'security',
+        action: onOpenZkpChallenge,
+        available: Boolean(onOpenZkpChallenge),
+      },
+      {
+        id: 'duress-calculator-desktop-button',
+        title: 'Duress Decoy',
+        desc: 'Covert functional calculator with panic wipe',
+        icon: Lock,
+        color: 'text-rose-400',
+        bg: 'hover:bg-rose-500/10 hover:border-rose-500/40',
+        category: 'security',
+        action: onOpenDuressCalculator,
+        available: Boolean(onOpenDuressCalculator),
+      },
+
+      // 3. Utilities & Productivity
+      {
+        id: 'quick-replies-desktop-button',
+        title: 'Quick Replies',
+        desc: 'Canned response templates (/quick)',
+        icon: Zap,
+        color: 'text-amber-400',
+        bg: 'hover:bg-amber-500/10 hover:border-amber-500/40',
+        category: 'tools',
+        action: onOpenQuickReplies,
+        available: Boolean(onOpenQuickReplies),
+      },
+      {
+        id: 'personal-notes-desktop-button',
+        title: 'Personal Notes',
+        desc: 'Encrypted private scratchpad (/notes)',
+        icon: Bookmark,
+        color: 'text-amber-300',
+        bg: 'hover:bg-amber-500/10 hover:border-amber-500/40',
+        category: 'tools',
+        action: onOpenPersonalNotes,
+        available: Boolean(onOpenPersonalNotes),
+      },
+      {
+        id: 'crypto-cipher-desktop-button',
+        title: 'Cipher Toolkit',
+        desc: 'Hashes, Morse code & ROT13 cipher (/cipher)',
+        icon: KeyRound,
+        color: 'text-amber-400',
+        bg: 'hover:bg-amber-500/10 hover:border-amber-500/40',
+        category: 'tools',
+        action: onOpenCryptoCipher,
+        available: Boolean(onOpenCryptoCipher),
+      },
+      {
+        id: 'password-generator-desktop-button',
+        title: 'Pass Generator',
+        desc: 'High-entropy passphrase studio (/password)',
+        icon: KeyRound,
+        color: 'text-amber-300',
+        bg: 'hover:bg-amber-500/10 hover:border-amber-500/40',
+        category: 'tools',
+        action: onOpenPasswordGenerator,
+        available: Boolean(onOpenPasswordGenerator),
+      },
+      {
+        id: 'customer-service-desktop-button',
+        title: 'Help & Care',
+        desc: 'Latency booster, troubleshooting & care guide',
+        icon: Zap,
+        color: 'text-sky-400',
+        bg: 'hover:bg-sky-500/10 hover:border-sky-500/40',
+        category: 'tools',
+        action: onOpenCustomerService,
+        available: Boolean(onOpenCustomerService),
+      },
+    ];
+
+    const filteredTools = allTools.filter((tool) => {
+      if (!tool.available) return false;
+      if (toolCategory !== 'all' && tool.category !== toolCategory) return false;
+      if (toolSearchQuery.trim()) {
+        const q = toolSearchQuery.toLowerCase();
+        return (
+          tool.title.toLowerCase().includes(q) ||
+          tool.desc.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
 
     return (
       <div className="w-full flex flex-col relative z-20">
@@ -325,6 +707,7 @@ export const ChatInputBar = memo<ChatInputBarProps>(
                 )}
               </div>
             )}
+
             {/* Slash Commands Autocomplete Palette */}
             <SlashCommandMenu
               isOpen={slashMenuOpen}
@@ -334,541 +717,234 @@ export const ChatInputBar = memo<ChatInputBarProps>(
               accentColor={currentTheme.accentColor}
             />
 
-            {/* Mobile Expanded Secondary Tools Drawer */}
-            {mobileToolsOpen && (
-              <div className="sm:hidden mb-2 p-2 rounded-2xl bg-neutral-900/95 border border-white/10 backdrop-blur-xl flex items-center justify-around shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-150">
+            {/* Text Formatting Ribbon Toolbar (Collapsible, never squeezes the input row) */}
+            {formatToolbarOpen && (
+              <div
+                id="formatting-ribbon-bar"
+                className="mb-1.5 px-3 py-1.5 rounded-xl bg-neutral-900/95 border border-white/15 backdrop-blur-xl shadow-lg flex items-center justify-between gap-1 text-xs animate-in fade-in slide-in-from-bottom-2 duration-150"
+              >
+                <div className="flex items-center gap-1 flex-wrap">
+                  <span className="text-[10px] uppercase font-bold text-neutral-400 mr-1.5 select-none hidden sm:inline">
+                    Format:
+                  </span>
+                  <button
+                    id="format-bold-btn"
+                    type="button"
+                    onClick={() => insertFormatting('**', '**', 'bold')}
+                    title="Bold (**text**)"
+                    className="p-1.5 rounded-lg hover:bg-white/10 text-neutral-300 hover:text-white transition-colors cursor-pointer flex items-center gap-1 text-xs"
+                  >
+                    <Bold className="w-3.5 h-3.5" />
+                    <span className="text-[11px] font-bold">Bold</span>
+                  </button>
+                  <button
+                    id="format-italic-btn"
+                    type="button"
+                    onClick={() => insertFormatting('*', '*', 'italic')}
+                    title="Italic (*text*)"
+                    className="p-1.5 rounded-lg hover:bg-white/10 text-neutral-300 hover:text-white transition-colors cursor-pointer flex items-center gap-1 text-xs"
+                  >
+                    <Italic className="w-3.5 h-3.5" />
+                    <span className="text-[11px] italic">Italic</span>
+                  </button>
+                  <button
+                    id="format-strike-btn"
+                    type="button"
+                    onClick={() => insertFormatting('~', '~', 'strikethrough')}
+                    title="Strikethrough (~text~)"
+                    className="p-1.5 rounded-lg hover:bg-white/10 text-neutral-300 hover:text-white transition-colors cursor-pointer flex items-center gap-1 text-xs"
+                  >
+                    <Strikethrough className="w-3.5 h-3.5" />
+                    <span className="text-[11px] line-through">Strike</span>
+                  </button>
+                  <button
+                    id="format-code-btn"
+                    type="button"
+                    onClick={() => insertFormatting('`', '`', 'code')}
+                    title="Inline Code (`code`)"
+                    className="p-1.5 rounded-lg hover:bg-white/10 text-cyan-300 hover:text-cyan-200 transition-colors cursor-pointer flex items-center gap-1 text-xs font-mono"
+                  >
+                    <Code className="w-3.5 h-3.5" />
+                    <span className="text-[11px]">Code</span>
+                  </button>
+                  <button
+                    id="format-quote-btn"
+                    type="button"
+                    onClick={() => insertFormatting('> ', '', 'quote')}
+                    title="Quote (> text)"
+                    className="p-1.5 rounded-lg hover:bg-white/10 text-neutral-300 hover:text-white transition-colors cursor-pointer flex items-center gap-1 text-xs"
+                  >
+                    <Quote className="w-3.5 h-3.5" />
+                    <span className="text-[11px]">Quote</span>
+                  </button>
+                  <button
+                    id="format-spoiler-btn"
+                    type="button"
+                    onClick={() => insertFormatting('||', '||', 'spoiler')}
+                    title="Spoiler tag (||hidden text|| - tap to reveal)"
+                    className="p-1.5 rounded-lg hover:bg-amber-500/20 text-amber-300 hover:text-amber-200 transition-colors cursor-pointer flex items-center gap-1 text-xs"
+                  >
+                    <EyeOff className="w-3.5 h-3.5 text-amber-400" />
+                    <span className="text-[11px]">Spoiler</span>
+                  </button>
+                </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    setSlashMenuOpen(!slashMenuOpen);
-                    setSlashFilter('/');
-                    setMobileToolsOpen(false);
-                    textareaRef.current?.focus();
-                  }}
-                  className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-teal-400 active:scale-95 transition-all text-[11px]"
+                  onClick={() => setFormatToolbarOpen(false)}
+                  className="p-1 rounded-md text-neutral-400 hover:text-neutral-200 hover:bg-white/10 transition-colors"
+                  title="Close formatting bar"
                 >
-                  <Terminal className="w-4 h-4 text-teal-400" />
-                  <span>Commands</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmojiPickerOpen((prev) => !prev);
-                    setMobileToolsOpen(false);
-                  }}
-                  className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-amber-300 active:scale-95 transition-all text-[11px]"
-                >
-                  <Smile className="w-4 h-4 text-amber-400" />
-                  <span>Emoji</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    onOpenEphemeralModal();
-                    setMobileToolsOpen(false);
-                  }}
-                  className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-amber-400 active:scale-95 transition-all text-[11px]"
-                >
-                  <Flame className={`w-4 h-4 ${ephemeralEnabled ? 'text-amber-400 animate-pulse' : 'text-neutral-400'}`} />
-                  <span>Timer</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    onOpenShareLinkModal();
-                    setMobileToolsOpen(false);
-                  }}
-                  className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-purple-300 active:scale-95 transition-all text-[11px]"
-                >
-                  <Link2 className="w-4 h-4 text-purple-400" />
-                  <span>Link</span>
-                </button>
-
-                {onOpenCodeSandbox && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenCodeSandbox();
-                      setMobileToolsOpen(false);
-                    }}
-                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-cyan-300 active:scale-95 transition-all text-[11px]"
-                  >
-                    <Code2 className="w-4 h-4 text-cyan-400" />
-                    <span>Code</span>
-                  </button>
-                )}
-
-                {onOpenCreatePoll && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenCreatePoll();
-                      setMobileToolsOpen(false);
-                    }}
-                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-amber-400 active:scale-95 transition-all text-[11px]"
-                  >
-                    <BarChart2 className="w-4 h-4 text-amber-400" />
-                    <span>Poll</span>
-                  </button>
-                )}
-
-                {onOpenQuickDraw && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenQuickDraw();
-                      setMobileToolsOpen(false);
-                    }}
-                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-emerald-400 active:scale-95 transition-all text-[11px]"
-                  >
-                    <PenTool className="w-4 h-4 text-emerald-400" />
-                    <span>Sketch</span>
-                  </button>
-                )}
-
-                {onOpenQuickReplies && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenQuickReplies();
-                      setMobileToolsOpen(false);
-                    }}
-                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-amber-400 active:scale-95 transition-all text-[11px]"
-                  >
-                    <Zap className="w-4 h-4 text-amber-400" />
-                    <span>Replies</span>
-                  </button>
-                )}
-
-                {onOpenPersonalNotes && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenPersonalNotes();
-                      setMobileToolsOpen(false);
-                    }}
-                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-amber-300 active:scale-95 transition-all text-[11px]"
-                  >
-                    <Bookmark className="w-4 h-4 text-amber-400" />
-                    <span>Notes</span>
-                  </button>
-                )}
-
-                {onOpenCryptoCipher && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenCryptoCipher();
-                      setMobileToolsOpen(false);
-                    }}
-                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-amber-400 active:scale-95 transition-all text-[11px]"
-                  >
-                    <KeyRound className="w-4 h-4 text-amber-400" />
-                    <span>Cipher</span>
-                  </button>
-                )}
-
-                {onOpenPasswordGenerator && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenPasswordGenerator();
-                      setMobileToolsOpen(false);
-                    }}
-                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-amber-300 active:scale-95 transition-all text-[11px]"
-                  >
-                    <KeyRound className="w-4 h-4 text-amber-300" />
-                    <span>Passgen</span>
-                  </button>
-                )}
-
-                {onOpenBurnOnRead && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenBurnOnRead();
-                      setMobileToolsOpen(false);
-                    }}
-                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-orange-400 active:scale-95 transition-all text-[11px]"
-                  >
-                    <Flame className="w-4 h-4 text-orange-400" />
-                    <span>Burn Note</span>
-                  </button>
-                )}
-
-                {onOpenSteganography && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenSteganography();
-                      setMobileToolsOpen(false);
-                    }}
-                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-cyan-300 active:scale-95 transition-all text-[11px]"
-                  >
-                    <EyeOff className="w-4 h-4 text-cyan-300" />
-                    <span>Stego</span>
-                  </button>
-                )}
-
-                {onOpenAcousticShield && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenAcousticShield();
-                      setMobileToolsOpen(false);
-                    }}
-                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-amber-400 active:scale-95 transition-all text-[11px]"
-                  >
-                    <Radio className="w-4 h-4 text-amber-400" />
-                    <span>Shield</span>
-                  </button>
-                )}
-
-                {onOpenFileShredder && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenFileShredder();
-                      setMobileToolsOpen(false);
-                    }}
-                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-rose-400 active:scale-95 transition-all text-[11px]"
-                  >
-                    <Trash2 className="w-4 h-4 text-rose-400" />
-                    <span>Shredder</span>
-                  </button>
-                )}
-
-                {onOpenTimeLock && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenTimeLock();
-                      setMobileToolsOpen(false);
-                    }}
-                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-amber-400 active:scale-95 transition-all text-[11px]"
-                  >
-                    <Lock className="w-4 h-4 text-amber-400" />
-                    <span>Capsule</span>
-                  </button>
-                )}
-
-                {onOpenVoiceDisguise && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenVoiceDisguise();
-                      setMobileToolsOpen(false);
-                    }}
-                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-purple-400 active:scale-95 transition-all text-[11px]"
-                  >
-                    <Mic className="w-4 h-4 text-purple-400" />
-                    <span>Disguise</span>
-                  </button>
-                )}
-
-                {onOpenShamirSecret && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenShamirSecret();
-                      setMobileToolsOpen(false);
-                    }}
-                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-amber-400 active:scale-95 transition-all text-[11px]"
-                    title="Shamir's Secret Sharing (split/reconstruct)"
-                  >
-                    <Split className="w-4 h-4 text-amber-400" />
-                    <span>Shamir</span>
-                  </button>
-                )}
-
-                {onOpenTableGenerator && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenTableGenerator();
-                      setMobileToolsOpen(false);
-                    }}
-                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-cyan-400 active:scale-95 transition-all text-[11px]"
-                    title="Interactive Table & Matrix Builder"
-                  >
-                    <Table className="w-4 h-4 text-cyan-400" />
-                    <span>Table</span>
-                  </button>
-                )}
-
-                {onOpenPhotoObfuscator && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenPhotoObfuscator();
-                      setMobileToolsOpen(false);
-                    }}
-                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-rose-400 active:scale-95 transition-all text-[11px]"
-                    title="Photo Redaction & Scratch Foil Studio"
-                  >
-                    <ImageIcon className="w-4 h-4 text-rose-400" />
-                    <span>Redact</span>
-                  </button>
-                )}
-
-                {onOpenDeadMansSwitch && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenDeadMansSwitch();
-                      setMobileToolsOpen(false);
-                    }}
-                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-rose-400 active:scale-95 transition-all text-[11px]"
-                    title="Fail-Safe Dead Man's Switch Escrow"
-                  >
-                    <AlertOctagon className="w-4 h-4 text-rose-400" />
-                    <span>Dead Man</span>
-                  </button>
-                )}
-
-                {onOpenOneTimePad && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenOneTimePad();
-                      setMobileToolsOpen(false);
-                    }}
-                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-amber-400 active:scale-95 transition-all text-[11px]"
-                    title="One-Time Pad Shannon Secrecy Studio"
-                  >
-                    <Key className="w-4 h-4 text-amber-400" />
-                    <span>OTP</span>
-                  </button>
-                )}
-
-                {onOpenExifScrubber && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenExifScrubber();
-                      setMobileToolsOpen(false);
-                    }}
-                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-emerald-400 active:scale-95 transition-all text-[11px]"
-                    title="Forensic EXIF & GPS Metadata Cleaner"
-                  >
-                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                    <span>EXIF</span>
-                  </button>
-                )}
-
-                {onOpenAudioSteganography && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenAudioSteganography();
-                      setMobileToolsOpen(false);
-                    }}
-                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-cyan-400 active:scale-95 transition-all text-[11px]"
-                    title="Acoustic Sonar & Ultrasonic Steganography"
-                  >
-                    <Waves className="w-4 h-4 text-cyan-400" />
-                    <span>Sonar</span>
-                  </button>
-                )}
-
-                {onOpenDualHandshake && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenDualHandshake();
-                      setMobileToolsOpen(false);
-                    }}
-                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-amber-400 active:scale-95 transition-all text-[11px]"
-                    title="2-of-2 Multisig Cryptographic Handshake & NDA"
-                  >
-                    <FileSignature className="w-4 h-4 text-amber-400" />
-                    <span>Handshake</span>
-                  </button>
-                )}
-
-                {onOpenWarrantCanary && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenWarrantCanary();
-                      setMobileToolsOpen(false);
-                    }}
-                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-emerald-400 active:scale-95 transition-all text-[11px]"
-                    title="Publish Warrant Canary Transparency Declaration"
-                  >
-                    <Bird className="w-4 h-4 text-emerald-400" />
-                    <span>Canary</span>
-                  </button>
-                )}
-
-                {onOpenCovertCamouflage && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenCovertCamouflage();
-                      setMobileToolsOpen(false);
-                    }}
-                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-purple-400 active:scale-95 transition-all text-[11px]"
-                    title="Covert Decoy Camouflage (Anti-Shoulder Surfer)"
-                  >
-                    <EyeOff className="w-4 h-4 text-purple-400" />
-                    <span>Covert</span>
-                  </button>
-                )}
-
-                {onOpenRoomLifespan && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenRoomLifespan();
-                      setMobileToolsOpen(false);
-                    }}
-                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-orange-400 active:scale-95 transition-all text-[11px]"
-                    title="Disposable Burner Room Lifespan Timer"
-                  >
-                    <Hourglass className="w-4 h-4 text-orange-400" />
-                    <span>Burner</span>
-                  </button>
-                )}
-
-                {onOpenNotaryAttestation && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenNotaryAttestation();
-                      setMobileToolsOpen(false);
-                    }}
-                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-emerald-400 active:scale-95 transition-all text-[11px]"
-                    title="Cryptographic Notary & Attestation"
-                  >
-                    <FileSignature className="w-4 h-4 text-emerald-400" />
-                    <span>Notary</span>
-                  </button>
-                )}
-
-                {onOpenZkpChallenge && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenZkpChallenge();
-                      setMobileToolsOpen(false);
-                    }}
-                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-cyan-400 active:scale-95 transition-all text-[11px]"
-                    title="Zero-Knowledge Proof Challenge"
-                  >
-                    <ShieldCheck className="w-4 h-4 text-cyan-400" />
-                    <span>ZKP</span>
-                  </button>
-                )}
-
-                {onOpenDuressCalculator && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenDuressCalculator();
-                      setMobileToolsOpen(false);
-                    }}
-                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-rose-400 active:scale-95 transition-all text-[11px]"
-                    title="Covert Decoy Calculator & Duress PIN"
-                  >
-                    <Lock className="w-4 h-4 text-rose-400" />
-                    <span>Duress</span>
-                  </button>
-                )}
-
-                {onOpenCustomerService && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenCustomerService();
-                      setMobileToolsOpen(false);
-                    }}
-                    className="flex flex-col items-center gap-1 p-2 rounded-xl text-neutral-300 hover:text-sky-400 active:scale-95 transition-all text-[11px]"
-                    title="Diagnostics, Speed Boost & Customer Help"
-                  >
-                    <Zap className="w-4 h-4 text-sky-400" />
-                    <span>Help</span>
-                  </button>
-                )}
-
-                {onToggleDictate && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onToggleDictate();
-                      setMobileToolsOpen(false);
-                    }}
-                    className={`flex flex-col items-center gap-1 p-2 rounded-xl active:scale-95 transition-all text-[11px] ${
-                      isDictating ? 'text-rose-400 font-bold animate-pulse' : 'text-neutral-300 hover:text-rose-400'
-                    }`}
-                  >
-                    <Mic className="w-4 h-4 text-rose-400" />
-                    <span>{isDictating ? 'Stop Mic' : 'Dictate'}</span>
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => setMobileToolsOpen(false)}
-                  className="p-2 text-neutral-400 hover:text-white"
-                >
-                  <X className="w-4 h-4" />
+                  <X className="w-3.5 h-3.5" />
                 </button>
               </div>
             )}
 
-            {/* Main Input Form */}
+            {/* UNIFIED TOOLS DRAWER / POPUP (Non-colliding, categorized, full-featured) */}
+            {toolsMenuOpen && (
+              <div
+                ref={toolsMenuRef}
+                id="unified-tools-drawer"
+                className="mb-2 p-3 sm:p-4 rounded-2xl bg-neutral-900/98 border border-neutral-750 backdrop-blur-2xl shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-150 z-30 flex flex-col max-h-[70vh] max-w-xl w-full mx-auto"
+              >
+                {/* Header with Search and Close */}
+                <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-neutral-800">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-neutral-200">
+                      Chat Tools & Security Enclave
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setToolsMenuOpen(false)}
+                    className="p-1 text-neutral-400 hover:text-white rounded-lg hover:bg-neutral-800 transition-colors cursor-pointer"
+                    title="Close tools menu (Esc)"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Quick Search & Category Filter Pills */}
+                <div className="pt-2.5 pb-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  <div className="relative flex-1">
+                    <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={toolSearchQuery}
+                      onChange={(e) => setToolSearchQuery(e.target.value)}
+                      placeholder="Search tools (poll, burn, code, cipher, table)..."
+                      className="w-full bg-neutral-950/80 border border-neutral-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-neutral-200 placeholder:text-neutral-500 focus:outline-none focus:border-amber-400/60 transition-colors"
+                    />
+                    {toolSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setToolSearchQuery('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 overflow-x-auto pb-0.5 shrink-0">
+                    {[
+                      { id: 'all', label: 'All' },
+                      { id: 'interactive', label: 'Interactive' },
+                      { id: 'security', label: 'Security' },
+                      { id: 'tools', label: 'Utilities' },
+                    ].map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setToolCategory(tab.id as any)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                          toolCategory === tab.id
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                            : 'bg-neutral-800/60 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 border border-transparent'
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Responsive Grid of Tools with crisp titles, icons, and descriptions */}
+                <div className="overflow-y-auto max-h-[50vh] pr-1 pt-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {filteredTools.map((tool) => {
+                    const IconComp = tool.icon;
+                    return (
+                      <button
+                        key={tool.id}
+                        id={tool.id}
+                        type="button"
+                        onClick={() => handleToolSelect(tool.action)}
+                        className={`flex items-start gap-2.5 p-2.5 rounded-xl border border-neutral-800 bg-neutral-950/40 text-left transition-all cursor-pointer group active:scale-[0.98] ${tool.bg}`}
+                      >
+                        <div className={`p-1.5 rounded-lg bg-neutral-900 border border-neutral-800 shrink-0 ${tool.color} group-hover:scale-105 transition-transform`}>
+                          <IconComp className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-bold text-neutral-200 group-hover:text-white flex items-center justify-between">
+                            <span className="truncate">{tool.title}</span>
+                          </div>
+                          <p className="text-[10px] text-neutral-400 line-clamp-1 leading-relaxed mt-0.5">
+                            {tool.desc}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                  {filteredTools.length === 0 && (
+                    <div className="col-span-full py-8 text-center text-xs text-neutral-500">
+                      No tools match &ldquo;{toolSearchQuery}&rdquo; in this category.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* MAIN INPUT FORM: Clean, Ergonomic, Non-Colliding Layout */}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 onSendMessageOrFile();
               }}
-              className="flex items-end gap-1.5 sm:gap-2 p-1.5 rounded-2xl bg-neutral-950/80 hover:bg-neutral-950/95 backdrop-blur-2xl border border-white/10 focus-within:border-white/25 transition-all shadow-2xl"
+              className="flex items-end gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-2xl bg-neutral-950/90 hover:bg-neutral-950 backdrop-blur-2xl border border-white/10 focus-within:border-white/30 transition-all shadow-2xl relative"
             >
-              {/* File Attachment Action */}
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={!isConnected}
-                title="Attach file (images, docs, audio, archives)"
-                className="p-2 sm:p-2.5 rounded-xl hover:bg-white/10 active:bg-white/15 text-neutral-400 hover:text-amber-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
-              >
-                <Paperclip className="w-4 h-4 text-amber-400" />
-              </button>
-
-              {/* Voice Recording Action */}
-              <button
-                type="button"
-                onClick={onStartVoiceRecording}
-                disabled={!isConnected}
-                title="Hold or tap to record voice note"
-                className="p-2 sm:p-2.5 rounded-xl hover:bg-white/10 active:bg-white/15 text-neutral-400 hover:text-red-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
-              >
-                <Mic className="w-4 h-4" />
-              </button>
-
-              {/* Mobile Quick Tools Toggle Button */}
-              <button
-                type="button"
-                onClick={() => setMobileToolsOpen(!mobileToolsOpen)}
-                disabled={!isConnected}
-                title="More chat tools"
-                className={`sm:hidden p-2 rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0 ${
-                  mobileToolsOpen || ephemeralEnabled ? 'bg-amber-500/20 text-amber-300' : 'hover:bg-white/10 text-neutral-400'
-                }`}
-              >
-                <MoreHorizontal className="w-4 h-4" />
-              </button>
-
-              {/* Desktop Desktop Actions (Slash Commands, Emoji, Ephemeral, Share Link) */}
-              <div className="hidden sm:flex items-center gap-0.5 shrink-0">
-                {/* Slash Commands */}
+              {/* LEFT ACTIONS GROUP: Tools Menu (+), Attach File, Slash Commands, Voice Memo */}
+              <div className="flex items-center gap-0.5 sm:gap-1 shrink-0 pb-0.5">
+                {/* 1. Universal Tools Menu Toggle (+) */}
                 <button
+                  id="toggle-tools-menu-button"
                   type="button"
+                  onClick={() => setToolsMenuOpen(!toolsMenuOpen)}
+                  disabled={!isInRoom}
+                  title="Open Chat Tools & Security Enclave (Polls, Canvas, Cipher, Burn Notes...)"
+                  className={`p-2 rounded-xl transition-all cursor-pointer flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed ${
+                    toolsMenuOpen
+                      ? 'bg-amber-500 text-neutral-950 shadow-md ring-2 ring-amber-400/50 scale-105'
+                      : 'bg-neutral-900/80 hover:bg-neutral-800 text-amber-400 border border-neutral-750 hover:border-amber-400/40'
+                  }`}
+                >
+                  <Plus className={`w-4 h-4 transition-transform duration-200 ${toolsMenuOpen ? 'rotate-45' : ''}`} />
+                </button>
+
+                {/* 2. File Attachment Quick Action (Paperclip) */}
+                <button
+                  id="attach-file-button"
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={!isInRoom}
+                  title="Attach file (images, docs, audio, archives up to 50MB)"
+                  className="p-2 rounded-xl hover:bg-white/10 active:bg-white/15 text-neutral-400 hover:text-amber-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  <Paperclip className="w-4 h-4" />
+                </button>
+
+                {/* 3. Slash Commands Quick Palette */}
+                <button
                   id="slash-command-trigger-button"
+                  type="button"
                   onClick={() => {
                     setSlashMenuOpen(!slashMenuOpen);
                     setSlashFilter('/');
@@ -876,37 +952,101 @@ export const ChatInputBar = memo<ChatInputBarProps>(
                       textareaRef.current?.focus();
                     }
                   }}
-                  disabled={!isConnected}
-                  title="Slash Commands (/canvas, /call, /theme, /shrug...)"
-                  className={`p-2 rounded-xl hover:bg-white/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${
-                    slashMenuOpen ? 'bg-teal-500/20 text-teal-300' : 'text-neutral-400 hover:text-teal-300'
+                  disabled={!isInRoom}
+                  title="Slash Commands (/canvas, /poll, /shrug, /notes...)"
+                  className={`p-2 rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${
+                    slashMenuOpen
+                      ? 'bg-teal-500/20 text-teal-300 border border-teal-500/40'
+                      : 'hover:bg-white/10 text-neutral-400 hover:text-teal-300'
                   }`}
                 >
-                  <Terminal className="w-4 h-4 text-teal-400" />
+                  <Terminal className="w-4 h-4" />
                 </button>
 
-                {/* Emoji Picker */}
+                {/* 4. Voice Recording Trigger (Mic) */}
                 <button
+                  id="voice-record-button"
                   type="button"
+                  onClick={onStartVoiceRecording}
+                  disabled={!isInRoom}
+                  title="Record voice note"
+                  className="p-2 rounded-xl hover:bg-white/10 active:bg-white/15 text-neutral-400 hover:text-rose-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  <Mic className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* CENTER: Auto-expanding Spacious Message Textarea */}
+              <div className="flex-1 flex flex-col min-w-0 relative">
+                <textarea
+                  id="message-input"
+                  ref={textareaRef}
+                  rows={1}
+                  value={inputText}
+                  onChange={onTextareaChange}
+                  onKeyDown={onTextareaKeyDown}
+                  onPaste={onPaste}
+                  disabled={!isInRoom}
+                  placeholder={
+                    isInRoom
+                      ? stagedFile
+                        ? 'Add a caption... (Enter to send, Shift+Enter for newline)'
+                        : replyingTo
+                        ? `Replying to ${replyingTo.senderName}...`
+                        : connectionState === 'waiting'
+                        ? 'Type a message... (Ready for when peer joins)'
+                        : 'Type message or "/" for commands (Shift+Enter for newline)...'
+                      : 'Connecting to room...'
+                  }
+                  className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none px-2 sm:px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors resize-none leading-relaxed max-h-32 min-h-[40px]"
+                />
+                {inputText.length > 80 && (
+                  <div className="absolute right-2 bottom-1 pointer-events-none text-[9px] font-mono text-neutral-400/90 bg-neutral-900/90 px-1.5 py-0.5 rounded border border-white/10 select-none">
+                    {inputText.length}c · {inputText.trim().split(/\s+/).filter(Boolean).length}w
+                  </div>
+                )}
+              </div>
+
+              {/* RIGHT ACTIONS GROUP: Formatting, Emoji, Disappearing Timer, Schedule, Send */}
+              <div className="flex items-center gap-0.5 sm:gap-1 shrink-0 pb-0.5">
+                {/* 1. Toggle Markdown Formatting Bar */}
+                <button
+                  id="format-ribbon-toggle-button"
+                  type="button"
+                  onClick={() => setFormatToolbarOpen(!formatToolbarOpen)}
+                  disabled={!isInRoom}
+                  title="Format text (Bold, Italic, Code, Quote, Spoiler)"
+                  className={`p-2 rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${
+                    formatToolbarOpen
+                      ? 'bg-neutral-800 text-amber-300 border border-neutral-700'
+                      : 'hover:bg-white/10 text-neutral-400 hover:text-neutral-200'
+                  }`}
+                >
+                  <Type className="w-4 h-4" />
+                </button>
+
+                {/* 2. Emoji Picker Toggle */}
+                <button
                   id="emoji-picker-toggle-button"
+                  type="button"
                   onClick={() => setEmojiPickerOpen((prev) => !prev)}
-                  disabled={!isConnected}
-                  title="Insert emojis"
+                  disabled={!isInRoom}
+                  title="Insert emoji"
                   className={`p-2 rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${
                     emojiPickerOpen
-                      ? 'bg-amber-500/20 text-amber-300'
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                       : 'hover:bg-white/10 text-neutral-400 hover:text-amber-400'
                   }`}
                 >
                   <Smile className="w-4 h-4" />
                 </button>
 
-                {/* Disappearing Messages Quick Badge */}
+                {/* 3. Disappearing Messages Quick Badge */}
                 <button
-                  type="button"
                   id="ephemeral-input-toggle-button"
+                  type="button"
                   onClick={onOpenEphemeralModal}
-                  disabled={!isConnected}
+                  disabled={!isInRoom}
                   title={
                     ephemeralEnabled
                       ? `Disappearing messages: ${ephemeralDurationOption} (Click to change)`
@@ -924,350 +1064,64 @@ export const ChatInputBar = memo<ChatInputBarProps>(
                     }`}
                   />
                   {ephemeralEnabled && (
-                    <span className="text-[10px] font-mono font-bold text-amber-300">
+                    <span className="text-[10px] font-mono font-bold text-amber-300 hidden sm:inline">
                       {ephemeralDurationOption}
                     </span>
                   )}
                 </button>
 
-                {/* Share Web Link */}
+                {/* 4. Schedule Delayed Message (Shows when text is ready) */}
+                {onOpenScheduleMessage && !editingMessage && Boolean(inputText.trim()) && (
+                  <button
+                    id="schedule-message-button"
+                    type="button"
+                    onClick={onOpenScheduleMessage}
+                    disabled={!isInRoom}
+                    title="Schedule delayed message dispatch"
+                    className="p-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-amber-400 hover:text-amber-300 border border-neutral-750 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                  </button>
+                )}
+
+                {/* 5. Speech Dictation Indicator if active */}
+                {onToggleDictate && !editingMessage && isDictating && (
+                  <button
+                    id="speech-dictate-button"
+                    type="button"
+                    onClick={onToggleDictate}
+                    title="Stop Voice Dictation"
+                    className="p-2 rounded-xl bg-rose-500/25 text-rose-400 border border-rose-500/50 shadow-sm animate-pulse cursor-pointer"
+                  >
+                    <Mic className="w-3.5 h-3.5 text-rose-400" />
+                  </button>
+                )}
+
+                {/* 6. Send / Save Button */}
                 <button
-                  type="button"
-                  id="share-link-input-button"
-                  onClick={onOpenShareLinkModal}
-                  disabled={!isConnected}
-                  title="Share a web link into chat"
-                  className="p-2 rounded-xl hover:bg-white/10 text-neutral-400 hover:text-purple-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  id="send-message-button"
+                  type="submit"
+                  disabled={!isInRoom || (!inputText.trim() && !stagedFile)}
+                  style={{
+                    backgroundColor: currentTheme.accentColor,
+                  }}
+                  className="text-neutral-950 font-bold px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer inline-flex items-center gap-1.5 shrink-0 shadow-md active:scale-95"
                 >
-                  <Link2 className="w-4 h-4 text-purple-400" />
+                  <span className="hidden sm:inline">
+                    {editingMessage ? 'Save' : stagedFile ? 'Send File' : 'Send'}
+                  </span>
+                  {editingMessage ? (
+                    <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                  ) : (
+                    <Send className="w-3.5 h-3.5" />
+                  )}
                 </button>
-
-                {/* Quick Canned Replies & Templates */}
-                {onOpenQuickReplies && (
-                  <button
-                    type="button"
-                    id="quick-replies-desktop-button"
-                    onClick={onOpenQuickReplies}
-                    disabled={!isConnected}
-                    title="Quick Canned Replies & Templates (/quick)"
-                    className="p-2 rounded-xl hover:bg-white/10 text-neutral-400 hover:text-amber-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    <Zap className="w-4 h-4 text-amber-400" />
-                  </button>
-                )}
-
-                {/* Code Snippet Sandbox */}
-                {onOpenCodeSandbox && (
-                  <button
-                    type="button"
-                    id="code-sandbox-input-button"
-                    onClick={onOpenCodeSandbox}
-                    disabled={!isConnected}
-                    title="Open Code Snippet Sandbox"
-                    className="p-2 rounded-xl hover:bg-white/10 text-neutral-400 hover:text-cyan-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    <Code2 className="w-4 h-4 text-cyan-400" />
-                  </button>
-                )}
-
-                {/* Create Poll */}
-                {onOpenCreatePoll && (
-                  <button
-                    type="button"
-                    id="create-poll-input-button"
-                    onClick={onOpenCreatePoll}
-                    disabled={!isConnected}
-                    title="Create Encrypted Poll"
-                    className="p-2 rounded-xl hover:bg-white/10 text-neutral-400 hover:text-amber-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    <BarChart2 className="w-4 h-4 text-amber-400" />
-                  </button>
-                )}
-
-                {/* Quick Sketch / Doodle */}
-                {onOpenQuickDraw && (
-                  <button
-                    type="button"
-                    id="quick-draw-input-button"
-                    onClick={onOpenQuickDraw}
-                    disabled={!isConnected}
-                    title="Draw Doodle or Sketch"
-                    className="p-2 rounded-xl hover:bg-white/10 text-neutral-400 hover:text-emerald-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    <PenTool className="w-4 h-4 text-emerald-400" />
-                  </button>
-                )}
-
-                {/* Personal Notes / Note to Self Shortcut */}
-                {onOpenPersonalNotes && (
-                  <button
-                    type="button"
-                    id="personal-notes-desktop-button"
-                    onClick={onOpenPersonalNotes}
-                    disabled={!isConnected}
-                    title="Encrypted Notes to Self & Scratchpad (/notes)"
-                    className="p-2 rounded-xl hover:bg-white/10 text-neutral-400 hover:text-amber-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    <Bookmark className="w-4 h-4 text-amber-400" />
-                  </button>
-                )}
-
-                {/* Cryptographic Cipher & Hash Toolkit */}
-                {onOpenCryptoCipher && (
-                  <button
-                    type="button"
-                    id="crypto-cipher-desktop-button"
-                    onClick={onOpenCryptoCipher}
-                    disabled={!isConnected}
-                    title="Cryptographic Cipher, Hash & Morse Toolkit (/cipher)"
-                    className="p-2 rounded-xl hover:bg-white/10 text-neutral-400 hover:text-amber-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    <KeyRound className="w-4 h-4 text-amber-400" />
-                  </button>
-                )}
-
-                {/* Password & Passphrase Generator */}
-                {onOpenPasswordGenerator && (
-                  <button
-                    type="button"
-                    id="password-generator-desktop-button"
-                    onClick={onOpenPasswordGenerator}
-                    disabled={!isConnected}
-                    title="Password & Passphrase Generator with Entropy Audit (/password)"
-                    className="p-2 rounded-xl hover:bg-white/10 text-neutral-400 hover:text-amber-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    <KeyRound className="w-4 h-4 text-amber-300" />
-                  </button>
-                )}
-
-                {/* Burn-After-Reading Note */}
-                {onOpenBurnOnRead && (
-                  <button
-                    type="button"
-                    id="burn-on-read-desktop-button"
-                    onClick={onOpenBurnOnRead}
-                    disabled={!isConnected}
-                    title="Burn-After-Reading Confidential Note (/burn)"
-                    className="p-2 rounded-xl hover:bg-white/10 text-neutral-400 hover:text-orange-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    <Flame className="w-4 h-4 text-orange-400" />
-                  </button>
-                )}
-
-                {/* Steganography Concealer & Inspector */}
-                {onOpenSteganography && (
-                  <button
-                    type="button"
-                    id="steganography-desktop-button"
-                    onClick={onOpenSteganography}
-                    disabled={!isConnected}
-                    title="Steganography Concealer (Hide invisible secrets) (/stego)"
-                    className="p-2 rounded-xl hover:bg-white/10 text-neutral-400 hover:text-cyan-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    <EyeOff className="w-4 h-4 text-cyan-300" />
-                  </button>
-                )}
-
-                {/* Acoustic Privacy Shield */}
-                {onOpenAcousticShield && (
-                  <button
-                    type="button"
-                    id="acoustic-shield-desktop-button"
-                    onClick={onOpenAcousticShield}
-                    disabled={!isConnected}
-                    title="Acoustic Privacy Shield (Speech jammer & masking) (/shield)"
-                    className="p-2 rounded-xl hover:bg-white/10 text-neutral-400 hover:text-amber-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    <Radio className="w-4 h-4 text-amber-400" />
-                  </button>
-                )}
-
-                {/* Digital File Shredder */}
-                {onOpenFileShredder && (
-                  <button
-                    type="button"
-                    id="file-shredder-desktop-button"
-                    onClick={onOpenFileShredder}
-                    disabled={!isConnected}
-                    title="Digital File Shredder (DoD 5220.22-M sanitization) (/shred)"
-                    className="p-2 rounded-xl hover:bg-white/10 text-neutral-400 hover:text-rose-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    <Trash2 className="w-4 h-4 text-rose-400" />
-                  </button>
-                )}
-
-                {/* Time-Locked Message Capsule */}
-                {onOpenTimeLock && (
-                  <button
-                    type="button"
-                    id="timelock-desktop-button"
-                    onClick={onOpenTimeLock}
-                    disabled={!isConnected}
-                    title="Time-Locked Message Capsule (/capsule)"
-                    className="p-2 rounded-xl hover:bg-white/10 text-neutral-400 hover:text-amber-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    <Lock className="w-4 h-4 text-amber-400" />
-                  </button>
-                )}
-
-                {/* Voice Disguise Studio */}
-                {onOpenVoiceDisguise && (
-                  <button
-                    type="button"
-                    id="voice-disguise-desktop-button"
-                    onClick={onOpenVoiceDisguise}
-                    disabled={!isConnected}
-                    title="Voice Disguise Studio (DSP vocal pitch & morph) (/disguise)"
-                    className="p-2 rounded-xl hover:bg-white/10 text-neutral-400 hover:text-purple-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    <Mic className="w-4 h-4 text-purple-400" />
-                  </button>
-                )}
-
-                {/* Quick Markdown & Spoiler Helpers */}
-                <div className="hidden lg:flex items-center gap-0.5 pl-1 border-l border-white/10">
-                  <button
-                    type="button"
-                    onClick={() => insertFormatting('**', '**', 'bold')}
-                    disabled={!isConnected}
-                    title="Format Bold (**text**)"
-                    className="p-1.5 rounded-lg hover:bg-white/10 text-neutral-400 hover:text-white transition-colors disabled:opacity-40 cursor-pointer"
-                  >
-                    <Bold className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => insertFormatting('*', '*', 'italic')}
-                    disabled={!isConnected}
-                    title="Format Italic (*text*)"
-                    className="p-1.5 rounded-lg hover:bg-white/10 text-neutral-400 hover:text-white transition-colors disabled:opacity-40 cursor-pointer"
-                  >
-                    <Italic className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => insertFormatting('~', '~', 'strike')}
-                    disabled={!isConnected}
-                    title="Format Strikethrough (~text~)"
-                    className="p-1.5 rounded-lg hover:bg-white/10 text-neutral-400 hover:text-white transition-colors disabled:opacity-40 cursor-pointer"
-                  >
-                    <Strikethrough className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => insertFormatting('`', '`', 'code')}
-                    disabled={!isConnected}
-                    title="Format Inline Code (`code`)"
-                    className="p-1.5 rounded-lg hover:bg-white/10 text-neutral-400 hover:text-cyan-300 transition-colors disabled:opacity-40 cursor-pointer"
-                  >
-                    <Code className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => insertFormatting('> ', '', 'quote')}
-                    disabled={!isConnected}
-                    title="Format Blockquote (> text)"
-                    className="p-1.5 rounded-lg hover:bg-white/10 text-neutral-400 hover:text-purple-300 transition-colors disabled:opacity-40 cursor-pointer"
-                  >
-                    <Quote className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => insertFormatting('||', '||', 'spoiler')}
-                    disabled={!isConnected}
-                    title="Spoiler tag (||hidden text|| - tap to reveal)"
-                    className="p-1.5 rounded-lg hover:bg-amber-500/20 text-neutral-400 hover:text-amber-400 transition-colors disabled:opacity-40 cursor-pointer"
-                  >
-                    <EyeOff className="w-3.5 h-3.5" />
-                  </button>
-                </div>
               </div>
-
-              {/* Auto-expanding Multiline Message Textarea with Clipboard Paste Support */}
-              <div className="flex-1 flex flex-col min-w-0 relative">
-                <textarea
-                  id="message-input"
-                  ref={textareaRef}
-                  rows={1}
-                  value={inputText}
-                  onChange={onTextareaChange}
-                  onKeyDown={onTextareaKeyDown}
-                  onPaste={onPaste}
-                  disabled={!isConnected}
-                  placeholder={
-                    isConnected
-                      ? stagedFile
-                        ? 'Add a caption... (Enter to send, Shift+Enter for newline)'
-                        : replyingTo
-                        ? `Replying to ${replyingTo.senderName}...`
-                        : 'Type message or "/" for commands (Shift+Enter for newline)...'
-                      : 'Waiting for peer to join room...'
-                  }
-                  className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none px-2 sm:px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors resize-none leading-relaxed max-h-32 min-h-[40px]"
-                />
-                {inputText.length > 80 && (
-                  <div className="absolute right-2 bottom-1 pointer-events-none text-[9px] font-mono text-neutral-500/80 bg-neutral-900/80 px-1 rounded select-none">
-                    {inputText.length}c · {inputText.trim().split(/\s+/).filter(Boolean).length}w
-                  </div>
-                )}
-              </div>
-
-              {/* Schedule Delayed Dispatch Button */}
-              {onOpenScheduleMessage && !editingMessage && Boolean(inputText.trim()) && (
-                <button
-                  type="button"
-                  id="schedule-message-button"
-                  onClick={onOpenScheduleMessage}
-                  disabled={!isConnected}
-                  title="Schedule delayed message dispatch"
-                  className="p-2 sm:py-2.5 sm:px-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-amber-400 hover:text-amber-300 border border-neutral-750 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shrink-0"
-                >
-                  <Clock className="w-3.5 h-3.5" />
-                </button>
-              )}
-
-              {/* Speech-to-Text Voice Dictation Trigger */}
-              {onToggleDictate && !editingMessage && (
-                <button
-                  type="button"
-                  id="speech-dictate-button"
-                  onClick={onToggleDictate}
-                  disabled={!isConnected}
-                  title={isDictating ? 'Stop Voice Dictation' : 'Voice Dictation / Speech-to-Text (/dictate)'}
-                  className={`p-2 sm:py-2.5 sm:px-2.5 rounded-xl transition-all cursor-pointer shrink-0 disabled:opacity-30 disabled:cursor-not-allowed ${
-                    isDictating
-                      ? 'bg-rose-500/25 text-rose-400 border border-rose-500/50 shadow-sm animate-pulse'
-                      : 'bg-neutral-900/80 hover:bg-neutral-800 text-neutral-400 hover:text-rose-400 border border-neutral-800'
-                  }`}
-                >
-                  <Mic className={`w-3.5 h-3.5 ${isDictating ? 'text-rose-400' : ''}`} />
-                </button>
-              )}
-
-              {/* Send / Save Button */}
-              <button
-                id="send-message-button"
-                type="submit"
-                disabled={!isConnected || (!inputText.trim() && !stagedFile)}
-                style={{
-                  backgroundColor: currentTheme.accentColor,
-                }}
-                className="text-neutral-950 font-bold px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer inline-flex items-center gap-1.5 shrink-0 shadow-md active:scale-95"
-              >
-                <span className="hidden md:inline">
-                  {editingMessage ? 'Save Edit' : stagedFile ? 'Send File' : 'Send'}
-                </span>
-                {editingMessage ? (
-                  <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                ) : (
-                  <Send className="w-3.5 h-3.5" />
-                )}
-              </button>
             </form>
 
             {/* Live Word & Character Counter Indicator */}
             {inputText.length > 0 && (showCharacterCount || showWordCount) && (
-              <div className="flex items-center justify-between px-3 py-1 mt-1 text-[10px] text-neutral-400 select-none animate-in fade-in duration-100">
+              <div className="flex items-center justify-between px-3 py-1 mt-0.5 text-[10px] text-neutral-400 select-none animate-in fade-in duration-100">
                 <span className="flex items-center gap-1.5 font-mono">
                   {showCharacterCount && (
                     <span className={inputText.length > 2000 ? 'text-amber-400 font-semibold' : ''}>
@@ -1292,4 +1146,5 @@ export const ChatInputBar = memo<ChatInputBarProps>(
     );
   }
 );
+
 ChatInputBar.displayName = 'ChatInputBar';

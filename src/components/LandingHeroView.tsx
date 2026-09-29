@@ -42,7 +42,7 @@ interface LandingHeroViewProps {
   setAuthError: (err: string) => void;
   isSubmitting: boolean;
   lockoutTimer: { isLocked: boolean; remainingSeconds: number };
-  handleRoomSubmit: (e?: FormEvent) => void;
+  handleRoomSubmit: (e?: FormEvent, customRoomId?: string, customPassword?: string) => void;
   generateRandomRoom: () => void;
   setSecurityModalOpen: (open: boolean) => void;
   setQrScannerOpen: (open: boolean) => void;
@@ -106,6 +106,19 @@ export function LandingHeroView({
     setPassword(strongPass);
     setShowPassword(true);
     if (authError) setAuthError('');
+    return strongPass;
+  };
+
+  const handleQuickStartInstantChat = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    code += '-';
+    for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    const generatedPass = handleGenerateStrongPassword();
+    setRoomId(code);
+    setPassword(generatedPass);
+    handleRoomSubmit(undefined, code, generatedPass);
   };
 
   const scrollToComparison = () => {
@@ -434,6 +447,32 @@ export function LandingHeroView({
               <p className={`text-xs leading-relaxed font-normal ${isLight ? 'text-slate-600' : 'text-neutral-400'}`}>
                 Enter any room code and password. Share both with your contact to connect.
               </p>
+            </div>
+
+            {/* Quick 1-Click Instant Room Button */}
+            <div>
+              <button
+                id="instant-chat-start-button"
+                type="button"
+                onClick={handleQuickStartInstantChat}
+                disabled={isSubmitting || lockoutTimer.isLocked}
+                className={`w-full py-3 px-4 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 border shadow-sm active:scale-[0.99] ${
+                  isLight
+                    ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300'
+                    : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                }`}
+              >
+                <Zap className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>Quick Start: Instant Private Chat (1-Click)</span>
+              </button>
+            </div>
+
+            <div className="relative flex py-0.5 items-center">
+              <div className={`flex-grow border-t ${isLight ? 'border-slate-200' : 'border-neutral-800'}`} />
+              <span className={`flex-shrink mx-3 text-[10px] uppercase font-bold tracking-wider ${isLight ? 'text-slate-400' : 'text-neutral-500'}`}>
+                or enter specific room
+              </span>
+              <div className={`flex-grow border-t ${isLight ? 'border-slate-200' : 'border-neutral-800'}`} />
             </div>
 
             <form onSubmit={handleRoomSubmit} className="space-y-4">

@@ -363,10 +363,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           type="button"
           onClick={onOpenScratchpad}
           title="Collaborative Scratchpad & Whiteboard Canvas"
-          className="p-2 rounded-xl text-teal-300 border border-teal-500/30 bg-teal-950/30 hover:bg-teal-900/40 hover:border-teal-400/50 transition-all cursor-pointer flex items-center gap-1.5 shadow-xs"
+          className="hidden lg:flex p-2 rounded-xl text-teal-300 border border-teal-500/30 bg-teal-950/30 hover:bg-teal-900/40 hover:border-teal-400/50 transition-all cursor-pointer items-center gap-1.5 shadow-xs"
         >
           <Edit3 className="w-4 h-4 text-teal-400" />
-          <span className="hidden md:inline text-xs font-semibold">Canvas</span>
+          <span className="hidden xl:inline text-xs font-semibold">Canvas</span>
         </button>
 
         {/* Starred Messages */}
@@ -376,10 +376,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             type="button"
             onClick={onOpenStarredMessages}
             title="Starred Messages & Important Bookmarks"
-            className="p-2 rounded-xl text-amber-300 border border-amber-500/30 bg-amber-950/30 hover:bg-amber-900/40 transition-all cursor-pointer flex items-center gap-1.5 shadow-xs"
+            className="hidden 2xl:flex p-2 rounded-xl text-amber-300 border border-amber-500/30 bg-amber-950/30 hover:bg-amber-900/40 transition-all cursor-pointer items-center gap-1.5 shadow-xs"
           >
             <Star className="w-4 h-4 text-amber-400 fill-amber-400/20" />
-            <span className="hidden lg:inline text-xs font-semibold">Starred</span>
+            <span className="text-xs font-semibold">Starred</span>
             {starredCount > 0 && (
               <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-amber-400/20 text-amber-200 border border-amber-400/40 font-bold">
                 {starredCount}
@@ -395,10 +395,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             type="button"
             onClick={onOpenCustomerService}
             title="Customer Care, Speed Booster & Privacy Guide"
-            className="p-2 rounded-xl text-emerald-300 border border-emerald-500/30 bg-emerald-950/30 hover:bg-emerald-900/40 hover:border-emerald-400/50 transition-all cursor-pointer flex items-center gap-1.5 shadow-xs"
+            className="hidden 2xl:flex p-2 rounded-xl text-emerald-300 border border-emerald-500/30 bg-emerald-950/30 hover:bg-emerald-900/40 hover:border-emerald-400/50 transition-all cursor-pointer items-center gap-1.5 shadow-xs"
           >
             <Headphones className="w-4 h-4 text-emerald-400" />
-            <span className="hidden md:inline text-xs font-semibold">Care & Help</span>
+            <span className="text-xs font-semibold">Care & Help</span>
           </button>
         )}
 
@@ -412,14 +412,14 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               ? `Auto-disappearing messages ACTIVE (${ephemeralDurationOption}) - Click to configure or turn off`
               : 'Auto-disappearing messages OFF - Click to turn on'
           }
-          className={`p-2 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 shadow-xs ${
+          className={`hidden 2xl:flex p-2 rounded-xl border transition-all cursor-pointer items-center gap-1.5 shadow-xs ${
             ephemeralEnabled
               ? 'bg-amber-500/25 border-amber-500/60 text-amber-300 ring-1 ring-amber-400/50'
               : 'bg-black/40 hover:bg-white/10 text-neutral-300 border-white/10 hover:text-amber-300'
           }`}
         >
           <Flame className={`w-4 h-4 ${ephemeralEnabled ? 'text-amber-400 animate-pulse' : 'text-neutral-400'}`} />
-          <span className="hidden xl:inline text-xs font-semibold">
+          <span className="text-xs font-semibold">
             {ephemeralEnabled ? ephemeralDurationOption : 'Timer'}
           </span>
         </button>
@@ -430,14 +430,14 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           type="button"
           onClick={onToggleMusic}
           title={activeSongName ? `Music: ${activeSongName}` : 'Background Lo-Fi Music'}
-          className={`p-2 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 ${
+          className={`hidden 2xl:flex p-2 rounded-xl border transition-all cursor-pointer items-center gap-1.5 ${
             activeSongName
               ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 ring-1 ring-emerald-400/40'
               : 'bg-black/40 hover:bg-white/10 text-neutral-300 border-white/10'
           }`}
         >
           <Music className={`w-4 h-4 text-emerald-400 ${activeSongName ? 'animate-pulse' : ''}`} />
-          <span className="hidden xl:inline text-xs font-semibold">
+          <span className="text-xs font-semibold">
             {activeSongName ? 'Music' : 'Music'}
           </span>
           {activeSongName && (
@@ -455,7 +455,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           type="button"
           onClick={onOpenNotificationModal}
           title={soundEnabled ? 'Alerts active (click to configure)' : 'Alerts muted'}
-          className={`p-2 rounded-xl border transition-all cursor-pointer hidden md:flex items-center gap-1 ${
+          className={`p-2 rounded-xl border transition-all cursor-pointer hidden 2xl:flex items-center gap-1 ${
             soundEnabled
               ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
               : 'bg-black/40 border-neutral-750 text-neutral-400 hover:text-neutral-200'
@@ -471,10 +471,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             type="button"
             onClick={onLockSession}
             title="Lock chat session for privacy (Esc or Ctrl+Shift+L)"
-            className="p-2 rounded-xl border border-amber-500/30 bg-black/40 hover:bg-amber-500/20 text-neutral-300 hover:text-amber-300 transition-all cursor-pointer flex items-center gap-1.5"
+            className="hidden 2xl:flex p-2 rounded-xl border border-amber-500/30 bg-black/40 hover:bg-amber-500/20 text-neutral-300 hover:text-amber-300 transition-all cursor-pointer items-center gap-1.5"
           >
             <Lock className="w-4 h-4 text-amber-400" />
-            <span className="hidden xl:inline text-xs font-semibold">Lock</span>
+            <span className="text-xs font-semibold">Lock</span>
           </button>
         )}
 
@@ -485,10 +485,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             type="button"
             onClick={onOpenCodeSandbox}
             title="Code Snippet Sandbox (Syntax Highlighting & REPL)"
-            className="p-2 rounded-xl border border-cyan-500/30 bg-black/40 hover:bg-cyan-500/20 text-neutral-300 hover:text-cyan-300 transition-all cursor-pointer flex items-center gap-1.5"
+            className="hidden 2xl:flex p-2 rounded-xl border border-cyan-500/30 bg-black/40 hover:bg-cyan-500/20 text-neutral-300 hover:text-cyan-300 transition-all cursor-pointer items-center gap-1.5"
           >
             <Code2 className="w-4 h-4 text-cyan-400" />
-            <span className="hidden xl:inline text-xs font-semibold">Code</span>
+            <span className="text-xs font-semibold">Code</span>
           </button>
         )}
 
@@ -503,7 +503,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 ? 'Screenshot & Blur Guard: ACTIVE (Click to turn off)'
                 : 'Screenshot & Blur Guard: OFF (Click to obscure chat for privacy)'
             }
-            className={`p-2 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`hidden xl:flex p-2 rounded-xl border transition-all cursor-pointer items-center gap-1.5 ${
               blurGuardActive
                 ? 'bg-emerald-500/25 border-emerald-500/60 text-emerald-300 ring-1 ring-emerald-400/50'
                 : 'bg-black/40 hover:bg-white/10 text-neutral-300 border-white/10 hover:text-emerald-300'
@@ -514,7 +514,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             ) : (
               <Eye className="w-4 h-4 text-neutral-400" />
             )}
-            <span className="hidden xl:inline text-xs font-semibold">
+            <span className="text-xs font-semibold">
               {blurGuardActive ? 'Guarded' : 'Guard'}
             </span>
           </button>
