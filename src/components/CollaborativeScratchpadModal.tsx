@@ -913,12 +913,15 @@ export const CollaborativeScratchpadModal: React.FC<CollaborativeScratchpadModal
     if (!canvas) return;
 
     const updateCanvasSize = () => {
-      const parent = canvas.parentElement;
+      const currentCanvas = canvasRef.current;
+      if (!currentCanvas) return;
+      const parent = currentCanvas.parentElement;
       if (!parent) return;
       const rect = parent.getBoundingClientRect();
+      if (!rect || typeof rect.width !== 'number' || typeof rect.height !== 'number') return;
       const dpr = window.devicePixelRatio || 1;
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
+      currentCanvas.width = rect.width * dpr;
+      currentCanvas.height = rect.height * dpr;
       redrawCanvas();
     };
 

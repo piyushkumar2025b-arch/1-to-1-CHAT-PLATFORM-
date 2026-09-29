@@ -1765,7 +1765,7 @@ export default function App() {
     if (soundEnabled) {
       playSentMessageSound();
     }
-    if (textareaRef.current) {
+    if (textareaRef.current?.style) {
       textareaRef.current.style.height = 'auto';
     }
 
@@ -2511,7 +2511,7 @@ export default function App() {
       // Remove temporary optimistic bubble now that real message is written
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
       setInputText('');
-      if (textareaRef.current) {
+      if (textareaRef.current?.style) {
         textareaRef.current.style.height = 'auto';
       }
     } catch (err: any) {
@@ -2633,8 +2633,13 @@ export default function App() {
   const handleTextareaChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setInputText(val);
-    e.target.style.height = 'auto';
-    e.target.style.height = `${Math.min(e.target.scrollHeight, 128)}px`;
+    if (e.target && e.target.style) {
+      e.target.style.height = 'auto';
+      e.target.style.height = `${Math.min(e.target.scrollHeight || 0, 128)}px`;
+    } else if (textareaRef.current?.style) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight || 0, 128)}px`;
+    }
 
     // Detect slash command typing
     if (val.startsWith('/') && !val.includes(' ')) {
@@ -3497,8 +3502,10 @@ export default function App() {
       setTimeout(() => {
         ta.focus();
         ta.setSelectionRange(start + emoji.length, start + emoji.length);
-        ta.style.height = 'auto';
-        ta.style.height = `${Math.min(ta.scrollHeight, 128)}px`;
+        if (ta?.style) {
+          ta.style.height = 'auto';
+          ta.style.height = `${Math.min(ta.scrollHeight || 0, 128)}px`;
+        }
       }, 10);
     } else if (inputRef.current) {
       const input = inputRef.current;

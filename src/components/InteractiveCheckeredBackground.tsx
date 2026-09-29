@@ -218,9 +218,10 @@ export function InteractiveCheckeredBackground({
     renderStaticGrid();
 
     const handleResize = () => {
-      if (!canvas) return;
-      width = canvas.width = window.innerWidth;
-      height = canvas.height = window.innerHeight;
+      const c = canvasRef.current;
+      if (!c) return;
+      width = c.width = window.innerWidth;
+      height = c.height = window.innerHeight;
       renderStaticGrid();
     };
 

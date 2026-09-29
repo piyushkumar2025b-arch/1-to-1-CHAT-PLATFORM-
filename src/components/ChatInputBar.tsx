@@ -208,9 +208,12 @@ export const ChatInputBar = memo<ChatInputBarProps>(
       const newVal =
         currentVal.substring(0, start) + prefix + insertText + suffix + currentVal.substring(end);
 
+      textarea.value = newVal;
+
       const syntheticEvent = {
-        target: { value: newVal },
-      } as React.ChangeEvent<HTMLTextAreaElement>;
+        target: textarea,
+        currentTarget: textarea,
+      } as unknown as React.ChangeEvent<HTMLTextAreaElement>;
       onTextareaChange(syntheticEvent);
 
       setTimeout(() => {
@@ -219,6 +222,10 @@ export const ChatInputBar = memo<ChatInputBarProps>(
           start + prefix.length,
           start + prefix.length + insertText.length
         );
+        if (textarea?.style) {
+          textarea.style.height = 'auto';
+          textarea.style.height = `${Math.min(textarea.scrollHeight || 0, 128)}px`;
+        }
       }, 30);
     };
 
