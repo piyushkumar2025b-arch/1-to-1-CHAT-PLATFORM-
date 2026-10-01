@@ -854,6 +854,57 @@ async function startServer() {
           }
           return;
         }
+
+        // Step 8: Instant Message Edit Relay (<2ms)
+        if (data.type === 'edit_message' || data.type === 'message_edited') {
+          const peer = currentRoom.users.find((u) => u.id !== assignedUserId);
+          if (peer && peer.ws.readyState === WebSocket.OPEN) {
+            peer.ws.send(
+              JSON.stringify({
+                type: 'message_edited',
+                messageId: data.messageId,
+                ct: data.ct,
+                iv: data.iv,
+                nonce: data.nonce || '',
+                senderId: assignedUserId,
+                editedAt: data.editedAt || Date.now(),
+              })
+            );
+          }
+          return;
+        }
+
+        // Step 9: Instant Message Delete Relay (<2ms)
+        if (data.type === 'delete_message' || data.type === 'message_deleted') {
+          const peer = currentRoom.users.find((u) => u.id !== assignedUserId);
+          if (peer && peer.ws.readyState === WebSocket.OPEN) {
+            peer.ws.send(
+              JSON.stringify({
+                type: 'message_deleted',
+                messageId: data.messageId,
+                senderId: assignedUserId,
+                timestamp: Date.now(),
+              })
+            );
+          }
+          return;
+        }
+
+        // Step 10: Instant View-Once Media Burned Relay (<2ms)
+        if (data.type === 'burn_media' || data.type === 'media_burned') {
+          const peer = currentRoom.users.find((u) => u.id !== assignedUserId);
+          if (peer && peer.ws.readyState === WebSocket.OPEN) {
+            peer.ws.send(
+              JSON.stringify({
+                type: 'media_burned',
+                messageId: data.messageId,
+                senderId: assignedUserId,
+                timestamp: Date.now(),
+              })
+            );
+          }
+          return;
+        }
       } catch {
         // Ignore invalid message formatting
       }

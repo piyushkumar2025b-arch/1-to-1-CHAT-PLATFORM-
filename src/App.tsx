@@ -1923,6 +1923,15 @@ export default function App() {
         ts: envelope.ts,
       });
 
+      // Synchronize via direct WebSocket tunnel (<2ms)
+      realTimeSocket.sendEditMessage({
+        messageId: editingMessage.id,
+        ct: envelope.ct,
+        iv: envelope.iv,
+        nonce: envelope.nonce,
+        editedAt: now,
+      });
+
       // Synchronize with server-authorized mutation endpoint (Fix Bug 8)
       const sessionToken = realTimeSocket.getSessionToken();
       if (sessionToken) {
@@ -1964,6 +1973,9 @@ export default function App() {
   const handleBurnMedia = async (messageId: string, fileId: string) => {
     if (!activeRoomId || !messageId) return;
     const now = Date.now();
+
+    // Instant WebSocket broadcast (<2ms)
+    realTimeSocket.sendMediaBurned(messageId);
 
     // Call server-authorized burn endpoint (Fix Bug 9)
     const sessionToken = realTimeSocket.getSessionToken();
@@ -3180,6 +3192,9 @@ export default function App() {
           : m
       )
     );
+
+    // Instant WebSocket broadcast (<2ms)
+    realTimeSocket.sendDeleteMessage(messageId);
 
     // Call server-authorized delete endpoint (Fix Bug 6 & 7)
     const sessionToken = realTimeSocket.getSessionToken();

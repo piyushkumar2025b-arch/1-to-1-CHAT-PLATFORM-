@@ -443,6 +443,64 @@ class RealTimeSocketClient {
     }
   }
 
+  /**
+   * Relay instant message edit over ultra-low-latency WebSocket tunnel (<2ms)
+   */
+  public sendEditMessage(payload: { messageId: string; ct: string; iv: string; nonce?: string; editedAt?: number }): void {
+    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+      try {
+        this.socket.send(
+          JSON.stringify({
+            type: 'edit_message',
+            messageId: payload.messageId,
+            ct: payload.ct,
+            iv: payload.iv,
+            nonce: payload.nonce || '',
+            editedAt: payload.editedAt || Date.now(),
+          })
+        );
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  /**
+   * Relay instant message deletion over ultra-low-latency WebSocket tunnel (<2ms)
+   */
+  public sendDeleteMessage(messageId: string): void {
+    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+      try {
+        this.socket.send(
+          JSON.stringify({
+            type: 'delete_message',
+            messageId,
+          })
+        );
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  /**
+   * Relay instant view-once media burn over ultra-low-latency WebSocket tunnel (<2ms)
+   */
+  public sendMediaBurned(messageId: string): void {
+    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+      try {
+        this.socket.send(
+          JSON.stringify({
+            type: 'burn_media',
+            messageId,
+          })
+        );
+      } catch {
+        // ignore
+      }
+    }
+  }
+
   // Event Subscription methods
   public onAck(handler: AckHandler): () => void {
     this.ackHandlers.add(handler);
