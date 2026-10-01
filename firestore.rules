@@ -24,7 +24,9 @@ service cloud.firestore {
         && request.resource.data.passwordHash is string
         && request.resource.data.passwordHash.size() <= 256;
 
-      allow update: if isValidId(roomId);
+      // Prevent unauthorized modification of room password hash once established
+      allow update: if isValidId(roomId)
+        && (!('passwordHash' in request.resource.data) || request.resource.data.passwordHash == resource.data.passwordHash);
 
       allow delete: if isValidId(roomId);
 
@@ -33,23 +35,29 @@ service cloud.firestore {
         allow get: if isValidId(roomId) && isValidId(messageId);
         allow list: if isValidId(roomId);
 
-        // Writes MUST either be:
-        // 1. Fully encrypted envelope with bounded payload
-        // 2. A tombstone deletion record (isDeleted: true)
-        // 3. Or a bounded message text payload
+        // Writes MUST strictly be:
+        // 1. Fully encrypted envelope with cryptographic IV and nonce (BUG-002: no plaintext allowed)
+        // 2. Or a tombstone deletion record (isDeleted: true)
         allow create: if isValidId(roomId) && isValidId(messageId)
           && (
             (request.resource.data.enc == true 
               && request.resource.data.ct is string 
               && request.resource.data.iv is string
+              && request.resource.data.nonce is string
               && request.resource.data.ct.size() > 0
               && request.resource.data.ct.size() <= 1048576)
             || (request.resource.data.isDeleted == true)
-            || (request.resource.data.text is string && request.resource.data.text.size() <= 10000)
           );
 
-        // Message updates: reactions, editing, or soft deletions
-        allow update: if isValidId(roomId) && isValidId(messageId);
+        // Message updates: editing (must be encrypted), reactions, or deletions
+        allow update: if isValidId(roomId) && isValidId(messageId)
+          && (
+            (request.resource.data.enc == true && request.resource.data.ct is string && request.resource.data.iv is string)
+            || (request.resource.data.isDeleted == true)
+            || ('reactions' in request.resource.data)
+            || ('viewed' in request.resource.data)
+            || ('burned' in request.resource.data)
+          );
 
         // Message deletion
         allow delete: if isValidId(roomId) && isValidId(messageId);

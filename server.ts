@@ -18,6 +18,8 @@ import {
   isValidPassword,
   createRoomSessionToken,
   verifyRoomSessionToken,
+  revokeRoomSessionToken,
+  revokeAllTokensForRoom,
   burnRoomAndDestroyAllDataServer,
   deleteMessageServer,
   editMessageServer,
@@ -29,7 +31,9 @@ import { isAllowedWsOrigin, stripInvisibleChars } from './src/lib/security';
 
 dotenv.config();
 
-const PORT = 3000;
+// Respect platform-provided PORT (BUG-014)
+const parsedPort = Number(process.env.PORT);
+const PORT = Number.isInteger(parsedPort) && parsedPort > 0 ? parsedPort : 3000;
 const TRUST_PROXY = process.env.TRUST_PROXY === 'true';
 
 interface ChatUser {
@@ -37,6 +41,7 @@ interface ChatUser {
   ws: WebSocket;
   roomId: string;
   ip: string;
+  sessionToken?: string;
 }
 
 interface Room {
@@ -622,19 +627,26 @@ async function startServer() {
             return;
           }
 
-          assignedUserId = (typeof data.userId === 'string' && data.userId.trim().length > 0 && data.userId.length <= 64)
+          let candidateId = (typeof data.userId === 'string' && data.userId.trim().length > 0 && data.userId.length <= 64)
             ? stripInvisibleChars(data.userId).trim()
-            : crypto.randomBytes(8).toString('hex');
+            : '';
+          // Ensure uniqueness inside the room to prevent impersonation or collision (BUG-003)
+          if (!candidateId || room.users.some((u) => u.id === candidateId)) {
+            candidateId = `user_${crypto.randomBytes(8).toString('hex')}`;
+          }
+          assignedUserId = candidateId;
+
+          // Generate cryptographic session token (Fix Bug 1, 2 & 14)
+          const sessionToken = createRoomSessionToken(assignedRoomId, assignedUserId);
+
           const user: ChatUser = {
             id: assignedUserId,
             ws,
             roomId: assignedRoomId,
             ip: clientIp,
+            sessionToken,
           };
           room.users.push(user);
-
-          // Generate cryptographic session token (Fix Bug 1, 2 & 14)
-          const sessionToken = createRoomSessionToken(assignedRoomId, assignedUserId);
 
           // Update active count in Firestore
           syncRoomState(assignedRoomId, room.users.length).catch((err) =>
@@ -856,6 +868,10 @@ async function startServer() {
       if (isAuthenticated && assignedUserId && assignedRoomId) {
         const currentRoom = rooms.get(assignedRoomId);
         if (currentRoom) {
+          const departingUser = currentRoom.users.find((u) => u.id === assignedUserId);
+          if (departingUser?.sessionToken) {
+            revokeRoomSessionToken(departingUser.sessionToken);
+          }
           currentRoom.users = currentRoom.users.filter((u) => u.id !== assignedUserId);
 
           // Update Firestore with new active participant count
@@ -877,6 +893,7 @@ async function startServer() {
             }
           } else if (currentRoom.users.length === 0) {
             rooms.delete(assignedRoomId);
+            revokeAllTokensForRoom(assignedRoomId);
           }
         }
       }
@@ -992,6 +1009,7 @@ async function startServer() {
     }
 
     const result = await burnRoomAndDestroyAllDataServer(session.roomId);
+    revokeAllTokensForRoom(session.roomId);
 
     // Broadcast self-destruct notice to active sockets and close them
     const memRoom = rooms.get(session.roomId);
@@ -1043,7 +1061,7 @@ async function startServer() {
     return res.status(result.ok ? 200 : 400).json(result);
   });
 
-  // Server-authorized message editing within 15 minutes (Fix Bug 8)
+  // Server-authorized message editing within 15 minutes (Fix Bug 8 & 13)
   app.post('/api/rooms/edit-message', async (req, res) => {
     const authHeader = req.headers.authorization;
     const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : req.body?.sessionToken;
@@ -1052,12 +1070,12 @@ async function startServer() {
       return res.status(401).json({ ok: false, error: 'Unauthorized' });
     }
 
-    const { messageId, ct, iv } = req.body || {};
+    const { messageId, ct, iv, nonce } = req.body || {};
     if (!messageId || typeof messageId !== 'string' || !ct || typeof ct !== 'string' || !iv || typeof iv !== 'string') {
       return res.status(400).json({ ok: false, error: 'Invalid edit parameters' });
     }
 
-    const result = await editMessageServer(session.roomId, messageId, session.userId, ct, iv);
+    const result = await editMessageServer(session.roomId, messageId, session.userId, ct, iv, typeof nonce === 'string' ? nonce : undefined);
     if (result.ok) {
       const memRoom = rooms.get(session.roomId);
       if (memRoom) {
@@ -1066,6 +1084,7 @@ async function startServer() {
           messageId,
           ct,
           iv,
+          nonce: nonce || '',
           senderId: session.userId,
           editedAt: Date.now(),
         });
@@ -1116,13 +1135,13 @@ async function startServer() {
     return res.status(result.ok ? 200 : 400).json(result);
   });
 
-  // Server-authorized message history retrieval (Fix Bug 1)
+  // Server-authorized message history retrieval (Fix Bug 1 & 11)
   app.get('/api/rooms/messages', async (req, res) => {
     const authHeader = req.headers.authorization;
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : (req.query.token as string);
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
     const session = verifyRoomSessionToken(token);
     if (!session) {
-      return res.status(401).json({ ok: false, error: 'Unauthorized' });
+      return res.status(401).json({ ok: false, error: 'Unauthorized: Bearer token required' });
     }
 
     try {

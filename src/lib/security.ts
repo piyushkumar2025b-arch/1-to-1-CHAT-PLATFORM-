@@ -519,6 +519,7 @@ export async function burnRoomAndDestroyAllData(
   if (!cleanRoom) return { success: false, deletedCount: 0 };
 
   let count = 0;
+  let hasErrors = false;
 
   // If running in browser with session token or fetch available, call secure backend burn API (Fix Bug 12)
   if (typeof window !== 'undefined' && typeof fetch === 'function') {
@@ -536,6 +537,8 @@ export async function burnRoomAndDestroyAllData(
         if (data && typeof data.deletedCount === 'number') {
           count = data.deletedCount;
         }
+      } else {
+        hasErrors = true;
       }
     } catch {
       // Continue to direct deletion if backend burn unreachable or in test environment
@@ -546,11 +549,12 @@ export async function burnRoomAndDestroyAllData(
   try {
     const messagesSnap = await getDocs(collection(db, 'rooms', cleanRoom, 'messages'));
     for (const d of messagesSnap.docs) {
-      await deleteDoc(d.ref).catch(() => {});
+      await deleteDoc(d.ref).catch(() => { hasErrors = true; });
       count++;
     }
   } catch (err) {
     console.warn('Note during messages purge:', err);
+    hasErrors = true;
   }
 
   // 2. Delete all files & chunk subcollections
@@ -562,17 +566,18 @@ export async function burnRoomAndDestroyAllData(
           collection(db, 'rooms', cleanRoom, 'files', fileDoc.id, 'chunks')
         );
         for (const chunkDoc of chunksSnap.docs) {
-          await deleteDoc(chunkDoc.ref).catch(() => {});
+          await deleteDoc(chunkDoc.ref).catch(() => { hasErrors = true; });
           count++;
         }
       } catch {
         // Continue if chunk subcollection empty or uninitialized
       }
-      await deleteDoc(fileDoc.ref).catch(() => {});
+      await deleteDoc(fileDoc.ref).catch(() => { hasErrors = true; });
       count++;
     }
   } catch (err) {
     console.warn('Note during files purge:', err);
+    hasErrors = true;
   }
 
   // 3. Delete call sessions & candidate subcollections
@@ -584,7 +589,7 @@ export async function burnRoomAndDestroyAllData(
           collection(db, 'rooms', cleanRoom, 'calls', 'current', colName)
         );
         for (const c of cSnap.docs) {
-          await deleteDoc(c.ref).catch(() => {});
+          await deleteDoc(c.ref).catch(() => { hasErrors = true; });
           count++;
         }
       } catch {
@@ -593,9 +598,10 @@ export async function burnRoomAndDestroyAllData(
     }
 
     const callDoc = doc(db, 'rooms', cleanRoom, 'calls', 'current');
-    await deleteDoc(callDoc).catch(() => {});
+    await deleteDoc(callDoc).catch(() => { hasErrors = true; });
   } catch (err) {
     console.warn('Note during call session purge:', err);
+    hasErrors = true;
   }
 
   // 4. Delete the room document itself
@@ -605,12 +611,13 @@ export async function burnRoomAndDestroyAllData(
     count++;
   } catch (err) {
     console.error('Failed deleting room document during self-destruct:', err);
+    hasErrors = true;
   }
 
   // Clear local lockout records
   resetFailedAttempts(cleanRoom);
 
-  return { success: true, deletedCount: count };
+  return { success: !hasErrors, deletedCount: count };
 }
 
 // -------------------------------------------------------------

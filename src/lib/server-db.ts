@@ -49,8 +49,46 @@ export function isValidPassword(password: string): boolean {
   return typeof password === 'string' && password.length >= 1 && password.length <= 128;
 }
 
-const SERVER_PEPPER = 'PRIVATE_SHIELD_V2_PEPPER_9921_X!';
+const SERVER_PEPPER = process.env.SERVER_PEPPER || 'PRIVATE_SHIELD_V2_PEPPER_9921_X!';
 const SERVER_SESSION_SECRET = process.env.SESSION_SECRET || 'pv_secret_session_key_928174_z!';
+
+// In-memory revocation registry for invalidated tokens
+const revokedTokens = new Set<string>();
+const roomSessionTokens = new Map<string, Set<string>>();
+
+export function registerRoomSessionToken(token: string, roomId: string): void {
+  const cleanRoom = roomId.trim().toUpperCase();
+  let set = roomSessionTokens.get(cleanRoom);
+  if (!set) {
+    set = new Set<string>();
+    roomSessionTokens.set(cleanRoom, set);
+  }
+  set.add(token);
+}
+
+export function revokeRoomSessionToken(token: string): void {
+  if (!token) return;
+  revokedTokens.add(token);
+  // Cap revoked set size to 10,000 to avoid unbounded memory growth
+  if (revokedTokens.size > 10000) {
+    const iter = revokedTokens.values();
+    for (let i = 0; i < 2000; i++) {
+      const next = iter.next();
+      if (!next.done) revokedTokens.delete(next.value);
+    }
+  }
+}
+
+export function revokeAllTokensForRoom(roomId: string): void {
+  const cleanRoom = roomId.trim().toUpperCase();
+  const set = roomSessionTokens.get(cleanRoom);
+  if (set) {
+    for (const t of set) {
+      revokedTokens.add(t);
+    }
+    roomSessionTokens.delete(cleanRoom);
+  }
+}
 
 /**
  * Legacy hash function for backward-compatibility with tests
@@ -93,6 +131,10 @@ export function verifyPasswordHash(password: string, storedHash: string, roomId:
     const parts = storedHash.split(':');
     if (parts.length === 4) {
       const iterations = parseInt(parts[1], 10) || 100000;
+      // Guard against attacker-controlled iteration count DoS (BUG-019)
+      if (iterations < 10000 || iterations > 500000) {
+        return false;
+      }
       const salt = parts[2];
       const expected = parts[3];
       const actual = crypto.pbkdf2Sync(password, salt, iterations, 32, 'sha256').toString('hex');
@@ -125,7 +167,9 @@ export function createRoomSessionToken(roomId: string, userId: string): string {
   const expiresAt = issuedAt + 24 * 60 * 60 * 1000; // 24-hour lifetime
   const payload = JSON.stringify({ roomId, userId, issuedAt, expiresAt });
   const hmac = crypto.createHmac('sha256', SERVER_SESSION_SECRET).update(payload).digest('hex');
-  return Buffer.from(payload).toString('base64url') + '.' + hmac;
+  const token = Buffer.from(payload).toString('base64url') + '.' + hmac;
+  registerRoomSessionToken(token, roomId);
+  return token;
 }
 
 /**
@@ -133,6 +177,9 @@ export function createRoomSessionToken(roomId: string, userId: string): string {
  */
 export function verifyRoomSessionToken(token: string, requiredRoomId?: string): SessionTokenData | null {
   if (!token || typeof token !== 'string') return null;
+  // Check revocation registry (BUG-010)
+  if (revokedTokens.has(token)) return null;
+
   const parts = token.split('.');
   if (parts.length !== 2) return null;
 
@@ -160,6 +207,24 @@ export interface RoomRecord {
   lastActiveAt: string;
 }
 
+// In-memory mutex per roomId to serialize concurrent first-joins atomically (BUG-008)
+const roomAuthLocks = new Map<string, Promise<any>>();
+async function withRoomLock<T>(roomId: string, fn: () => Promise<T>): Promise<T> {
+  const current = roomAuthLocks.get(roomId) || Promise.resolve();
+  let release: () => void;
+  const next = new Promise<void>((resolve) => { release = resolve; });
+  roomAuthLocks.set(roomId, current.then(() => next));
+  try {
+    await current;
+    return await fn();
+  } finally {
+    release!();
+    if (roomAuthLocks.get(roomId) === next) {
+      roomAuthLocks.delete(roomId);
+    }
+  }
+}
+
 /**
  * Validates or creates a room in Firestore based on user's chosen password.
  * Fail-closed: returns error if database is unavailable.
@@ -178,61 +243,63 @@ export async function authenticateOrCreateRoom(
     return { ok: false, error: 'Password must be between 1 and 128 characters.' };
   }
 
-  const db = getDatabase();
-  if (!db) {
-    // Fail closed: Never grant authentication bypass when database is unavailable (Fix Bug 13)
-    return { ok: false, error: 'Database service unavailable. Please try again shortly.' };
-  }
-
-  try {
-    const roomRef = doc(db, 'rooms', cleanRoom);
-    const snap = await getDoc(roomRef);
-
-    if (!snap.exists()) {
-      // Room does not exist yet -> creator sets the password using PBKDF2
-      const pbkdf2Hash = hashPasswordPBKDF2(password);
-      await setDoc(roomRef, {
-        roomId: cleanRoom,
-        passwordHash: pbkdf2Hash,
-        participantCount: 1,
-        createdAt: new Date().toISOString(),
-        lastActiveAt: new Date().toISOString(),
-        serverTimestamp: serverTimestamp(),
-      });
-      return { ok: true, isNewRoom: true };
+  return withRoomLock(cleanRoom, async () => {
+    const db = getDatabase();
+    if (!db) {
+      // Fail closed: Never grant authentication bypass when database is unavailable (Fix Bug 13)
+      return { ok: false, error: 'Database service unavailable. Please try again shortly.' };
     }
 
-    const data = snap.data();
-    const storedHash = data?.passwordHash;
-    const storedCount = data?.participantCount || 0;
+    try {
+      const roomRef = doc(db, 'rooms', cleanRoom);
+      const snap = await getDoc(roomRef);
 
-    // If room is completely idle (0 active participants in memory and in db),
-    // allow the new session creator to claim or update it
-    if (currentActiveParticipants === 0 && storedCount === 0) {
-      const pbkdf2Hash = hashPasswordPBKDF2(password);
-      await updateDoc(roomRef, {
-        passwordHash: pbkdf2Hash,
-        participantCount: 1,
-        lastActiveAt: new Date().toISOString(),
-        serverTimestamp: serverTimestamp(),
-      });
-      return { ok: true, isNewRoom: true };
+      if (!snap.exists()) {
+        // Room does not exist yet -> creator sets the password using PBKDF2
+        const pbkdf2Hash = hashPasswordPBKDF2(password);
+        await setDoc(roomRef, {
+          roomId: cleanRoom,
+          passwordHash: pbkdf2Hash,
+          participantCount: currentActiveParticipants,
+          createdAt: new Date().toISOString(),
+          lastActiveAt: new Date().toISOString(),
+          serverTimestamp: serverTimestamp(),
+        });
+        return { ok: true, isNewRoom: true };
+      }
+
+      const data = snap.data();
+      const storedHash = data?.passwordHash;
+      const storedCount = data?.participantCount || 0;
+
+      // If room is completely idle (0 active participants in memory and in db),
+      // allow the new session creator to claim or update it
+      if (currentActiveParticipants === 0 && storedCount === 0) {
+        const pbkdf2Hash = hashPasswordPBKDF2(password);
+        await updateDoc(roomRef, {
+          passwordHash: pbkdf2Hash,
+          participantCount: 0,
+          lastActiveAt: new Date().toISOString(),
+          serverTimestamp: serverTimestamp(),
+        });
+        return { ok: true, isNewRoom: true };
+      }
+
+      // Room is active -> password MUST match using constant-time PBKDF2/legacy verification
+      const isValid = verifyPasswordHash(password, storedHash, cleanRoom);
+      if (!isValid) {
+        return {
+          ok: false,
+          error: 'Incorrect password for this room. Make sure both of you use the exact same password.'
+        };
+      }
+
+      return { ok: true };
+    } catch (err) {
+      console.warn('Error verifying room in Firestore:', err);
+      return { ok: false, error: 'Database verification failed. Please try again shortly.' };
     }
-
-    // Room is active -> password MUST match using constant-time PBKDF2/legacy verification
-    const isValid = verifyPasswordHash(password, storedHash, cleanRoom);
-    if (!isValid) {
-      return {
-        ok: false,
-        error: 'Incorrect password for this room. Make sure both of you use the exact same password.'
-      };
-    }
-
-    return { ok: true };
-  } catch (err) {
-    console.warn('Error verifying room in Firestore:', err);
-    return { ok: false, error: 'Database verification failed. Please try again shortly.' };
-  }
+  });
 }
 
 export async function syncRoomState(roomId: string, count: number): Promise<void> {
@@ -292,6 +359,19 @@ export async function burnRoomAndDestroyAllDataServer(roomId: string): Promise<{
             await deleteDoc(c.ref);
             count++;
           }
+        } else if (sub === 'calls') {
+          // Recursively delete WebRTC candidate subcollections (BUG-009)
+          const candidateSubs = ['candidates', 'callerCandidates', 'calleeCandidates'];
+          for (const cSub of candidateSubs) {
+            try {
+              const cCol = collection(db, 'rooms', cleanRoom, 'calls', d.id, cSub);
+              const cSnaps = await getDocs(cCol);
+              for (const cd of cSnaps.docs) {
+                await deleteDoc(cd.ref);
+                count++;
+              }
+            } catch {}
+          }
         }
         await deleteDoc(d.ref);
         count++;
@@ -300,6 +380,7 @@ export async function burnRoomAndDestroyAllDataServer(roomId: string): Promise<{
 
     await deleteDoc(doc(db, 'rooms', cleanRoom));
     count++;
+    revokeAllTokensForRoom(cleanRoom);
     return { ok: true, deletedCount: count };
   } catch (err) {
     console.warn('Error burning room in Firestore:', err);
@@ -393,14 +474,15 @@ export async function deleteMessageServer(
 }
 
 /**
- * Server-authorized message editing with strict 15-minute window check (Fix Bug 8)
+ * Server-authorized message editing with strict 15-minute window check (Fix Bug 8 & 13)
  */
 export async function editMessageServer(
   roomId: string,
   messageId: string,
   userId: string,
   newCt: string,
-  newIv: string
+  newIv: string,
+  newNonce?: string
 ): Promise<{ ok: boolean; error?: string }> {
   const db = getDatabase();
   const cleanRoom = roomId.trim().toUpperCase();
@@ -444,6 +526,7 @@ export async function editMessageServer(
   if (cached) {
     cached.ct = newCt;
     cached.iv = newIv;
+    if (newNonce) cached.nonce = newNonce;
     cached.isEdited = true;
     cached.editedAt = new Date().toISOString();
     recentMessagesCache.set(cacheKey, cached);
@@ -452,17 +535,15 @@ export async function editMessageServer(
   if (db) {
     try {
       const msgRef = doc(db, 'rooms', cleanRoom, 'messages', messageId);
-      await setDoc(
-        msgRef,
-        {
-          ...msgData,
-          ct: newCt,
-          iv: newIv,
-          isEdited: true,
-          editedAt: new Date().toISOString(),
-        },
-        { merge: true }
-      );
+      const updatePayload: Record<string, any> = {
+        ...msgData,
+        ct: newCt,
+        iv: newIv,
+        isEdited: true,
+        editedAt: new Date().toISOString(),
+      };
+      if (newNonce) updatePayload.nonce = newNonce;
+      await setDoc(msgRef, updatePayload, { merge: true });
     } catch (err: any) {
       return { ok: false, error: err.message || 'Edit failed' };
     }
@@ -472,7 +553,7 @@ export async function editMessageServer(
 }
 
 /**
- * Server-authorized view-once media burning (Fix Bug 9)
+ * Server-authorized view-once media burning (Fix Bug 9 & 12)
  */
 export async function burnMediaServer(
   roomId: string,
@@ -524,6 +605,21 @@ export async function burnMediaServer(
         },
         { merge: true }
       );
+
+      // Destroy underlying file document and chunk records physically (BUG-012)
+      const fileId = msgData?.file?.id || msgData?.fileId || msgData?.attachmentId;
+      if (fileId && isValidRoomId(cleanRoom)) {
+        try {
+          const chunkCol = collection(db, 'rooms', cleanRoom, 'files', fileId, 'chunks');
+          const chunkSnaps = await getDocs(chunkCol);
+          for (const c of chunkSnaps.docs) {
+            await deleteDoc(c.ref).catch(() => {});
+          }
+          await deleteDoc(doc(db, 'rooms', cleanRoom, 'files', fileId)).catch(() => {});
+        } catch (err) {
+          console.warn('Error purging view-once file chunks:', err);
+        }
+      }
     } catch (err: any) {
       return { ok: false, error: err.message || 'Burn failed' };
     }

@@ -920,7 +920,7 @@ export const ChatInputBar = memo<ChatInputBarProps>(
                   onClick={() => setToolsMenuOpen(!toolsMenuOpen)}
                   disabled={!isInRoom}
                   title="Open Chat Tools & Security Enclave (Polls, Canvas, Cipher, Burn Notes...)"
-                  className={`p-2 rounded-xl transition-all cursor-pointer flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed ${
+                  className={`p-1.5 sm:p-2 rounded-xl transition-all cursor-pointer flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed ${
                     toolsMenuOpen
                       ? 'bg-amber-500 text-neutral-950 shadow-md ring-2 ring-amber-400/50 scale-105'
                       : 'bg-neutral-900/80 hover:bg-neutral-800 text-amber-400 border border-neutral-750 hover:border-amber-400/40'
@@ -936,7 +936,7 @@ export const ChatInputBar = memo<ChatInputBarProps>(
                   onClick={() => fileInputRef.current?.click()}
                   disabled={!isInRoom}
                   title="Attach file (images, docs, audio, archives up to 50MB)"
-                  className="p-2 rounded-xl hover:bg-white/10 active:bg-white/15 text-neutral-400 hover:text-amber-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  className="p-1.5 sm:p-2 rounded-xl hover:bg-white/10 active:bg-white/15 text-neutral-400 hover:text-amber-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
                   <Paperclip className="w-4 h-4" />
                 </button>
@@ -954,7 +954,7 @@ export const ChatInputBar = memo<ChatInputBarProps>(
                   }}
                   disabled={!isInRoom}
                   title="Slash Commands (/canvas, /poll, /shrug, /notes...)"
-                  className={`p-2 rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${
+                  className={`hidden xs:flex p-1.5 sm:p-2 rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${
                     slashMenuOpen
                       ? 'bg-teal-500/20 text-teal-300 border border-teal-500/40'
                       : 'hover:bg-white/10 text-neutral-400 hover:text-teal-300'
@@ -970,7 +970,7 @@ export const ChatInputBar = memo<ChatInputBarProps>(
                   onClick={onStartVoiceRecording}
                   disabled={!isInRoom}
                   title="Record voice note"
-                  className="p-2 rounded-xl hover:bg-white/10 active:bg-white/15 text-neutral-400 hover:text-rose-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  className="p-1.5 sm:p-2 rounded-xl hover:bg-white/10 active:bg-white/15 text-neutral-400 hover:text-rose-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
                   <Mic className="w-4 h-4" />
                 </button>
@@ -998,7 +998,7 @@ export const ChatInputBar = memo<ChatInputBarProps>(
                         : 'Type message or "/" for commands (Shift+Enter for newline)...'
                       : 'Connecting to room...'
                   }
-                  className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none px-2 sm:px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors resize-none leading-relaxed max-h-32 min-h-[40px]"
+                  className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none px-2 sm:px-3 py-1.5 sm:py-2 text-sm text-neutral-100 placeholder:text-neutral-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors resize-none leading-relaxed max-h-32 min-h-[38px]"
                 />
                 {inputText.length > 80 && (
                   <div className="absolute right-2 bottom-1 pointer-events-none text-[9px] font-mono text-neutral-400/90 bg-neutral-900/90 px-1.5 py-0.5 rounded border border-white/10 select-none">
@@ -1016,7 +1016,7 @@ export const ChatInputBar = memo<ChatInputBarProps>(
                   onClick={() => setFormatToolbarOpen(!formatToolbarOpen)}
                   disabled={!isInRoom}
                   title="Format text (Bold, Italic, Code, Quote, Spoiler)"
-                  className={`p-2 rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${
+                  className={`hidden sm:flex p-1.5 sm:p-2 rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${
                     formatToolbarOpen
                       ? 'bg-neutral-800 text-amber-300 border border-neutral-700'
                       : 'hover:bg-white/10 text-neutral-400 hover:text-neutral-200'
@@ -1032,7 +1032,7 @@ export const ChatInputBar = memo<ChatInputBarProps>(
                   onClick={() => setEmojiPickerOpen((prev) => !prev)}
                   disabled={!isInRoom}
                   title="Insert emoji"
-                  className={`p-2 rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${
+                  className={`p-1.5 sm:p-2 rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${
                     emojiPickerOpen
                       ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                       : 'hover:bg-white/10 text-neutral-400 hover:text-amber-400'
@@ -1052,7 +1052,7 @@ export const ChatInputBar = memo<ChatInputBarProps>(
                       ? `Disappearing messages: ${ephemeralDurationOption} (Click to change)`
                       : 'Disappearing messages: OFF (Click to turn ON)'
                   }
-                  className={`p-2 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1 ${
+                  className={`p-1.5 sm:p-2 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1 ${
                     ephemeralEnabled
                       ? 'bg-amber-500/25 text-amber-300 border border-amber-500/60 ring-1 ring-amber-400/40 shadow-xs'
                       : 'hover:bg-white/10 text-neutral-400 hover:text-amber-400'

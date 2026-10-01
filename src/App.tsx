@@ -60,6 +60,7 @@ import {
   addDoc,
   query,
   orderBy,
+  limit,
   deleteField,
   runTransaction,
 } from 'firebase/firestore';
@@ -182,6 +183,7 @@ import {
   cleanExpiredRoomArtifacts,
   sanitizeDecryptedHtml,
   copyToClipboardSafe,
+  stripInvisibleChars,
 } from './lib/security';
 import {
   encryptWithEnclave,
@@ -955,9 +957,9 @@ export default function App() {
     });
 
     // Instant socket message edit listener (<5ms)
-    const unsubSocketEdit = realTimeSocket.onMessageEdited(async ({ messageId, ct, iv, editedAt }) => {
+    const unsubSocketEdit = realTimeSocket.onMessageEdited(async ({ messageId, ct, iv, nonce, editedAt }) => {
       try {
-        const dec = await decryptWithEnclave({ ct, iv, v: 2 }, roomPwd, activeRoomId);
+        const dec = await decryptWithEnclave({ ct, iv, nonce, v: 2 }, roomPwd, activeRoomId);
         if (dec && dec.text) {
           setMessages((prev) =>
             prev.map((m) =>
@@ -1087,8 +1089,8 @@ export default function App() {
       }
     );
 
-    // 2. Real-time messages listener from Firestore subcollection (unconditional collection query)
-    const messagesCollectionRef = collection(db, 'rooms', activeRoomId, 'messages');
+    // 2. Real-time messages listener from Firestore subcollection bounded to 250 items (BUG-016)
+    const messagesCollectionRef = query(collection(db, 'rooms', activeRoomId, 'messages'), limit(250));
 
     const unsubscribeMessages = onSnapshot(
       messagesCollectionRef,
@@ -1370,12 +1372,21 @@ export default function App() {
   }, [activeRoomId, myUserId]);
 
   const generateRandomRoom = () => {
-    const prefixes = ['ROOM', 'CHAT', 'SEC', 'NODE', 'HUB'];
-    const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
-    const num = Math.floor(100 + Math.random() * 900);
-    const code = `${prefix}-${num}`;
+    // Generate high-entropy 8-character Base32 room code (> 1.1 trillion possibilities) (BUG-005)
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const rand = new Uint8Array(8);
+    if (typeof window !== 'undefined' && window.crypto) {
+      window.crypto.getRandomValues(rand);
+    } else {
+      for (let i = 0; i < 8; i++) rand[i] = Math.floor(Math.random() * 256);
+    }
+    let code = '';
+    for (let i = 0; i < 4; i++) code += chars[rand[i] % chars.length];
+    code += '-';
+    for (let i = 4; i < 8; i++) code += chars[rand[i] % chars.length];
     setRoomId(code);
     if (authError) setAuthError('');
+    return code;
   };
 
   // Check for QR invite URL parameters on startup
@@ -1386,7 +1397,8 @@ export default function App() {
         const cleanRoom = payload.roomId.trim().toUpperCase();
         setRoomId(cleanRoom);
         if (payload.password) {
-          const cleanPass = payload.password.trim();
+          // Preserve valid whitespace in passwords (BUG-006)
+          const cleanPass = stripInvisibleChars(payload.password);
           setPassword(cleanPass);
           setSecurityToastMessage(`QR Invite: Auto-connecting to room ${cleanRoom}...`);
           handleRoomSubmit(undefined, cleanRoom, cleanPass);
@@ -1411,7 +1423,8 @@ export default function App() {
     }
     setRoomId(cleanRoom);
     if (payload.password) {
-      const cleanPass = payload.password.trim();
+      // Preserve valid whitespace in passwords (BUG-006)
+      const cleanPass = stripInvisibleChars(payload.password);
       activePasswordRef.current = cleanPass;
       setPassword(cleanPass);
       setSecurityToastMessage(`QR Verified: Connecting to room ${cleanRoom}...`);
@@ -1431,7 +1444,8 @@ export default function App() {
     const targetPassword = overridePassword !== undefined ? overridePassword : password;
 
     const cleanRoom = targetRoom.trim().toUpperCase();
-    const cleanPassword = targetPassword.trim();
+    // Preserve valid whitespace in passwords, only stripping invisible exploit characters (BUG-006)
+    const cleanPassword = stripInvisibleChars(targetPassword);
 
     activePasswordRef.current = cleanPassword;
 
@@ -1819,7 +1833,8 @@ export default function App() {
         encryptedData: envelope,
       });
 
-      await addDoc(collection(db, 'rooms', activeRoomId, 'messages'), payload);
+      // Store message in Firestore with canonical optimisticId matching WebSocket transport (BUG-007)
+      await setDoc(doc(db, 'rooms', activeRoomId, 'messages', optimisticId), payload);
 
       // Mark message as confirmed sent
       setMessages((prev) =>
@@ -1921,6 +1936,7 @@ export default function App() {
             messageId: editingMessage.id,
             ct: envelope.ct,
             iv: envelope.iv,
+            nonce: envelope.nonce,
           }),
         }).catch(() => {});
       }
@@ -2102,7 +2118,8 @@ export default function App() {
         encryptedData: envelope,
       });
 
-      await addDoc(collection(db, 'rooms', activeRoomId, 'messages'), payload);
+      // Store poll in Firestore with canonical optimisticId matching WebSocket transport (BUG-007)
+      await setDoc(doc(db, 'rooms', activeRoomId, 'messages', optimisticId), payload);
       setMessages((prev) =>
         prev.map((m) => (m.id === optimisticId ? { ...m, status: 'sent' } : m))
       );
@@ -2317,7 +2334,8 @@ export default function App() {
         ts: envelope.ts,
       });
 
-      await addDoc(collection(db, 'rooms', activeRoomId, 'messages'), payload);
+      const linkDocId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      await setDoc(doc(db, 'rooms', activeRoomId, 'messages', linkDocId), payload);
     } catch (err) {
       console.error('Failed to send shared link:', err);
     }
@@ -2502,14 +2520,14 @@ export default function App() {
         expiresAt: expiresAt,
       });
 
-      await addDoc(collection(db, 'rooms', activeRoomId, 'messages'), messageDocPayload);
+      // Store file message with canonical tempId matching optimistic local message (BUG-007)
+      await setDoc(doc(db, 'rooms', activeRoomId, 'messages', tempId), messageDocPayload);
       setIsViewOnce(false);
       if (soundEnabled) {
         playSentMessageSound();
       }
 
-      // Remove temporary optimistic bubble now that real message is written
-      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, status: 'sent' } : m)));
       setInputText('');
       if (textareaRef.current?.style) {
         textareaRef.current.style.height = 'auto';
@@ -3075,7 +3093,8 @@ export default function App() {
         expiresAt: expiresAt,
       });
 
-      await addDoc(collection(db, 'rooms', activeRoomId, 'messages'), messageDocPayload);
+      const voiceDocId = `voice_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      await setDoc(doc(db, 'rooms', activeRoomId, 'messages', voiceDocId), messageDocPayload);
       setIsViewOnce(false);
     } catch (err) {
       console.error('Failed to send voice message:', err);

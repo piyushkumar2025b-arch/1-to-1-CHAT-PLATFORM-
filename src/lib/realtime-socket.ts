@@ -47,7 +47,7 @@ type WhiteboardHandler = (data: any, senderId: string) => void;
 type WebRtcSignalHandler = (signal: any, senderId: string) => void;
 type ReactionHandler = (payload: { messageId: string; emoji: string; type: 'add' | 'remove' }, senderId: string) => void;
 type MessageDeletedHandler = (data: { messageId: string; senderId?: string }) => void;
-type MessageEditedHandler = (data: { messageId: string; ct: string; iv: string; senderId?: string; editedAt?: number }) => void;
+type MessageEditedHandler = (data: { messageId: string; ct: string; iv: string; nonce?: string; senderId?: string; editedAt?: number }) => void;
 type MediaBurnedHandler = (data: { messageId: string; senderId?: string }) => void;
 type StatusHandler = (status: RealTimeConnectionStatus, details?: any) => void;
 type LatencyHandler = (latencyMs: number) => void;
@@ -186,6 +186,9 @@ class RealTimeSocketClient {
       case 'auth_ok': {
         if (data.sessionToken) {
           this.sessionToken = data.sessionToken;
+        }
+        if (data.userId) {
+          this.currentUserId = data.userId;
         }
         this.setStatus('waiting', data);
         // Start latency diagnostics only after authenticated session is established

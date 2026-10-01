@@ -205,7 +205,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
           <span
             style={{ color: currentTheme.accentColor }}
-            className="font-mono text-xs sm:text-sm font-bold tracking-tight"
+            className="font-mono text-xs sm:text-sm font-bold tracking-tight truncate max-w-[100px] xs:max-w-[160px] sm:max-w-none"
           >
             {activeRoomId}
           </span>
@@ -346,7 +346,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           type="button"
           onClick={onOpenVault}
           title="Chat Vault & Media Archives"
-          className="p-2 rounded-xl text-amber-300 border border-amber-500/30 bg-amber-950/30 hover:bg-amber-900/40 transition-all cursor-pointer flex items-center gap-1.5 shadow-xs"
+          className="hidden sm:flex p-2 rounded-xl text-amber-300 border border-amber-500/30 bg-amber-950/30 hover:bg-amber-900/40 transition-all cursor-pointer items-center gap-1.5 shadow-xs"
         >
           <Archive className="w-4 h-4 text-amber-400" />
           <span className="hidden md:inline text-xs font-semibold">Vault</span>
@@ -577,6 +577,26 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 >
                   <QrCode className="w-4 h-4 text-emerald-400" />
                   <span>Room QR Code</span>
+                </button>
+
+                {/* Chat Vault & Media Archives */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    onOpenVault();
+                    setMoreMenuOpen(false);
+                  }}
+                  className="w-full px-3.5 py-2 text-left text-xs text-neutral-200 hover:text-white hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Archive className="w-4 h-4 text-amber-400" />
+                    <span>Chat Vault & Media</span>
+                  </div>
+                  {vaultItemCount > 0 && (
+                    <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      {vaultItemCount}
+                    </span>
+                  )}
                 </button>
 
                 {/* Collaborative Scratchpad & Whiteboard */}

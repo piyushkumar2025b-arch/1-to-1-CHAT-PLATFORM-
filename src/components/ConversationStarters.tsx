@@ -27,7 +27,7 @@ export default function ConversationStarters({
 
       <div className="text-center space-y-1">
         <h3 className="text-sm font-semibold text-neutral-200 flex items-center justify-center gap-1.5">
-          <Sparkles className="w-4 h-4 text-amber-400" />
+          <Sparkles className="w-4 h-4" style={{ color: accentColor }} />
           <span>Start your conversation</span>
         </h3>
         <p className="text-xs text-neutral-400 max-w-xs mx-auto">
@@ -39,7 +39,10 @@ export default function ConversationStarters({
         <button
           type="button"
           onClick={() => onSendMessage('👋 Hello! Secure private chat connected.')}
-          className="flex items-center gap-2 p-2.5 rounded-xl bg-neutral-900/90 hover:bg-neutral-800 border border-neutral-800 text-xs text-left text-neutral-200 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer group"
+          style={{ borderColor: undefined }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = `${accentColor}70`; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = ''; }}
+          className="flex items-center gap-2 p-2.5 rounded-xl bg-neutral-900/90 hover:bg-neutral-850 border border-neutral-800 text-xs text-left text-neutral-200 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer group shadow-xs"
         >
           <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0 group-hover:scale-110 transition-transform">
             <Hand className="w-3.5 h-3.5" />
@@ -53,7 +56,9 @@ export default function ConversationStarters({
         <button
           type="button"
           onClick={() => onSendMessage('🔒 Encryption handshake confirmed. Messages are end-to-end encrypted.')}
-          className="flex items-center gap-2 p-2.5 rounded-xl bg-neutral-900/90 hover:bg-neutral-800 border border-neutral-800 text-xs text-left text-neutral-200 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer group"
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = `${accentColor}70`; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = ''; }}
+          className="flex items-center gap-2 p-2.5 rounded-xl bg-neutral-900/90 hover:bg-neutral-850 border border-neutral-800 text-xs text-left text-neutral-200 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer group shadow-xs"
         >
           <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0 group-hover:scale-110 transition-transform">
             <ShieldCheck className="w-3.5 h-3.5" />
@@ -67,7 +72,9 @@ export default function ConversationStarters({
         <button
           type="button"
           onClick={onOpenVoice}
-          className="flex items-center gap-2 p-2.5 rounded-xl bg-neutral-900/90 hover:bg-neutral-800 border border-neutral-800 text-xs text-left text-neutral-200 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer group"
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = `${accentColor}70`; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = ''; }}
+          className="flex items-center gap-2 p-2.5 rounded-xl bg-neutral-900/90 hover:bg-neutral-850 border border-neutral-800 text-xs text-left text-neutral-200 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer group shadow-xs"
         >
           <div className="w-7 h-7 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 shrink-0 group-hover:scale-110 transition-transform">
             <Mic className="w-3.5 h-3.5" />
@@ -81,7 +88,9 @@ export default function ConversationStarters({
         <button
           type="button"
           onClick={onOpenFile}
-          className="flex items-center gap-2 p-2.5 rounded-xl bg-neutral-900/90 hover:bg-neutral-800 border border-neutral-800 text-xs text-left text-neutral-200 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer group"
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = `${accentColor}70`; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = ''; }}
+          className="flex items-center gap-2 p-2.5 rounded-xl bg-neutral-900/90 hover:bg-neutral-850 border border-neutral-800 text-xs text-left text-neutral-200 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer group shadow-xs"
         >
           <div className="w-7 h-7 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400 shrink-0 group-hover:scale-110 transition-transform">
             <Image className="w-3.5 h-3.5" />
@@ -96,7 +105,9 @@ export default function ConversationStarters({
           <button
             type="button"
             onClick={onOpenPoll}
-            className="flex items-center gap-2 p-2.5 rounded-xl bg-neutral-900/90 hover:bg-neutral-800 border border-neutral-800 text-xs text-left text-neutral-200 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer group"
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = `${accentColor}70`; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = ''; }}
+            className="flex items-center gap-2 p-2.5 rounded-xl bg-neutral-900/90 hover:bg-neutral-850 border border-neutral-800 text-xs text-left text-neutral-200 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer group shadow-xs"
           >
             <div className="w-7 h-7 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0 group-hover:scale-110 transition-transform">
               <BarChart2 className="w-3.5 h-3.5" />
@@ -112,7 +123,9 @@ export default function ConversationStarters({
           <button
             type="button"
             onClick={onOpenDraw}
-            className="flex items-center gap-2 p-2.5 rounded-xl bg-neutral-900/90 hover:bg-neutral-800 border border-neutral-800 text-xs text-left text-neutral-200 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer group"
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = `${accentColor}70`; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = ''; }}
+            className="flex items-center gap-2 p-2.5 rounded-xl bg-neutral-900/90 hover:bg-neutral-850 border border-neutral-800 text-xs text-left text-neutral-200 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer group shadow-xs"
           >
             <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0 group-hover:scale-110 transition-transform">
               <PenTool className="w-3.5 h-3.5" />
