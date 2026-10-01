@@ -208,21 +208,30 @@ export interface RoomRecord {
 }
 
 // In-memory mutex per roomId to serialize concurrent first-joins atomically (BUG-008)
-const roomAuthLocks = new Map<string, Promise<any>>();
+const roomAuthLocks = new Map<string, Promise<void>>();
 async function withRoomLock<T>(roomId: string, fn: () => Promise<T>): Promise<T> {
-  const current = roomAuthLocks.get(roomId) || Promise.resolve();
-  let release: () => void;
-  const next = new Promise<void>((resolve) => { release = resolve; });
-  roomAuthLocks.set(roomId, current.then(() => next));
+  while (roomAuthLocks.has(roomId)) {
+    try {
+      await roomAuthLocks.get(roomId);
+    } catch {}
+  }
+  let release!: () => void;
+  const lockPromise = new Promise<void>((resolve) => { release = resolve; });
+  roomAuthLocks.set(roomId, lockPromise);
   try {
-    await current;
     return await fn();
   } finally {
-    release!();
-    if (roomAuthLocks.get(roomId) === next) {
+    if (roomAuthLocks.get(roomId) === lockPromise) {
       roomAuthLocks.delete(roomId);
     }
+    release();
   }
+}
+
+export interface RoomOptions {
+  roomType?: 'direct' | 'organization';
+  organizationName?: string;
+  maxCapacity?: number;
 }
 
 /**
@@ -232,8 +241,16 @@ async function withRoomLock<T>(roomId: string, fn: () => Promise<T>): Promise<T>
 export async function authenticateOrCreateRoom(
   roomId: string,
   password: string,
-  currentActiveParticipants: number
-): Promise<{ ok: boolean; error?: string; isNewRoom?: boolean }> {
+  currentActiveParticipants: number,
+  options?: RoomOptions
+): Promise<{
+  ok: boolean;
+  error?: string;
+  isNewRoom?: boolean;
+  roomType?: 'direct' | 'organization';
+  organizationName?: string;
+  maxCapacity?: number;
+}> {
   const cleanRoom = stripInvisibleChars(roomId || '').trim().toUpperCase();
   if (!isValidRoomId(cleanRoom)) {
     return { ok: false, error: 'Room code must be 3-32 letters, numbers, hyphens, or underscores.' };
@@ -254,6 +271,12 @@ export async function authenticateOrCreateRoom(
       const roomRef = doc(db, 'rooms', cleanRoom);
       const snap = await getDoc(roomRef);
 
+      const targetRoomType = options?.roomType === 'organization' ? 'organization' : 'direct';
+      const targetOrgName = (options?.organizationName || '').slice(0, 100);
+      const targetMaxCap = targetRoomType === 'organization'
+        ? Math.max(2, Math.min(options?.maxCapacity || 50, 100))
+        : 2;
+
       if (!snap.exists()) {
         // Room does not exist yet -> creator sets the password using PBKDF2
         const pbkdf2Hash = hashPasswordPBKDF2(password);
@@ -261,40 +284,70 @@ export async function authenticateOrCreateRoom(
           roomId: cleanRoom,
           passwordHash: pbkdf2Hash,
           participantCount: currentActiveParticipants,
+          roomType: targetRoomType,
+          organizationName: targetOrgName,
+          maxCapacity: targetMaxCap,
           createdAt: new Date().toISOString(),
           lastActiveAt: new Date().toISOString(),
           serverTimestamp: serverTimestamp(),
         });
-        return { ok: true, isNewRoom: true };
+        return {
+          ok: true,
+          isNewRoom: true,
+          roomType: targetRoomType,
+          organizationName: targetOrgName,
+          maxCapacity: targetMaxCap,
+        };
       }
 
       const data = snap.data();
       const storedHash = data?.passwordHash;
       const storedCount = data?.participantCount || 0;
+      const storedRoomType: 'direct' | 'organization' = data?.roomType === 'organization' ? 'organization' : 'direct';
+      const storedOrgName = data?.organizationName || '';
+      const storedMaxCap = typeof data?.maxCapacity === 'number' ? data.maxCapacity : (storedRoomType === 'organization' ? 50 : 2);
 
-      // If room is completely idle (0 active participants in memory and in db),
-      // allow the new session creator to claim or update it
-      if (currentActiveParticipants === 0 && storedCount === 0) {
-        const pbkdf2Hash = hashPasswordPBKDF2(password);
-        await updateDoc(roomRef, {
-          passwordHash: pbkdf2Hash,
-          participantCount: 0,
-          lastActiveAt: new Date().toISOString(),
-          serverTimestamp: serverTimestamp(),
-        });
-        return { ok: true, isNewRoom: true };
-      }
-
-      // Room is active -> password MUST match using constant-time PBKDF2/legacy verification
+      // 1. Verify password using constant-time PBKDF2/legacy verification
       const isValid = verifyPasswordHash(password, storedHash, cleanRoom);
-      if (!isValid) {
+      if (isValid) {
         return {
-          ok: false,
-          error: 'Incorrect password for this room. Make sure both of you use the exact same password.'
+          ok: true,
+          roomType: storedRoomType,
+          organizationName: storedOrgName,
+          maxCapacity: storedMaxCap,
         };
       }
 
-      return { ok: true };
+      // 2. If password does NOT match and room is idle, allow re-claiming by deleting stale doc and re-creating
+      if (currentActiveParticipants === 0 && storedCount === 0) {
+        const pbkdf2Hash = hashPasswordPBKDF2(password);
+        try {
+          await deleteDoc(roomRef);
+          await setDoc(roomRef, {
+            roomId: cleanRoom,
+            passwordHash: pbkdf2Hash,
+            participantCount: 0,
+            roomType: targetRoomType,
+            organizationName: targetOrgName,
+            maxCapacity: targetMaxCap,
+            createdAt: new Date().toISOString(),
+            lastActiveAt: new Date().toISOString(),
+            serverTimestamp: serverTimestamp(),
+          });
+          return {
+            ok: true,
+            isNewRoom: true,
+            roomType: targetRoomType,
+            organizationName: targetOrgName,
+            maxCapacity: targetMaxCap,
+          };
+        } catch {}
+      }
+
+      return {
+        ok: false,
+        error: 'Incorrect password for this room. Make sure everyone uses the exact same password.'
+      };
     } catch (err) {
       console.warn('Error verifying room in Firestore:', err);
       return { ok: false, error: 'Database verification failed. Please try again shortly.' };

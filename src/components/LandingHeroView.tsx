@@ -25,7 +25,9 @@ import {
   Moon,
   Headphones,
   Zap,
+  Building2,
 } from 'lucide-react';
+import { RoomType } from '../types';
 import { evaluatePasswordStrength } from '../lib/security';
 import { MetaComparisonSection } from './MetaComparisonSection';
 import { GroupRoomRequestForm } from './GroupRoomRequestForm';
@@ -38,6 +40,12 @@ interface LandingHeroViewProps {
   setPassword: (pwd: string) => void;
   showPassword: boolean;
   setShowPassword: (show: boolean) => void;
+  roomType?: RoomType;
+  setRoomType?: (type: RoomType) => void;
+  organizationName?: string;
+  setOrganizationName?: (name: string) => void;
+  username?: string;
+  setUsername?: (name: string) => void;
   authError: string;
   setAuthError: (err: string) => void;
   isSubmitting: boolean;
@@ -60,6 +68,12 @@ export function LandingHeroView({
   setPassword,
   showPassword,
   setShowPassword,
+  roomType = 'direct',
+  setRoomType,
+  organizationName = '',
+  setOrganizationName,
+  username = '',
+  setUsername,
   authError,
   setAuthError,
   isSubmitting,
@@ -440,13 +454,64 @@ export function LandingHeroView({
                 : 'bg-neutral-900/90 border-neutral-800 hover:border-neutral-700/80 shadow-2xl text-neutral-100'
             }`}
           >
-            <div className="space-y-1">
-              <h2 className={`text-base font-bold ${isLight ? 'text-slate-900' : 'text-neutral-100'}`}>
-                Join or create a room
-              </h2>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h2 className={`text-base font-bold ${isLight ? 'text-slate-900' : 'text-neutral-100'}`}>
+                  Join or create a room
+                </h2>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                  roomType === 'organization'
+                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                    : isLight
+                    ? 'bg-slate-100 text-slate-600'
+                    : 'bg-neutral-800 text-neutral-400'
+                }`}>
+                  {roomType === 'organization' ? 'Team Mode' : '1-on-1'}
+                </span>
+              </div>
               <p className={`text-xs leading-relaxed font-normal ${isLight ? 'text-slate-600' : 'text-neutral-400'}`}>
-                Enter any room code and password. Share both with your contact to connect.
+                {roomType === 'organization'
+                  ? 'Multi-person encrypted team room with live participant roster and real-time presence.'
+                  : 'Enter any room code and password. Share both with your contact to connect.'}
               </p>
+            </div>
+
+            {/* Room Mode Toggle: 1-on-1 Direct vs Organization Room */}
+            <div className={`p-1 rounded-xl flex items-center gap-1 border ${
+              isLight ? 'bg-slate-100/90 border-slate-200' : 'bg-neutral-950 border-neutral-800'
+            }`}>
+              <button
+                type="button"
+                onClick={() => setRoomType && setRoomType('direct')}
+                className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  roomType === 'direct'
+                    ? isLight
+                      ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80'
+                      : 'bg-neutral-800 text-white shadow-xs border border-neutral-700/80'
+                    : isLight
+                    ? 'text-slate-500 hover:text-slate-900'
+                    : 'text-neutral-400 hover:text-neutral-200'
+                }`}
+              >
+                <Lock className="w-3.5 h-3.5 text-emerald-500" />
+                <span>1-on-1 Direct</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setRoomType && setRoomType('organization')}
+                className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  roomType === 'organization'
+                    ? isLight
+                      ? 'bg-white text-emerald-700 shadow-xs border border-emerald-200'
+                      : 'bg-emerald-950/80 text-emerald-300 border border-emerald-800/80 shadow-xs'
+                    : isLight
+                    ? 'text-slate-500 hover:text-slate-900'
+                    : 'text-neutral-400 hover:text-neutral-200'
+                }`}
+              >
+                <Building2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Organization Room</span>
+              </button>
             </div>
 
             {/* Quick 1-Click Instant Room Button */}
@@ -463,19 +528,74 @@ export function LandingHeroView({
                 }`}
               >
                 <Zap className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>Quick Start: Instant Private Chat (1-Click)</span>
+                <span>
+                  {roomType === 'organization'
+                    ? 'Quick Start: Instant Organization Room (1-Click)'
+                    : 'Quick Start: Instant Private Chat (1-Click)'}
+                </span>
               </button>
             </div>
 
             <div className="relative flex py-0.5 items-center">
               <div className={`flex-grow border-t ${isLight ? 'border-slate-200' : 'border-neutral-800'}`} />
               <span className={`flex-shrink mx-3 text-[10px] uppercase font-bold tracking-wider ${isLight ? 'text-slate-400' : 'text-neutral-500'}`}>
-                or enter specific room
+                or configure room details
               </span>
               <div className={`flex-grow border-t ${isLight ? 'border-slate-200' : 'border-neutral-800'}`} />
             </div>
 
             <form onSubmit={handleRoomSubmit} className="space-y-4">
+              {/* Organization Fields (Only shown in Organization Mode) */}
+              {roomType === 'organization' && (
+                <div className="space-y-3 p-3.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5">
+                  <div className="space-y-1">
+                    <label
+                      htmlFor="org-name-input"
+                      className={`text-xs font-semibold flex items-center gap-1.5 ${isLight ? 'text-slate-800' : 'text-neutral-200'}`}
+                    >
+                      <Building2 className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Organization / Team Name</span>
+                    </label>
+                    <input
+                      id="org-name-input"
+                      type="text"
+                      value={organizationName}
+                      onChange={(e) => setOrganizationName && setOrganizationName(e.target.value)}
+                      placeholder="e.g. Acme Corp Core Team"
+                      maxLength={80}
+                      className={`w-full rounded-xl px-3.5 py-2.5 text-xs font-medium outline-none transition-all ${
+                        isLight
+                          ? 'bg-white border border-slate-300 focus:border-emerald-600 text-slate-900 placeholder:text-slate-400'
+                          : 'bg-neutral-950 border border-neutral-800 focus:border-emerald-500 text-neutral-100 placeholder:text-neutral-600'
+                      }`}
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label
+                      htmlFor="org-username-input"
+                      className={`text-xs font-semibold flex items-center gap-1.5 ${isLight ? 'text-slate-800' : 'text-neutral-200'}`}
+                    >
+                      <Users className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Your Display Name / Nickname</span>
+                    </label>
+                    <input
+                      id="org-username-input"
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername && setUsername(e.target.value)}
+                      placeholder="e.g. Alex (Engineering Lead)"
+                      maxLength={40}
+                      className={`w-full rounded-xl px-3.5 py-2.5 text-xs font-medium outline-none transition-all ${
+                        isLight
+                          ? 'bg-white border border-slate-300 focus:border-emerald-600 text-slate-900 placeholder:text-slate-400'
+                          : 'bg-neutral-950 border border-neutral-800 focus:border-emerald-500 text-neutral-100 placeholder:text-neutral-600'
+                      }`}
+                    />
+                  </div>
+                </div>
+              )}
+
               {/* Room Code Input */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">

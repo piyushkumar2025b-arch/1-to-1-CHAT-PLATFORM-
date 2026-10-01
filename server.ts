@@ -42,16 +42,33 @@ interface ChatUser {
   roomId: string;
   ip: string;
   sessionToken?: string;
+  username?: string;
+  role?: 'admin' | 'member';
+  joinedAt?: number;
 }
 
 interface Room {
   id: string;
   passwordHash: string;
   users: ChatUser[];
+  roomType?: 'direct' | 'organization';
+  organizationName?: string;
+  maxCapacity?: number;
 }
 
 // Map room strictly by normalized Room ID: string (roomId) -> Room
 const rooms = new Map<string, Room>();
+
+// Helper to broadcast WebSocket payloads to all active peers in a room except the sender
+function broadcastToRoom(room: Room, senderId: string, payload: string): void {
+  for (const member of room.users) {
+    if (member.id !== senderId && member.ws.readyState === WebSocket.OPEN) {
+      try {
+        member.ws.send(payload);
+      } catch {}
+    }
+  }
+}
 
 // Track concurrent WebSocket connections per IP to prevent socket exhaustion
 const ipConnectionCounts = new Map<string, number>();
@@ -525,30 +542,29 @@ async function startServer() {
             return;
           }
 
-          // Check existing in-memory room
           let room = rooms.get(rawRoomId);
-          if (room && room.users.length >= 2) {
-            ws.send(
-              JSON.stringify({
-                type: 'status',
-                status: 'room_full',
-                message: 'Room is full (maximum 2 participants).',
-                roomId: rawRoomId,
-              })
-            );
-            ws.close(4003, 'Room is full');
-            return;
-          }
+          const requestedRoomType: 'direct' | 'organization' = data.roomType === 'organization' ? 'organization' : 'direct';
+          const requestedOrgName = typeof data.organizationName === 'string' ? data.organizationName.trim().slice(0, 100) : '';
+          const requestedUsername = typeof data.username === 'string' && data.username.trim().length > 0 ? stripInvisibleChars(data.username).trim().slice(0, 50) : '';
 
-          // Check in-memory password first if room active
-          if (room && room.users.length > 0) {
-            const matches = verifyPasswordHash(providedPassword, room.passwordHash, rawRoomId);
-            if (!matches) {
+          let authResult: {
+            ok: boolean;
+            error?: string;
+            isNewRoom?: boolean;
+            roomType?: 'direct' | 'organization';
+            organizationName?: string;
+            maxCapacity?: number;
+          } = { ok: true };
+
+          if (room) {
+            // Room exists in memory -> verify password in constant time
+            const isValid = verifyPasswordHash(providedPassword, room.passwordHash, rawRoomId);
+            if (!isValid) {
               recordAuthFailure(clientIp, rawRoomId);
               ws.send(
                 JSON.stringify({
                   type: 'auth_error',
-                  message: 'Incorrect password for this room. Make sure both participants use the exact same password.',
+                  message: 'Incorrect password for this room.',
                 })
               );
               ws.close(4001, 'Incorrect password');
@@ -557,7 +573,10 @@ async function startServer() {
           } else {
             // Check Firestore database record using live participant count
             const liveActiveCount = rooms.get(rawRoomId)?.users.length || 0;
-            const authResult = await authenticateOrCreateRoom(rawRoomId, providedPassword, liveActiveCount);
+            authResult = await authenticateOrCreateRoom(rawRoomId, providedPassword, liveActiveCount, {
+              roomType: requestedRoomType,
+              organizationName: requestedOrgName,
+            });
             if (!authResult.ok) {
               recordAuthFailure(clientIp, rawRoomId);
               ws.send(
@@ -575,15 +594,22 @@ async function startServer() {
           clearAuthFailures(clientIp, rawRoomId);
           clearTimeout(authTimeout);
 
-          // Re-verify room capacity after async Firestore operation to prevent race condition
+          // Re-verify room capacity after async Firestore operation
           room = rooms.get(rawRoomId);
-          if (room && room.users.length >= 2) {
+          const effectiveRoomType = room?.roomType || authResult.roomType || requestedRoomType;
+          const effectiveOrgName = room?.organizationName || authResult.organizationName || requestedOrgName;
+          const effectiveMaxCapacity = room?.maxCapacity || authResult.maxCapacity || (effectiveRoomType === 'organization' ? 50 : 2);
+
+          if (room && room.users.length >= effectiveMaxCapacity) {
             ws.send(
               JSON.stringify({
                 type: 'status',
                 status: 'room_full',
-                message: 'Room is full (maximum 2 participants).',
+                message: effectiveRoomType === 'organization'
+                  ? `Organization room has reached maximum capacity (${effectiveMaxCapacity} members).`
+                  : 'Room is full (maximum 2 participants).',
                 roomId: rawRoomId,
+                maxCapacity: effectiveMaxCapacity,
               })
             );
             ws.close(4003, 'Room is full');
@@ -607,19 +633,31 @@ async function startServer() {
               ws.close(4003, 'Room capacity reached');
               return;
             }
-            room = { id: assignedRoomId, passwordHash: modernPbkdf2Hash, users: [] };
+            room = {
+              id: assignedRoomId,
+              passwordHash: modernPbkdf2Hash,
+              users: [],
+              roomType: effectiveRoomType,
+              organizationName: effectiveOrgName,
+              maxCapacity: effectiveMaxCapacity,
+            };
             rooms.set(assignedRoomId, room);
           } else {
             room.passwordHash = modernPbkdf2Hash;
+            if (!room.roomType) room.roomType = effectiveRoomType;
+            if (!room.organizationName && effectiveOrgName) room.organizationName = effectiveOrgName;
+            if (!room.maxCapacity) room.maxCapacity = effectiveMaxCapacity;
           }
 
           // Final safety check on room capacity
-          if (room.users.length >= 2) {
+          if (room.users.length >= room.maxCapacity!) {
             ws.send(
               JSON.stringify({
                 type: 'status',
                 status: 'room_full',
-                message: 'Room is full.',
+                message: room.roomType === 'organization'
+                  ? `Organization room is full (${room.maxCapacity} members).`
+                  : 'Room is full.',
                 roomId: assignedRoomId,
               })
             );
@@ -636,6 +674,9 @@ async function startServer() {
           }
           assignedUserId = candidateId;
 
+          const assignedUsername = requestedUsername || (candidateId.startsWith('user_') ? `Team Member ${candidateId.slice(5, 9).toUpperCase()}` : candidateId);
+          const assignedRole: 'admin' | 'member' = room.users.length === 0 ? 'admin' : 'member';
+
           // Generate cryptographic session token (Fix Bug 1, 2 & 14)
           const sessionToken = createRoomSessionToken(assignedRoomId, assignedUserId);
 
@@ -645,6 +686,9 @@ async function startServer() {
             roomId: assignedRoomId,
             ip: clientIp,
             sessionToken,
+            username: assignedUsername,
+            role: assignedRole,
+            joinedAt: Date.now(),
           };
           room.users.push(user);
 
@@ -653,17 +697,56 @@ async function startServer() {
             console.warn('Failed to sync room to Firestore:', err)
           );
 
-          // Acknowledge successful authentication with assigned user ID, room state, and session token
+          // Acknowledge successful authentication with assigned user ID, room state, role, and roster
           ws.send(
             JSON.stringify({
               type: 'auth_ok',
               userId: assignedUserId,
+              username: assignedUsername,
+              role: assignedRole,
               roomId: assignedRoomId,
-              sessionToken,
+              roomType: room.roomType || 'direct',
+              organizationName: room.organizationName || '',
+              maxCapacity: room.maxCapacity || (room.roomType === 'organization' ? 50 : 2),
               participantCount: room.users.length,
+              participants: room.users.map((u) => ({
+                id: u.id,
+                username: u.username || u.id,
+                role: u.role || 'member',
+                joinedAt: u.joinedAt || Date.now(),
+                isOnline: true,
+              })),
+              sessionToken,
               timestamp: Date.now(),
             })
           );
+
+          // Broadcast real-time presence update to ALL connected participants
+          const presencePayload = JSON.stringify({
+            type: 'presence_update',
+            roomId: assignedRoomId,
+            roomType: room.roomType || 'direct',
+            organizationName: room.organizationName || '',
+            participantCount: room.users.length,
+            action: 'joined',
+            user: { id: assignedUserId, username: assignedUsername, role: assignedRole },
+            participants: room.users.map((u) => ({
+              id: u.id,
+              username: u.username || u.id,
+              role: u.role || 'member',
+              joinedAt: u.joinedAt || Date.now(),
+              isOnline: true,
+            })),
+            timestamp: Date.now(),
+          });
+
+          for (const u of room.users) {
+            if (u.ws.readyState === WebSocket.OPEN) {
+              try {
+                u.ws.send(presencePayload);
+              } catch {}
+            }
+          }
 
           // Notify connection status
           if (room.users.length === 1) {
@@ -671,22 +754,28 @@ async function startServer() {
               JSON.stringify({
                 type: 'status',
                 status: 'waiting',
-                message: 'Waiting for another person to join...',
+                message: room.roomType === 'organization'
+                  ? 'Waiting for team members to join...'
+                  : 'Waiting for another person to join...',
                 roomId: assignedRoomId,
+                participantCount: 1,
               })
             );
-          } else if (room.users.length === 2) {
+          } else {
             for (const u of room.users) {
               if (u.ws.readyState === WebSocket.OPEN) {
-                u.ws.send(
-                  JSON.stringify({
-                    type: 'status',
-                    status: 'connected',
-                    action: 'peer_joined',
-                    message: 'Connected',
-                    roomId: assignedRoomId,
-                  })
-                );
+                try {
+                  u.ws.send(
+                    JSON.stringify({
+                      type: 'status',
+                      status: 'connected',
+                      action: 'peer_joined',
+                      message: `${assignedUsername} connected`,
+                      roomId: assignedRoomId,
+                      participantCount: room.users.length,
+                    })
+                  );
+                } catch {}
               }
             }
           }
@@ -742,18 +831,17 @@ async function startServer() {
             return;
           }
 
-          const peer = currentRoom.users.find((u) => u.id !== assignedUserId);
-          if (peer && peer.ws.readyState === WebSocket.OPEN) {
-            peer.ws.send(
-              JSON.stringify({
-                type: data.type,
-                senderId: assignedUserId,
-                payload: rawPayload,
-                message: typeof data.message === 'string' ? data.message : JSON.stringify(rawPayload),
-                timestamp: Date.now(),
-              })
-            );
-          }
+          const senderUser = currentRoom.users.find((u) => u.id === assignedUserId);
+          const outMessage = JSON.stringify({
+            type: data.type,
+            senderId: assignedUserId,
+            senderUsername: senderUser?.username || assignedUserId,
+            senderRole: senderUser?.role || 'member',
+            payload: rawPayload,
+            message: typeof data.message === 'string' ? data.message : JSON.stringify(rawPayload),
+            timestamp: Date.now(),
+          });
+          broadcastToRoom(currentRoom, assignedUserId, outMessage);
 
           // Immediate server delivery acknowledgement back to sender (Fix Bug 19)
           const messageId = rawPayload?.messageId || rawPayload?.id || data.messageId;
@@ -778,56 +866,69 @@ async function startServer() {
 
         // Step 3: Instant Typing Indicator Relay (0ms delay, no DB write needed)
         if (data.type === 'typing') {
-          const peer = currentRoom.users.find((u) => u.id !== assignedUserId);
-          if (peer && peer.ws.readyState === WebSocket.OPEN) {
-            peer.ws.send(
-              JSON.stringify({
-                type: 'typing',
-                senderId: assignedUserId,
-                isTyping: Boolean(data.isTyping),
-                timestamp: Date.now(),
-              })
-            );
-          }
+          const senderUser = currentRoom.users.find((u) => u.id === assignedUserId);
+          broadcastToRoom(
+            currentRoom,
+            assignedUserId,
+            JSON.stringify({
+              type: 'typing',
+              senderId: assignedUserId,
+              senderUsername: senderUser?.username || assignedUserId,
+              isTyping: Boolean(data.isTyping),
+              timestamp: Date.now(),
+            })
+          );
           return;
         }
 
         // Step 4: Instant Read Receipt Relay (0ms confirmation)
         if (data.type === 'read_receipt') {
-          const peer = currentRoom.users.find((u) => u.id !== assignedUserId);
-          if (peer && peer.ws.readyState === WebSocket.OPEN) {
-            peer.ws.send(
-              JSON.stringify({
-                type: 'read_receipt',
-                senderId: assignedUserId,
-                timestamp: data.timestamp || Date.now(),
-              })
-            );
-          }
+          broadcastToRoom(
+            currentRoom,
+            assignedUserId,
+            JSON.stringify({
+              type: 'read_receipt',
+              senderId: assignedUserId,
+              timestamp: data.timestamp || Date.now(),
+            })
+          );
           return;
         }
 
         // Step 5: Instant Collaborative Whiteboard / Scratchpad Stroke Relay
         if (data.type === 'whiteboard') {
-          const peer = currentRoom.users.find((u) => u.id !== assignedUserId);
-          if (peer && peer.ws.readyState === WebSocket.OPEN) {
-            peer.ws.send(
-              JSON.stringify({
-                type: 'whiteboard',
-                senderId: assignedUserId,
-                data: data.data,
-                timestamp: Date.now(),
-              })
-            );
-          }
+          broadcastToRoom(
+            currentRoom,
+            assignedUserId,
+            JSON.stringify({
+              type: 'whiteboard',
+              senderId: assignedUserId,
+              data: data.data,
+              timestamp: Date.now(),
+            })
+          );
           return;
         }
 
         // Step 6: Low-Latency WebRTC Call Signaling (Offers, Answers, ICE candidates)
         if (data.type === 'webrtc_signal') {
-          const peer = currentRoom.users.find((u) => u.id !== assignedUserId);
-          if (peer && peer.ws.readyState === WebSocket.OPEN) {
-            peer.ws.send(
+          // If a specific targetUserId is specified, send to target; otherwise broadcast
+          if (data.targetUserId) {
+            const target = currentRoom.users.find((u) => u.id === data.targetUserId);
+            if (target && target.ws.readyState === WebSocket.OPEN) {
+              target.ws.send(
+                JSON.stringify({
+                  type: 'webrtc_signal',
+                  senderId: assignedUserId,
+                  signal: data.signal,
+                  timestamp: Date.now(),
+                })
+              );
+            }
+          } else {
+            broadcastToRoom(
+              currentRoom,
+              assignedUserId,
               JSON.stringify({
                 type: 'webrtc_signal',
                 senderId: assignedUserId,
@@ -841,68 +942,64 @@ async function startServer() {
 
         // Step 7: Instant Emoji Reaction Relay (<2ms)
         if (data.type === 'reaction') {
-          const peer = currentRoom.users.find((u) => u.id !== assignedUserId);
-          if (peer && peer.ws.readyState === WebSocket.OPEN) {
-            peer.ws.send(
-              JSON.stringify({
-                type: 'reaction',
-                senderId: assignedUserId,
-                payload: data.payload,
-                timestamp: Date.now(),
-              })
-            );
-          }
+          broadcastToRoom(
+            currentRoom,
+            assignedUserId,
+            JSON.stringify({
+              type: 'reaction',
+              senderId: assignedUserId,
+              payload: data.payload,
+              timestamp: Date.now(),
+            })
+          );
           return;
         }
 
         // Step 8: Instant Message Edit Relay (<2ms)
         if (data.type === 'edit_message' || data.type === 'message_edited') {
-          const peer = currentRoom.users.find((u) => u.id !== assignedUserId);
-          if (peer && peer.ws.readyState === WebSocket.OPEN) {
-            peer.ws.send(
-              JSON.stringify({
-                type: 'message_edited',
-                messageId: data.messageId,
-                ct: data.ct,
-                iv: data.iv,
-                nonce: data.nonce || '',
-                senderId: assignedUserId,
-                editedAt: data.editedAt || Date.now(),
-              })
-            );
-          }
+          broadcastToRoom(
+            currentRoom,
+            assignedUserId,
+            JSON.stringify({
+              type: 'message_edited',
+              messageId: data.messageId,
+              ct: data.ct,
+              iv: data.iv,
+              nonce: data.nonce || '',
+              senderId: assignedUserId,
+              editedAt: data.editedAt || Date.now(),
+            })
+          );
           return;
         }
 
         // Step 9: Instant Message Delete Relay (<2ms)
         if (data.type === 'delete_message' || data.type === 'message_deleted') {
-          const peer = currentRoom.users.find((u) => u.id !== assignedUserId);
-          if (peer && peer.ws.readyState === WebSocket.OPEN) {
-            peer.ws.send(
-              JSON.stringify({
-                type: 'message_deleted',
-                messageId: data.messageId,
-                senderId: assignedUserId,
-                timestamp: Date.now(),
-              })
-            );
-          }
+          broadcastToRoom(
+            currentRoom,
+            assignedUserId,
+            JSON.stringify({
+              type: 'message_deleted',
+              messageId: data.messageId,
+              senderId: assignedUserId,
+              timestamp: Date.now(),
+            })
+          );
           return;
         }
 
         // Step 10: Instant View-Once Media Burned Relay (<2ms)
         if (data.type === 'burn_media' || data.type === 'media_burned') {
-          const peer = currentRoom.users.find((u) => u.id !== assignedUserId);
-          if (peer && peer.ws.readyState === WebSocket.OPEN) {
-            peer.ws.send(
-              JSON.stringify({
-                type: 'media_burned',
-                messageId: data.messageId,
-                senderId: assignedUserId,
-                timestamp: Date.now(),
-              })
-            );
-          }
+          broadcastToRoom(
+            currentRoom,
+            assignedUserId,
+            JSON.stringify({
+              type: 'media_burned',
+              messageId: data.messageId,
+              senderId: assignedUserId,
+              timestamp: Date.now(),
+            })
+          );
           return;
         }
       } catch {
@@ -920,6 +1017,7 @@ async function startServer() {
         const currentRoom = rooms.get(assignedRoomId);
         if (currentRoom) {
           const departingUser = currentRoom.users.find((u) => u.id === assignedUserId);
+          const departingUsername = departingUser?.username || assignedUserId;
           if (departingUser?.sessionToken) {
             revokeRoomSessionToken(departingUser.sessionToken);
           }
@@ -930,19 +1028,45 @@ async function startServer() {
             console.warn('Failed to update room count in Firestore:', err)
           );
 
-          if (currentRoom.users.length === 1) {
-            const remaining = currentRoom.users[0];
-            if (remaining.ws.readyState === WebSocket.OPEN) {
-              remaining.ws.send(
-                JSON.stringify({
-                  type: 'status',
-                  status: 'waiting',
-                  message: 'The other user disconnected.',
-                  roomId: assignedRoomId,
-                })
-              );
+          if (currentRoom.users.length > 0) {
+            // Broadcast departure presence update to all remaining participants
+            const presenceLeftPayload = JSON.stringify({
+              type: 'presence_update',
+              roomId: assignedRoomId,
+              roomType: currentRoom.roomType || 'direct',
+              organizationName: currentRoom.organizationName || '',
+              participantCount: currentRoom.users.length,
+              action: 'left',
+              user: { id: assignedUserId, username: departingUsername },
+              participants: currentRoom.users.map((u) => ({
+                id: u.id,
+                username: u.username || u.id,
+                role: u.role || 'member',
+                joinedAt: u.joinedAt || Date.now(),
+                isOnline: true,
+              })),
+              timestamp: Date.now(),
+            });
+
+            for (const remaining of currentRoom.users) {
+              if (remaining.ws.readyState === WebSocket.OPEN) {
+                try {
+                  remaining.ws.send(presenceLeftPayload);
+                  if (currentRoom.users.length === 1 && currentRoom.roomType === 'direct') {
+                    remaining.ws.send(
+                      JSON.stringify({
+                        type: 'status',
+                        status: 'waiting',
+                        message: `${departingUsername} disconnected.`,
+                        roomId: assignedRoomId,
+                        participantCount: 1,
+                      })
+                    );
+                  }
+                } catch {}
+              }
             }
-          } else if (currentRoom.users.length === 0) {
+          } else {
             rooms.delete(assignedRoomId);
             revokeAllTokensForRoom(assignedRoomId);
           }
@@ -1004,7 +1128,7 @@ async function startServer() {
   // REST Room Authentication & Token Issuance (Fix Bug 1, 2, 14)
   app.post('/api/rooms/auth', async (req, res) => {
     const clientIp = getClientIp(req);
-    const { roomId, password, userId } = req.body || {};
+    const { roomId, password, userId, roomType, organizationName, maxCapacity } = req.body || {};
     const cleanRoom = typeof roomId === 'string' ? stripInvisibleChars(roomId).trim().toUpperCase() : '';
     const cleanPassword = typeof password === 'string' ? stripInvisibleChars(password) : '';
 
@@ -1021,7 +1145,11 @@ async function startServer() {
     }
 
     const liveActiveCount = rooms.get(cleanRoom)?.users.length || 0;
-    const authResult = await authenticateOrCreateRoom(cleanRoom, cleanPassword, liveActiveCount);
+    const authResult = await authenticateOrCreateRoom(cleanRoom, cleanPassword, liveActiveCount, {
+      roomType: roomType === 'organization' ? 'organization' : 'direct',
+      organizationName: typeof organizationName === 'string' ? organizationName.trim().slice(0, 100) : '',
+      maxCapacity: typeof maxCapacity === 'number' ? maxCapacity : undefined,
+    });
     if (!authResult.ok) {
       recordAuthFailure(clientIp, cleanRoom);
       return res.status(401).json({ ok: false, error: authResult.error || 'Authentication failed' });
@@ -1038,6 +1166,9 @@ async function startServer() {
       sessionToken,
       roomId: cleanRoom,
       userId: effectiveUserId,
+      roomType: authResult.roomType || 'direct',
+      organizationName: authResult.organizationName || '',
+      maxCapacity: authResult.maxCapacity || (authResult.roomType === 'organization' ? 50 : 2),
       isNewRoom: Boolean(authResult.isNewRoom),
     });
   });

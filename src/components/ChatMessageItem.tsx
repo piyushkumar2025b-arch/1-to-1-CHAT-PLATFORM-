@@ -196,9 +196,14 @@ export const ChatMessageItem = memo<ChatMessageItemProps>(
         {!isMe && (!isPrevSameSender || showDateDivider) && (
           <div className="flex items-center gap-1.5 mb-1 px-1 text-[11px] font-medium text-neutral-400 select-none">
             <div className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-[9px] font-bold">
-              {targetName ? targetName.charAt(0).toUpperCase() : 'P'}
+              {(msg.senderUsername || targetName || 'P').charAt(0).toUpperCase()}
             </div>
-            <span className="text-neutral-300 font-semibold">{targetName}</span>
+            <span className="text-neutral-300 font-semibold">{msg.senderUsername || targetName}</span>
+            {msg.senderRole === 'admin' && (
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30 leading-none">
+                Admin
+              </span>
+            )}
           </div>
         )}
 

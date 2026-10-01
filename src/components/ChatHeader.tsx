@@ -41,11 +41,19 @@ import {
   Radio,
   Trash2,
   Mic,
+  Building2,
+  Users,
 } from 'lucide-react';
-import { ConnectionState, ChatTheme, EphemeralTimerOption } from '../types';
+import { ConnectionState, ChatTheme, EphemeralTimerOption, RoomType, RoomParticipant } from '../types';
 
 interface ChatHeaderProps {
   activeRoomId: string;
+  roomType?: RoomType;
+  organizationName?: string;
+  participantCount?: number;
+  maxCapacity?: number;
+  participants?: RoomParticipant[];
+  onOpenRoster?: () => void;
   copiedCode: boolean;
   onCopyRoomId: () => void;
   connectionState: ConnectionState;
@@ -107,6 +115,12 @@ interface ChatHeaderProps {
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
   activeRoomId,
+  roomType = 'direct',
+  organizationName,
+  participantCount = 1,
+  maxCapacity = 2,
+  participants = [],
+  onOpenRoster,
   copiedCode,
   onCopyRoomId,
   connectionState,
@@ -228,19 +242,70 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           </button>
         </div>
 
-        {/* Real-time Connection Status Pill */}
+        {/* Real-time Connection Status & Organization Presence Pill */}
         <div id="connection-status-badge" className="hidden xs:flex">
-          {connectionState === 'connected' ? (
-            <span className="inline-flex items-center text-[11px] font-medium text-emerald-400 bg-emerald-950/50 border border-emerald-800/60 px-2.5 py-1 rounded-full shadow-xs">
-              <span className="w-2 h-2 mr-1.5 bg-emerald-400 rounded-full animate-pulse" />
-              <span className="hidden sm:inline">Both connected</span>
-              <span className="sm:hidden">Connected</span>
-            </span>
+          {onOpenRoster ? (
+            <button
+              type="button"
+              onClick={onOpenRoster}
+              title={
+                roomType === 'organization'
+                  ? `Organization Room: ${organizationName || 'Team Room'}\n${participantCount} active members connected.\nClick to view member roster.`
+                  : `Direct Chat: ${participantCount}/2 connected.\nClick to view member details.`
+              }
+              className={`inline-flex items-center text-[11px] font-medium px-2.5 py-1 rounded-full shadow-xs border transition-all cursor-pointer ${
+                connectionState === 'connected' || participantCount >= 2
+                  ? 'text-emerald-400 bg-emerald-950/50 hover:bg-emerald-900/60 border-emerald-800/60'
+                  : 'text-amber-400 bg-amber-950/50 hover:bg-amber-900/60 border-amber-800/60'
+              }`}
+            >
+              <span
+                className={`w-2 h-2 mr-1.5 rounded-full ${
+                  connectionState === 'connected' || participantCount >= 2
+                    ? 'bg-emerald-400 animate-pulse'
+                    : 'bg-amber-400 animate-ping'
+                }`}
+              />
+              {roomType === 'organization' ? (
+                <span className="flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span className="font-bold">{participantCount}</span>
+                  <span className="hidden sm:inline">online</span>
+                </span>
+              ) : connectionState === 'connected' || participantCount >= 2 ? (
+                <span>
+                  <span className="hidden sm:inline">Both connected (2/2)</span>
+                  <span className="sm:hidden">2/2</span>
+                </span>
+              ) : (
+                <span>
+                  <span className="hidden sm:inline">Waiting for peer (1/2)</span>
+                  <span className="sm:hidden">1/2</span>
+                </span>
+              )}
+            </button>
           ) : (
-            <span className="inline-flex items-center text-[11px] font-medium text-amber-400 bg-amber-950/50 border border-amber-800/60 px-2.5 py-1 rounded-full shadow-xs">
-              <span className="w-2 h-2 mr-1.5 bg-amber-400 rounded-full animate-ping" />
-              <span className="hidden sm:inline">Waiting for friend...</span>
-              <span className="sm:hidden">Waiting</span>
+            <span
+              className={`inline-flex items-center text-[11px] font-medium px-2.5 py-1 rounded-full shadow-xs border ${
+                connectionState === 'connected'
+                  ? 'text-emerald-400 bg-emerald-950/50 border-emerald-800/60'
+                  : 'text-amber-400 bg-amber-950/50 border-amber-800/60'
+              }`}
+            >
+              <span
+                className={`w-2 h-2 mr-1.5 rounded-full ${
+                  connectionState === 'connected'
+                    ? 'bg-emerald-400 animate-pulse'
+                    : 'bg-amber-400 animate-ping'
+                }`}
+              />
+              {roomType === 'organization' ? (
+                <span>{participantCount} online</span>
+              ) : connectionState === 'connected' ? (
+                <span className="hidden sm:inline">Both connected</span>
+              ) : (
+                <span className="hidden sm:inline">Waiting for friend...</span>
+              )}
             </span>
           )}
         </div>
@@ -552,6 +617,34 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                   <Palette className="w-4 h-4 text-amber-400" />
                   <span>Themes & Wallpapers</span>
                 </button>
+
+                {/* Organization Roster & Connected Members */}
+                {onOpenRoster && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenRoster();
+                      setMoreMenuOpen(false);
+                    }}
+                    className="w-full px-3.5 py-2 text-left text-xs text-neutral-200 hover:text-white hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      {roomType === 'organization' ? (
+                        <Building2 className="w-4 h-4 text-emerald-400" />
+                      ) : (
+                        <Users className="w-4 h-4 text-emerald-400" />
+                      )}
+                      <span>
+                        {roomType === 'organization'
+                          ? 'Team Roster & Members'
+                          : 'Connected Participants'}
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      {participantCount}
+                    </span>
+                  </button>
+                )}
 
                 {/* Share Room Link */}
                 <button

@@ -13,6 +13,8 @@
  * If the WebSocket encounters network disruption, messages seamlessly fall back to Firestore.
  */
 
+import { RoomType, RoomParticipant, PresenceUpdatePayload } from '../types';
+
 export type RealTimeConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'waiting' | 'room_full' | 'auth_error';
 
 export interface RealTimeMessagePayload {
@@ -21,6 +23,8 @@ export interface RealTimeMessagePayload {
   roomId?: string;
   encryptedData?: any;
   senderId?: string;
+  senderUsername?: string;
+  senderRole?: 'admin' | 'member';
   time?: string;
   createdAt?: string;
   enc?: boolean;
@@ -49,6 +53,7 @@ type ReactionHandler = (payload: { messageId: string; emoji: string; type: 'add'
 type MessageDeletedHandler = (data: { messageId: string; senderId?: string }) => void;
 type MessageEditedHandler = (data: { messageId: string; ct: string; iv: string; nonce?: string; senderId?: string; editedAt?: number }) => void;
 type MediaBurnedHandler = (data: { messageId: string; senderId?: string }) => void;
+type PresenceHandler = (data: PresenceUpdatePayload) => void;
 type StatusHandler = (status: RealTimeConnectionStatus, details?: any) => void;
 type LatencyHandler = (latencyMs: number) => void;
 type AckHandler = (messageId: string, timestamp: number) => void;
@@ -58,6 +63,11 @@ class RealTimeSocketClient {
   private currentRoomId: string = '';
   private currentPassword: string = '';
   private currentUserId: string = '';
+  private currentUsername: string = '';
+  private currentRoomType: RoomType = 'direct';
+  private currentOrganizationName: string = '';
+  private participantCount: number = 0;
+  private participants: RoomParticipant[] = [];
   private sessionToken: string = '';
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 10;
@@ -77,6 +87,7 @@ class RealTimeSocketClient {
   private messageDeletedHandlers: Set<MessageDeletedHandler> = new Set();
   private messageEditedHandlers: Set<MessageEditedHandler> = new Set();
   private mediaBurnedHandlers: Set<MediaBurnedHandler> = new Set();
+  private presenceHandlers: Set<PresenceHandler> = new Set();
   private statusHandlers: Set<StatusHandler> = new Set();
   private latencyHandlers: Set<LatencyHandler> = new Set();
   private ackHandlers: Set<AckHandler> = new Set();
@@ -89,10 +100,31 @@ class RealTimeSocketClient {
     this.sessionToken = token;
   }
 
+  public getRoomType(): RoomType {
+    return this.currentRoomType;
+  }
+
+  public getOrganizationName(): string {
+    return this.currentOrganizationName;
+  }
+
+  public getParticipantCount(): number {
+    return this.participantCount;
+  }
+
+  public getParticipants(): RoomParticipant[] {
+    return this.participants;
+  }
+
   /**
    * Connect and authenticate to the ultra-low latency WebSocket server
    */
-  public connect(roomId: string, password: string, userId: string): void {
+  public connect(
+    roomId: string,
+    password: string,
+    userId: string,
+    options?: { roomType?: RoomType; organizationName?: string; username?: string }
+  ): void {
     if (!roomId || !password) return;
 
     // If already connected with same credentials, reuse
@@ -111,6 +143,9 @@ class RealTimeSocketClient {
     // Do not trim password to preserve multi-word passphrases (Fix Bug 17)
     this.currentPassword = password;
     this.currentUserId = userId || '';
+    this.currentUsername = options?.username || '';
+    this.currentRoomType = options?.roomType || 'direct';
+    this.currentOrganizationName = options?.organizationName || '';
 
     this.initSocket();
   }
@@ -137,6 +172,9 @@ class RealTimeSocketClient {
             roomId: this.currentRoomId,
             password: this.currentPassword,
             userId: this.currentUserId,
+            username: this.currentUsername,
+            roomType: this.currentRoomType,
+            organizationName: this.currentOrganizationName,
           })
         );
       };
@@ -190,9 +228,37 @@ class RealTimeSocketClient {
         if (data.userId) {
           this.currentUserId = data.userId;
         }
+        if (data.roomType) {
+          this.currentRoomType = data.roomType;
+        }
+        if (data.organizationName) {
+          this.currentOrganizationName = data.organizationName;
+        }
+        if (typeof data.participantCount === 'number') {
+          this.participantCount = data.participantCount;
+        }
+        if (Array.isArray(data.participants)) {
+          this.participants = data.participants;
+        }
         this.setStatus('waiting', data);
         // Start latency diagnostics only after authenticated session is established
         this.startPingLoop();
+        break;
+      }
+      case 'presence_update': {
+        if (typeof data.participantCount === 'number') {
+          this.participantCount = data.participantCount;
+        }
+        if (Array.isArray(data.participants)) {
+          this.participants = data.participants;
+        }
+        if (data.roomType) {
+          this.currentRoomType = data.roomType;
+        }
+        if (data.organizationName) {
+          this.currentOrganizationName = data.organizationName;
+        }
+        this.presenceHandlers.forEach((cb) => cb(data));
         break;
       }
       case 'delivery_ack':
@@ -216,6 +282,10 @@ class RealTimeSocketClient {
       case 'message': {
         const payload = data.payload !== undefined ? data.payload : data.message;
         if (payload) {
+          if (typeof payload === 'object' && payload !== null) {
+            if (data.senderUsername && !payload.senderUsername) payload.senderUsername = data.senderUsername;
+            if (data.senderRole && !payload.senderRole) payload.senderRole = data.senderRole;
+          }
           this.messageHandlers.forEach((cb) => cb(payload, data.senderId));
         }
         break;
@@ -550,6 +620,11 @@ class RealTimeSocketClient {
   public onMediaBurned(handler: MediaBurnedHandler): () => void {
     this.mediaBurnedHandlers.add(handler);
     return () => this.mediaBurnedHandlers.delete(handler);
+  }
+
+  public onPresenceUpdate(handler: PresenceHandler): () => void {
+    this.presenceHandlers.add(handler);
+    return () => this.presenceHandlers.delete(handler);
   }
 
   public onStatus(handler: StatusHandler): () => void {

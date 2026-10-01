@@ -69,7 +69,8 @@ import { MessageDeleteDialog } from './components/MessageDeleteDialog';
 import { MessageDetailsModal } from './components/MessageDetailsModal';
 import { BackgroundMusicPlayer } from './components/BackgroundMusicPlayer';
 import { db } from './lib/firebase';
-import { ChatMessage, ConnectionState, FileAttachment, ReplyReference, ChatTheme, CallType } from './types';
+import { ChatMessage, ConnectionState, FileAttachment, ReplyReference, ChatTheme, CallType, RoomType, RoomParticipant } from './types';
+import { OrganizationRosterModal } from './components/OrganizationRosterModal';
 import { prepareFileForSharing, prepareVoiceAttachment } from './lib/file-compression';
 import { sanitizeForFirestore } from './lib/sanitize';
 import { getSavedTheme, saveThemeSelection } from './lib/themes';
@@ -204,6 +205,13 @@ export default function App() {
   const [roomId, setRoomId] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [roomType, setRoomType] = useState<RoomType>('direct');
+  const [organizationName, setOrganizationName] = useState('');
+  const [myUsername, setMyUsername] = useState('');
+  const [participantCount, setParticipantCount] = useState<number>(1);
+  const [participants, setParticipants] = useState<RoomParticipant[]>([]);
+  const [maxCapacity, setMaxCapacity] = useState<number>(2);
+  const [isRosterModalOpen, setIsRosterModalOpen] = useState(false);
   const [authError, setAuthError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -838,7 +846,11 @@ export default function App() {
     const roomPwd = activePasswordRef.current || password.trim();
 
     // Connect to ultra-low latency real-time WebSocket tunnel (<10ms)
-    realTimeSocket.connect(activeRoomId, roomPwd, myUserId);
+    realTimeSocket.connect(activeRoomId, roomPwd, myUserId, {
+      roomType,
+      organizationName,
+      username: myUsername,
+    });
 
     // Fast socket message listener (<10ms peer delivery)
     const unsubSocketMsg = realTimeSocket.onMessage(async (payload, senderId) => {
@@ -876,6 +888,8 @@ export default function App() {
         text: decryptedText,
         sender: isMe ? 'me' : 'peer',
         senderId: senderId,
+        senderUsername: payload.senderUsername,
+        senderRole: payload.senderRole,
         time: payload.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         status: 'sent',
         file: decryptedFile,
@@ -989,6 +1003,58 @@ export default function App() {
           return m;
         })
       );
+    });
+
+    // Real-time presence listener for organization room participant count & roster
+    const unsubSocketPresence = realTimeSocket.onPresenceUpdate((payload) => {
+      if (typeof payload.participantCount === 'number') {
+        setParticipantCount(payload.participantCount);
+      }
+      if (Array.isArray(payload.participants)) {
+        setParticipants(payload.participants);
+      }
+      if (payload.roomType) {
+        setRoomType(payload.roomType);
+      }
+      if (payload.organizationName) {
+        setOrganizationName(payload.organizationName);
+      }
+      if (payload.action === 'joined' && payload.user && payload.user.id !== myUserId) {
+        if (soundEnabled) playPeerJoinedSound();
+        showToast(`${payload.user.username || 'Team member'} joined the room`, 'info');
+      } else if (payload.action === 'left' && payload.user && payload.user.id !== myUserId) {
+        if (soundEnabled) playPeerLeftSound();
+        showToast(`${payload.user.username || 'Team member'} left the room`, 'info');
+      }
+    });
+
+    // Real-time connection status listener
+    const unsubSocketStatus = realTimeSocket.onStatus((status, data) => {
+      if (status === 'connected') {
+        setConnectionState('connected');
+      } else if (status === 'waiting') {
+        setConnectionState('waiting');
+      } else if (status === 'room_full') {
+        setConnectionState('room_full');
+        showToast(data?.message || 'Room is at maximum capacity.', 'error');
+      }
+      if (data) {
+        if (typeof data.participantCount === 'number') {
+          setParticipantCount(data.participantCount);
+        }
+        if (Array.isArray(data.participants)) {
+          setParticipants(data.participants);
+        }
+        if (data.roomType) {
+          setRoomType(data.roomType);
+        }
+        if (data.organizationName) {
+          setOrganizationName(data.organizationName);
+        }
+        if (data.maxCapacity) {
+          setMaxCapacity(data.maxCapacity);
+        }
+      }
     });
 
     // 1. Room snapshot listener for participant presence & typing indicator
@@ -1195,6 +1261,8 @@ export default function App() {
             text: decryptedText,
             sender: data.senderId === myUserId ? 'me' : 'peer',
             senderId: data.senderId,
+            senderUsername: data.senderUsername,
+            senderRole: data.senderRole,
             file: decryptedFile,
             replyTo: decryptedReplyTo,
             reactions: decryptedReactions,
@@ -1367,6 +1435,8 @@ export default function App() {
       unsubSocketDelete();
       unsubSocketEdit();
       unsubSocketBurn();
+      unsubSocketPresence();
+      unsubSocketStatus();
       realTimeSocket.disconnect();
     };
   }, [activeRoomId, myUserId]);
@@ -1487,7 +1557,14 @@ export default function App() {
       const authRes = await fetch('/api/rooms/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomId: cleanRoom, password: cleanPassword, userId: myUserId }),
+        body: JSON.stringify({
+          roomId: cleanRoom,
+          password: cleanPassword,
+          userId: myUserId,
+          roomType,
+          organizationName: organizationName.trim(),
+          maxCapacity: roomType === 'organization' ? 50 : 2,
+        }),
       });
       if (authRes.status === 429) {
         const errJson = await authRes.json().catch(() => ({}));
@@ -1513,6 +1590,15 @@ export default function App() {
       if (authData.sessionToken) {
         realTimeSocket.setSessionToken(authData.sessionToken);
       }
+      if (authData.roomType) {
+        setRoomType(authData.roomType);
+      }
+      if (authData.organizationName) {
+        setOrganizationName(authData.organizationName);
+      }
+      if (authData.maxCapacity) {
+        setMaxCapacity(authData.maxCapacity);
+      }
 
       // Successful authentication & slot allocation via secure backend
       resetFailedAttempts(cleanRoom);
@@ -1525,7 +1611,11 @@ export default function App() {
       prewarmEnclaveKey(cleanPassword, cleanRoom).catch(() => {});
 
       // Connect WebSocket to real-time relay
-      realTimeSocket.connect(cleanRoom, cleanPassword, myUserId);
+      realTimeSocket.connect(cleanRoom, cleanPassword, myUserId, {
+        roomType: authData.roomType || roomType,
+        organizationName: authData.organizationName || organizationName,
+        username: myUsername,
+      });
     } catch (err: any) {
       console.error('Error authenticating room:', err);
       setAuthError(err.message || 'Failed to connect to room server. Please check your network.');
@@ -1797,10 +1887,14 @@ export default function App() {
         activeRoomId
       );
 
+      const currentRole = (participants.find((p) => p.id === myUserId)?.role) || (participants.length === 0 ? 'admin' : 'member');
+
       // 2. Only opaque ciphertext, IV, and anti-replay nonce touch the database
       const payload = sanitizeForFirestore({
         roomId: activeRoomId,
         senderId: myUserId,
+        senderUsername: myUsername || undefined,
+        senderRole: currentRole,
         time: currentTime,
         createdAt: optimisticCreatedAt,
         enc: true,
@@ -1818,6 +1912,8 @@ export default function App() {
       realTimeSocket.sendEncryptedMessage({
         messageId: optimisticId,
         senderId: myUserId,
+        senderUsername: myUsername || undefined,
+        senderRole: currentRole,
         roomId: activeRoomId,
         time: currentTime,
         createdAt: optimisticCreatedAt,
@@ -3631,6 +3727,12 @@ export default function App() {
           setPassword={setPassword}
           showPassword={showPassword}
           setShowPassword={setShowPassword}
+          roomType={roomType}
+          setRoomType={setRoomType}
+          organizationName={organizationName}
+          setOrganizationName={setOrganizationName}
+          username={myUsername}
+          setUsername={setMyUsername}
           authError={authError}
           setAuthError={setAuthError}
           isSubmitting={isSubmitting}
@@ -3848,6 +3950,12 @@ export default function App() {
       {/* Top Header & Integrated Tools */}
       <ChatHeader
         activeRoomId={activeRoomId}
+        roomType={roomType}
+        organizationName={organizationName}
+        participantCount={participantCount}
+        maxCapacity={maxCapacity}
+        participants={participants}
+        onOpenRoster={() => setIsRosterModalOpen(true)}
         copiedCode={copiedCode}
         onCopyRoomId={handleCopyRoomId}
         connectionState={connectionState}
@@ -5026,6 +5134,25 @@ export default function App() {
           setSecurityToastMessage('🚨 Duress panic wipe executed: session keys eradicated!');
         }}
         accentColor={currentTheme.accentColor}
+      />
+
+      {/* Organization Roster & Active Members Modal */}
+      <OrganizationRosterModal
+        isOpen={isRosterModalOpen}
+        onClose={() => setIsRosterModalOpen(false)}
+        roomId={activeRoomId}
+        roomType={roomType}
+        organizationName={organizationName}
+        participantCount={participantCount}
+        maxCapacity={maxCapacity}
+        participants={participants}
+        currentUserId={myUserId}
+        onCopyRoomId={handleCopyRoomId}
+        onOpenShareModal={() => {
+          setIsRosterModalOpen(false);
+          setShareLinkInitialMode('share_room');
+          setShareLinkModalOpen(true);
+        }}
       />
 
       {/* Customer Service & Diagnostics Modal */}

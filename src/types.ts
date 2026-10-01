@@ -59,6 +59,8 @@ export interface ChatMessage {
   text: string;
   sender: SenderType;
   senderId?: string;
+  senderUsername?: string;
+  senderRole?: 'admin' | 'member';
   time?: string;
   createdAt?: string;
   file?: FileAttachment;
@@ -154,6 +156,27 @@ export interface ChatTheme {
   previewColor: string;
   customBgUrl?: string;
   customDim?: number; // 0 to 90 %
+}
+
+export type RoomType = 'direct' | 'organization';
+
+export interface RoomParticipant {
+  id: string;
+  username: string;
+  role: 'admin' | 'member';
+  joinedAt?: number;
+  isOnline: boolean;
+}
+
+export interface PresenceUpdatePayload {
+  roomId: string;
+  roomType: RoomType;
+  organizationName?: string;
+  participantCount: number;
+  action?: 'joined' | 'left' | 'sync';
+  user?: { id: string; username: string };
+  participants: RoomParticipant[];
+  timestamp?: number;
 }
 
 export interface GroupRoomRequest {
