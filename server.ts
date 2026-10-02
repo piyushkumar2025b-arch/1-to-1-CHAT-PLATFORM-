@@ -643,7 +643,7 @@ async function startServer() {
             };
             rooms.set(assignedRoomId, room);
           } else {
-            room.passwordHash = modernPbkdf2Hash;
+            // Never overwrite existing room password hash with an entrant's password (BUG-008)
             if (!room.roomType) room.roomType = effectiveRoomType;
             if (!room.organizationName && effectiveOrgName) room.organizationName = effectiveOrgName;
             if (!room.maxCapacity) room.maxCapacity = effectiveMaxCapacity;
@@ -665,14 +665,8 @@ async function startServer() {
             return;
           }
 
-          let candidateId = (typeof data.userId === 'string' && data.userId.trim().length > 0 && data.userId.length <= 64)
-            ? stripInvisibleChars(data.userId).trim()
-            : '';
-          // Ensure uniqueness inside the room to prevent impersonation or collision (BUG-003)
-          if (!candidateId || room.users.some((u) => u.id === candidateId)) {
-            candidateId = `user_${crypto.randomBytes(8).toString('hex')}`;
-          }
-          assignedUserId = candidateId;
+          // Always generate a cryptographically random, authoritative server-side user ID (BUG-003)
+          assignedUserId = `user_${crypto.randomBytes(8).toString('hex')}`;
 
           const assignedUsername = requestedUsername || (candidateId.startsWith('user_') ? `Team Member ${candidateId.slice(5, 9).toUpperCase()}` : candidateId);
           const assignedRole: 'admin' | 'member' = room.users.length === 0 ? 'admin' : 'member';
@@ -1156,9 +1150,8 @@ async function startServer() {
     }
 
     clearAuthFailures(clientIp, cleanRoom);
-    const effectiveUserId = (typeof userId === 'string' && userId.length > 0 && userId.length <= 64)
-      ? stripInvisibleChars(userId).trim()
-      : crypto.randomBytes(8).toString('hex');
+    // Always assign an authoritative server-generated participant identity (BUG-003)
+    const effectiveUserId = `user_${crypto.randomBytes(8).toString('hex')}`;
 
     const sessionToken = createRoomSessionToken(cleanRoom, effectiveUserId);
     return res.json({
@@ -1282,7 +1275,7 @@ async function startServer() {
     return res.status(result.ok ? 200 : 400).json(result);
   });
 
-  // Server-authorized view-once media burning (Fix Bug 9)
+  // Server-authorized view-once media burning (Fix Bug 9 & 12)
   app.post('/api/rooms/burn-media', async (req, res) => {
     const authHeader = req.headers.authorization;
     const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : req.body?.sessionToken;
@@ -1291,12 +1284,12 @@ async function startServer() {
       return res.status(401).json({ ok: false, error: 'Unauthorized' });
     }
 
-    const { messageId } = req.body || {};
+    const { messageId, fileId } = req.body || {};
     if (!messageId || typeof messageId !== 'string') {
       return res.status(400).json({ ok: false, error: 'Invalid messageId' });
     }
 
-    const result = await burnMediaServer(session.roomId, messageId);
+    const result = await burnMediaServer(session.roomId, messageId, typeof fileId === 'string' ? fileId : undefined);
     if (result.ok) {
       const memRoom = rooms.get(session.roomId);
       if (memRoom) {
@@ -1319,6 +1312,11 @@ async function startServer() {
 
   // Server-authorized message history retrieval (Fix Bug 1 & 11)
   app.get('/api/rooms/messages', async (req, res) => {
+    // Reject token in query string to prevent credential leakage in logs or browser history (BUG-011)
+    if (req.query.token) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized: Session tokens in query parameters are strictly forbidden. Use Authorization: Bearer header.' });
+    }
+
     const authHeader = req.headers.authorization;
     const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
     const session = verifyRoomSessionToken(token);

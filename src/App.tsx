@@ -655,8 +655,8 @@ export default function App() {
     percent: number;
   } | null>(null);
 
-  // Unique session ID for this browser tab / window
-  const [myUserId] = useState(() => {
+  // Unique session ID for this browser tab / window (server-authoritative on join)
+  const [myUserId, setMyUserId] = useState(() => {
     const existing = sessionStorage.getItem('chat_session_user_id');
     if (existing) return existing;
     const newId = 'user_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now().toString(36);
@@ -973,18 +973,18 @@ export default function App() {
     // Instant socket message edit listener (<5ms)
     const unsubSocketEdit = realTimeSocket.onMessageEdited(async ({ messageId, ct, iv, nonce, editedAt }) => {
       try {
-        const dec = await decryptWithEnclave({ ct, iv, nonce, v: 2 }, roomPwd, activeRoomId);
+        const dec = await decryptWithEnclave({ enc: true, ct, iv, nonce: nonce || '', v: 1 }, roomPwd, activeRoomId);
         if (dec && dec.text) {
           setMessages((prev) =>
             prev.map((m) =>
               m.id === messageId
-                ? { ...m, text: dec.text, isEdited: true, editedAt: editedAt || Date.now() }
+                ? { ...m, text: sanitizeDecryptedHtml(dec.text), isEdited: true, editedAt: editedAt || Date.now() }
                 : m
             )
           );
         }
-      } catch {
-        // ignore
+      } catch (err) {
+        console.warn('Realtime edit decryption warning:', err);
       }
     });
 
@@ -1039,6 +1039,10 @@ export default function App() {
         showToast(data?.message || 'Room is at maximum capacity.', 'error');
       }
       if (data) {
+        if (data.userId) {
+          setMyUserId(data.userId);
+          sessionStorage.setItem('chat_session_user_id', data.userId);
+        }
         if (typeof data.participantCount === 'number') {
           setParticipantCount(data.participantCount);
         }
@@ -1161,7 +1165,7 @@ export default function App() {
     const unsubscribeMessages = onSnapshot(
       messagesCollectionRef,
       async (snapshot) => {
-        const roomPwd = activePasswordRef.current || password.trim();
+        const roomPwd = activePasswordRef.current || password;
         const currentDocIds = new Set<string>();
 
         const messagePromises = snapshot.docs.map(async (docSnap) => {
@@ -1442,18 +1446,19 @@ export default function App() {
   }, [activeRoomId, myUserId]);
 
   const generateRandomRoom = () => {
-    // Generate high-entropy 8-character Base32 room code (> 1.1 trillion possibilities) (BUG-005)
+    // Generate high-entropy 20-character Base32 room code (100 bits of cryptographic entropy) (BUG-005)
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    const rand = new Uint8Array(8);
+    const rand = new Uint8Array(20);
     if (typeof window !== 'undefined' && window.crypto) {
       window.crypto.getRandomValues(rand);
     } else {
-      for (let i = 0; i < 8; i++) rand[i] = Math.floor(Math.random() * 256);
+      for (let i = 0; i < 20; i++) rand[i] = Math.floor(Math.random() * 256);
     }
     let code = '';
-    for (let i = 0; i < 4; i++) code += chars[rand[i] % chars.length];
-    code += '-';
-    for (let i = 4; i < 8; i++) code += chars[rand[i] % chars.length];
+    for (let i = 0; i < 20; i++) {
+      if (i > 0 && i % 5 === 0) code += '-';
+      code += chars[rand[i] % chars.length];
+    }
     setRoomId(code);
     if (authError) setAuthError('');
     return code;
@@ -1842,7 +1847,7 @@ export default function App() {
     setReplyingTo(null);
 
     const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const roomPwd = activePasswordRef.current || password.trim();
+    const roomPwd = activePasswordRef.current || password;
 
     // Calculate auto-disappear duration & expiration if enabled
     const durationMs = ephemeralEnabled ? getDurationMs(ephemeralDurationOption) : 0;
@@ -2073,7 +2078,7 @@ export default function App() {
     // Instant WebSocket broadcast (<2ms)
     realTimeSocket.sendMediaBurned(messageId);
 
-    // Call server-authorized burn endpoint (Fix Bug 9)
+    // Call server-authorized burn endpoint (Fix Bug 9 & 12)
     const sessionToken = realTimeSocket.getSessionToken();
     if (sessionToken) {
       fetch('/api/rooms/burn-media', {
@@ -2082,11 +2087,24 @@ export default function App() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${sessionToken}`,
         },
-        body: JSON.stringify({ messageId }),
+        body: JSON.stringify({ messageId, fileId }),
       }).catch(() => {});
     }
 
     try {
+      if (fileId) {
+        try {
+          const chunkCol = collection(db, 'rooms', activeRoomId, 'files', fileId, 'chunks');
+          const chunkSnaps = await getDocs(chunkCol);
+          for (const c of chunkSnaps.docs) {
+            await deleteDoc(c.ref).catch(() => {});
+          }
+          await deleteDoc(doc(db, 'rooms', activeRoomId, 'files', fileId)).catch(() => {});
+        } catch (err) {
+          console.warn('Note during client view-once file purge:', err);
+        }
+      }
+
       await updateDoc(doc(db, 'rooms', activeRoomId, 'messages', messageId), {
         viewed: true,
         viewedAt: now,
@@ -2287,7 +2305,7 @@ export default function App() {
       prev.map((m) => (m.id === messageId ? { ...m, poll: updatedPoll } : m))
     );
 
-    const roomPwd = activePasswordRef.current || password.trim();
+    const roomPwd = activePasswordRef.current || password;
     try {
       const envelope = await encryptWithEnclave(
         {
@@ -2324,7 +2342,7 @@ export default function App() {
       prev.map((m) => (m.id === messageId ? { ...m, poll: updatedPoll } : m))
     );
 
-    const roomPwd = activePasswordRef.current || password.trim();
+    const roomPwd = activePasswordRef.current || password;
     try {
       const envelope = await encryptWithEnclave(
         {
@@ -2418,7 +2436,7 @@ export default function App() {
 
     const messageText = note ? `${note}\n${url}` : url;
     const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const roomPwd = activePasswordRef.current || password.trim();
+    const roomPwd = activePasswordRef.current || password;
 
     try {
       const envelope = await encryptWithEnclave(
@@ -2557,7 +2575,7 @@ export default function App() {
             prev.map((m) => (m.id === tempId ? { ...m, uploadProgress: chunkPercent } : m))
           );
 
-          const roomPwd = activePasswordRef.current || password.trim();
+          const roomPwd = activePasswordRef.current || password;
           const chunkEnvelope = await encryptWithEnclave(
             {
               chunkIndex: i,
@@ -2591,7 +2609,7 @@ export default function App() {
       );
 
       // 3. Post canonical message with file attachment metadata sealed in cryptographic enclave
-      const roomPwd = activePasswordRef.current || password.trim();
+      const roomPwd = activePasswordRef.current || password;
       const durationMs = ephemeralEnabled ? getDurationMs(ephemeralDurationOption) : 0;
       const expiresAt = ephemeralEnabled && durationMs > 0 ? Date.now() + durationMs : null;
 
@@ -3164,7 +3182,7 @@ export default function App() {
       setReplyingTo(null);
 
       // Save voice message into Firestore sealed in cryptographic enclave
-      const roomPwd = activePasswordRef.current || password.trim();
+      const roomPwd = activePasswordRef.current || password;
       const durationMs = ephemeralEnabled ? getDurationMs(ephemeralDurationOption) : 0;
       const expiresAt = ephemeralEnabled && durationMs > 0 ? Date.now() + durationMs : null;
 

@@ -134,7 +134,7 @@ export async function deriveEnclaveKey(
   iterations: number = OWASP_PBKDF2_ROUNDS
 ): Promise<CryptoKey> {
   const cleanRoom = stripZeroWidth(roomId || '').trim().toUpperCase();
-  const cleanPass = stripZeroWidth(password || '').trim();
+  const cleanPass = stripZeroWidth(password || '');
   const fingerprint = `${cleanRoom}:::${cleanPass}:::${iterations}`;
 
   if (iterations === OWASP_PBKDF2_ROUNDS && cachedCryptoKey && cachedKeyFingerprint === fingerprint) {
@@ -316,7 +316,7 @@ export async function encryptWithEnclave<T = any>(
   roomId: string
 ): Promise<EncryptedPayload> {
   const cleanRoom = (roomId || '').trim().toUpperCase();
-  const cleanPass = (password || '').trim();
+  const cleanPass = stripZeroWidth(password || '');
   const key = await deriveEnclaveKey(cleanPass, cleanRoom);
 
   // Generate unique 96-bit (12-byte) initialization vector for every message
@@ -380,7 +380,7 @@ export async function decryptWithEnclave<T = any>(
   }
 
   const cleanRoom = (roomId || '').trim().toUpperCase();
-  const cleanPass = (password || '').trim();
+  const cleanPass = stripZeroWidth(password || '');
 
   try {
     const key = await deriveEnclaveKey(cleanPass, cleanRoom, OWASP_PBKDF2_ROUNDS);

