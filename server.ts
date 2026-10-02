@@ -306,7 +306,7 @@ async function startServer() {
   app.disable('x-powered-by');
 
   // Fast gzip/deflate compression for static assets and API payloads > 512 bytes
-  app.use(compression({ threshold: 512 }));
+  app.use(compression({ threshold: 512 }) as any);
 
   // Enforce strict bounded JSON and URL-encoded payloads to prevent body allocation memory exhaustion attacks
   app.use(express.json({ limit: '100kb' }));
