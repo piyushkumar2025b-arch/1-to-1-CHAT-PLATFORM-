@@ -668,7 +668,7 @@ async function startServer() {
           // Always generate a cryptographically random, authoritative server-side user ID (BUG-003)
           assignedUserId = `user_${crypto.randomBytes(8).toString('hex')}`;
 
-          const assignedUsername = requestedUsername || (candidateId.startsWith('user_') ? `Team Member ${candidateId.slice(5, 9).toUpperCase()}` : candidateId);
+          const assignedUsername = requestedUsername || `Team Member ${assignedUserId.slice(5, 9).toUpperCase()}`;
           const assignedRole: 'admin' | 'member' = room.users.length === 0 ? 'admin' : 'member';
 
           // Generate cryptographic session token (Fix Bug 1, 2 & 14)

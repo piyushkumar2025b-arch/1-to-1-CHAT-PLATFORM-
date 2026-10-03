@@ -468,101 +468,85 @@ export function CodeSandboxModal({
           executableJs = res.code;
         }
 
-        const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-        const sandboxedFunc = new AsyncFunction(
-          'console',
-          'crypto',
-          'TextEncoder',
-          'TextDecoder',
-          'setTimeout',
-          'clearTimeout',
-          'setInterval',
-          'clearInterval',
-          // Shadow browser environment APIs
-          'window',
-          'document',
-          'localStorage',
-          'sessionStorage',
-          'fetch',
-          'XMLHttpRequest',
-          'WebSocket',
-          'indexedDB',
-          'location',
-          'parent',
-          'top',
-          'globalThis',
-          'navigator',
-          'cookieStore',
-          'BroadcastChannel',
-          'Worker',
-          'SharedWorker',
-          'ServiceWorker',
-          'EventSource',
-          'open',
-          'alert',
-          'prompt',
-          'confirm',
-          `
-          "use strict";
-          try {
-            ${executableJs}
-          } catch(err) {
-            console.error(err.message || String(err));
+        // Execute untrusted JS/TS inside a true sandboxed iframe (opaque null origin, no allow-same-origin) (BUG-017)
+        const sandboxFrame = document.createElement('iframe');
+        sandboxFrame.setAttribute('sandbox', 'allow-scripts');
+        sandboxFrame.style.display = 'none';
+
+        const runId = 'exec_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+        const cleanup = () => {
+          window.removeEventListener('message', onSandboxMessage);
+          clearTimeout(safetyTimer);
+          if (sandboxFrame.parentNode) {
+            sandboxFrame.parentNode.removeChild(sandboxFrame);
           }
-        `
-        );
+        };
 
-        const execPromise = sandboxedFunc(
-          customConsole,
-          window.crypto,
-          window.TextEncoder,
-          window.TextDecoder,
-          window.setTimeout,
-          window.clearTimeout,
-          window.setInterval,
-          window.clearInterval,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          undefined
-        );
-
-        Promise.resolve(execPromise)
-          .then((result) => {
+        const onSandboxMessage = (event: MessageEvent) => {
+          if (!event.data || event.data.runId !== runId) return;
+          if (event.data.type === 'LOG') {
+            appendLog(event.data.msg);
+          } else if (event.data.type === 'DONE') {
+            cleanup();
             const elapsed = performance.now() - startTime;
             setExecutionTime(Math.round(elapsed));
-            if (result !== undefined) {
-              appendLog(`↳ Returned: ${typeof result === 'object' ? JSON.stringify(result, null, 2) : String(result)}`);
+            if (event.data.result !== undefined) {
+              appendLog(`↳ Returned: ${event.data.result}`);
             }
-            if (logs.length === 0) {
-              appendLog('✓ Executed successfully with no console output.');
+            if (logs.length === 0 && event.data.result === undefined) {
+              appendLog('✓ Executed successfully in isolated sandbox with no console output.');
             }
             setIsRunning(false);
-          })
-          .catch((err: any) => {
-            appendLog(`❌ Unhandled Error: ${err.message || String(err)}`);
+          } else if (event.data.type === 'ERROR') {
+            cleanup();
+            appendLog(`❌ Unhandled Error: ${event.data.error}`);
             setExecutionTime(Math.round(performance.now() - startTime));
             setIsRunning(false);
-          });
+          }
+        };
+
+        window.addEventListener('message', onSandboxMessage);
+        const safetyTimer = setTimeout(() => {
+          cleanup();
+          appendLog('⏱️ [TIMEOUT] Execution terminated after 5000ms limit.');
+          setExecutionTime(Math.round(performance.now() - startTime));
+          setIsRunning(false);
+        }, 5000);
+
+        const escapedCode = JSON.stringify(executableJs);
+        sandboxFrame.srcdoc = `<!DOCTYPE html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; connect-src 'none';"></head><body><script>
+          (async function() {
+            const runId = ${JSON.stringify(runId)};
+            const formatArgs = (args) => args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ');
+            const customConsole = {
+              log: (...args) => parent.postMessage({ runId, type: 'LOG', msg: formatArgs(args) }, '*'),
+              error: (...args) => parent.postMessage({ runId, type: 'LOG', msg: '❌ [ERROR] ' + formatArgs(args) }, '*'),
+              warn: (...args) => parent.postMessage({ runId, type: 'LOG', msg: '⚠️ [WARN] ' + formatArgs(args) }, '*'),
+              info: (...args) => parent.postMessage({ runId, type: 'LOG', msg: 'ℹ️ [INFO] ' + formatArgs(args) }, '*'),
+            };
+            try {
+              const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+              const fn = new AsyncFunction(
+                'console', 'crypto', 'TextEncoder', 'TextDecoder', 'performance',
+                'window', 'document', 'localStorage', 'sessionStorage', 'fetch', 'XMLHttpRequest', 'WebSocket', 'indexedDB', 'location', 'parent', 'top', 'globalThis',
+                '"use strict";\\n' + ${escapedCode}
+              );
+              const res = await fn(
+                customConsole, window.crypto, window.TextEncoder, window.TextDecoder, window.performance,
+                undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined
+              );
+              parent.postMessage({
+                runId,
+                type: 'DONE',
+                result: res !== undefined ? (typeof res === 'object' ? JSON.stringify(res, null, 2) : String(res)) : undefined
+              }, '*');
+            } catch (err) {
+              parent.postMessage({ runId, type: 'ERROR', error: err && err.message ? err.message : String(err) }, '*');
+            }
+          })();
+        <\/script></body></html>`;
+
+        document.body.appendChild(sandboxFrame);
       } catch (err: any) {
         setConsoleOutput([`❌ Syntax / Execution Error: ${err.message || String(err)}`]);
         setExecutionTime(Math.round(performance.now() - startTime));
