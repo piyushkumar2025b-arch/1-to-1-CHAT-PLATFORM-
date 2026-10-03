@@ -1,27 +1,41 @@
 /**
- * Advanced Cryptographic Enclave for Private Chat
- * 
- * Provides transparent, military-grade end-to-end encryption (E2EE):
- * - AES-GCM-256 with dynamic 96-bit initialization vectors (IV) for every message
- * - PBKDF2-HMAC-SHA256 key derivation with 100,000 rounds and room-specific salt
- * - Anti-tamper authentication tag verification (built into AES-GCM)
- * - Anti-replay protection with monotonic timestamps and cryptographic nonces
- * - Ephemeral memory-only key management (zeroized on room teardown)
- * 
- * Completely transparent to the user: happens in < 1 millisecond per message.
+ * Cryptographic Enclave for End-to-End Encrypted Room Communication (BUG-008 Reviewed)
+ *
+ * Threat Model & Security Guarantees:
+ * - Confidentiality & Integrity: Payloads are encrypted client-side using WebCrypto AES-256-GCM
+ *   with a fresh 96-bit CSPRNG initialization vector (IV) and 128-bit authentication tag per message.
+ * - Contextual Binding (AAD): Each ciphertext is bound to `${ROOM_ID}:${NONCE}` via AES-GCM
+ *   Additional Authenticated Data (AAD), preventing cross-room splicing and replay substitutions.
+ * - Key Derivation: Keys are derived via PBKDF2-HMAC-SHA256 (310,000 iterations default, with
+ *   100,000-iteration legacy migration fallback). Supports both v2 per-room random 128-bit salts
+ *   (`salt` metadata field) and v1 deterministic room-bound domain separation salts.
+ * - Anti-Replay Scope: `verifyAntiReplay` provides client-instance replay detection within a
+ *   5-minute sliding window; cross-client replay enforcement is performed by the WebSocket relay
+ *   server (`checkAndRecordNonce` in `server.ts`).
+ * - Key Lifecycle: Derived `CryptoKey` objects are marked non-extractable (`extractable: false`)
+ *   and zeroized from module caches upon `purgeEnclaveKey()`.
  */
 
-interface EncryptedPayload {
+export interface EncryptedPayload {
   enc: true;
-  v: 1; // Enclave protocol version
+  v: 1 | 2; // Enclave protocol version (v1: domain-separated room salt, v2: explicit random salt)
   iv: string; // Base64 12-byte IV
   ct: string; // Base64 ciphertext with authentication tag
   nonce: string; // Anti-replay nonce
   ts: number; // Monotonic epoch timestamp
+  salt?: string; // Optional Base64 16-byte random PBKDF2 salt (v2)
 }
 
 export const OWASP_PBKDF2_ROUNDS = 310000;
 export const LEGACY_PBKDF2_ROUNDS = 100000;
+
+/**
+ * Generates a cryptographically random 128-bit (16-byte) salt encoded as Base64 for v2 key derivation.
+ */
+export function generateEnclaveSalt(): string {
+  const saltBytes = crypto.getRandomValues(new Uint8Array(16));
+  return uint8ArrayToBase64(saltBytes);
+}
 
 // Shared TextEncoder and TextDecoder instances to eliminate repeated heap allocations and GC spikes
 const sharedTextEncoder = new TextEncoder();
@@ -131,11 +145,13 @@ export function stripZeroWidth(str: string): string {
 export async function deriveEnclaveKey(
   password: string,
   roomId: string,
-  iterations: number = OWASP_PBKDF2_ROUNDS
+  iterations: number = OWASP_PBKDF2_ROUNDS,
+  customSaltBase64?: string
 ): Promise<CryptoKey> {
   const cleanRoom = stripZeroWidth(roomId || '').trim().toUpperCase();
   const cleanPass = stripZeroWidth(password || '');
-  const fingerprint = `${cleanRoom}:::${cleanPass}:::${iterations}`;
+  const saltTag = customSaltBase64 || 'v1_default';
+  const fingerprint = `${cleanRoom}:::${cleanPass}:::${iterations}:::${saltTag}`;
 
   if (iterations === OWASP_PBKDF2_ROUNDS && cachedCryptoKey && cachedKeyFingerprint === fingerprint) {
     return cachedCryptoKey;
@@ -152,8 +168,10 @@ export async function deriveEnclaveKey(
     ['deriveKey']
   );
 
-  // Salt derived from room ID plus a fixed cryptographic pepper
-  const salt = sharedTextEncoder.encode(`ENCLAVE_V1_SALT_${cleanRoom}_PEPPER_492091!`);
+  // Use explicit v2 random salt combined with room domain separation when provided, or v1 room salt
+  const salt = customSaltBase64
+    ? sharedTextEncoder.encode(`ENCLAVE_V2_SALT_${cleanRoom}_${customSaltBase64}`)
+    : sharedTextEncoder.encode(`ENCLAVE_V1_SALT_${cleanRoom}_PEPPER_492091!`);
 
   const derivedKey = await crypto.subtle.deriveKey(
     {
@@ -313,11 +331,12 @@ function base64ToUint8Array(base64: string): Uint8Array {
 export async function encryptWithEnclave<T = any>(
   data: T,
   password: string,
-  roomId: string
+  roomId: string,
+  customSaltBase64?: string
 ): Promise<EncryptedPayload> {
   const cleanRoom = (roomId || '').trim().toUpperCase();
   const cleanPass = stripZeroWidth(password || '');
-  const key = await deriveEnclaveKey(cleanPass, cleanRoom);
+  const key = await deriveEnclaveKey(cleanPass, cleanRoom, OWASP_PBKDF2_ROUNDS, customSaltBase64);
 
   // Generate unique 96-bit (12-byte) initialization vector for every message
   const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -341,14 +360,18 @@ export async function encryptWithEnclave<T = any>(
     plaintextBytes
   );
 
-  return {
+  const envelope: EncryptedPayload = {
     enc: true,
-    v: 1,
+    v: customSaltBase64 ? 2 : 1,
     iv: uint8ArrayToBase64(iv),
     ct: uint8ArrayToBase64(new Uint8Array(ciphertextBuffer)),
     nonce,
     ts,
   };
+  if (customSaltBase64) {
+    envelope.salt = customSaltBase64;
+  }
+  return envelope;
 }
 
 /**
@@ -383,7 +406,8 @@ export async function decryptWithEnclave<T = any>(
   const cleanPass = stripZeroWidth(password || '');
 
   try {
-    const key = await deriveEnclaveKey(cleanPass, cleanRoom, OWASP_PBKDF2_ROUNDS);
+    const customSalt = typeof payload.salt === 'string' && payload.salt.length > 0 ? payload.salt : undefined;
+    const key = await deriveEnclaveKey(cleanPass, cleanRoom, OWASP_PBKDF2_ROUNDS, customSalt);
     const iv = base64ToUint8Array(payload.iv);
 
     // Support both standard base64 ciphertext (with appended auth tag) and split ct::authTag
@@ -432,7 +456,7 @@ export async function decryptWithEnclave<T = any>(
     // If 310k rounds failed, try legacy 100k rounds key for seamless backward compatibility
     if (!decryptedBuffer) {
       try {
-        const legacyKey = await deriveEnclaveKey(cleanPass, cleanRoom, LEGACY_PBKDF2_ROUNDS);
+        const legacyKey = await deriveEnclaveKey(cleanPass, cleanRoom, LEGACY_PBKDF2_ROUNDS, customSalt);
         for (const aad of aadCandidates) {
           try {
             decryptedBuffer = await crypto.subtle.decrypt(

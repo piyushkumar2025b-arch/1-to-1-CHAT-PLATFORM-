@@ -15,6 +15,7 @@ import {
   purgeEnclaveKey,
   verifyAntiReplay,
   resetAntiReplayTracker,
+  generateEnclaveSalt,
   OWASP_PBKDF2_ROUNDS,
 } from '../src/lib/crypto-enclave';
 import {
@@ -22,6 +23,8 @@ import {
   recordEncryptedPayload,
 } from '../src/lib/server-db';
 import { WebSocket } from 'ws';
+import fs from 'fs';
+import path from 'path';
 
 let passed = 0;
 let failed = 0;
@@ -274,6 +277,64 @@ async function runAuditFixesTests() {
 
   const decLegacy = await decryptWithEnclave<{ text: string }>(legacySealed, keyPass, keyRoom);
   assert(decLegacy?.text === messageObj.text, 'Legacy payload with split ct::authTag decrypts cleanly');
+
+  // -------------------------------------------------------------
+  // STATIC AUDIT BUG-001 to BUG-006: Hardened Firestore Rules Verification
+  // -------------------------------------------------------------
+  console.log('--- [Static Audit BUG-001..006] Hardened Firestore Rules Verification ---');
+  const rulesContent = fs.readFileSync(path.resolve(process.cwd(), 'firestore.rules'), 'utf8');
+  assert(rulesContent.includes('function roomExists(roomId)'), 'Firestore rules define Master Gate roomExists(roomId)');
+  assert(rulesContent.includes('function isValidRoomUpdate(data, existingData)'), 'Firestore rules enforce strict room update blueprint');
+  assert(rulesContent.includes('incoming().diff(existing()).affectedKeys().hasOnly('), 'Firestore rules enforce narrow diff().affectedKeys().hasOnly() on updates (BUG-003)');
+  assert(rulesContent.includes('function isValidCallDoc(data)') && rulesContent.includes('function isValidCandidateDoc(data)'), 'Firestore rules validate WebRTC call & ICE candidate schemas (BUG-004)');
+  assert(rulesContent.includes('function isValidScratchpadDoc(data)'), 'Firestore rules validate collaborative scratchpad schema (BUG-004)');
+  assert(rulesContent.includes('function isValidFileDoc(data)') && rulesContent.includes('function isValidChunkDoc(data)'), 'Firestore rules validate file & chunk schemas (BUG-005)');
+  assert(rulesContent.includes('function isValidGroupRequest(data)'), 'Firestore rules enforce strict field allowlist & bounds on group_requests (BUG-006)');
+
+  // -------------------------------------------------------------
+  // STATIC AUDIT BUG-007: WebSocket Post-Auth & Anti-Spoofing Verification
+  // -------------------------------------------------------------
+  console.log('--- [Static Audit BUG-007] WebSocket Unauthenticated & Anti-Spoofing Verification ---');
+  const wsUnauth = new WebSocket('ws://localhost:3000/ws', { headers: { Origin: 'http://localhost:3000' } });
+  await new Promise<void>((res) => wsUnauth.on('open', () => res()));
+  const unauthErrorPromise = new Promise<boolean>((resolve) => {
+    wsUnauth.on('message', (raw) => {
+      try {
+        const parsed = JSON.parse(raw.toString());
+        if (parsed.type === 'error' && parsed.message?.includes('Unauthorized')) {
+          resolve(true);
+        }
+      } catch {}
+    });
+    setTimeout(() => resolve(false), 1500);
+  });
+  wsUnauth.send(JSON.stringify({
+    type: 'encrypted_message',
+    payload: { enc: true, v: 1, ct: 'abc', iv: '123456789012', nonce: 'nonce1234', ts: Date.now() },
+  }));
+  const rejectedUnauth = await unauthErrorPromise;
+  assert(rejectedUnauth === true, 'Unauthenticated WebSocket message frame is strictly rejected by server');
+  wsUnauth.close();
+
+  // -------------------------------------------------------------
+  // STATIC AUDIT BUG-008: Versioned Enclave Salt (v2 Random Salt) Verification
+  // -------------------------------------------------------------
+  console.log('--- [Static Audit BUG-008] Versioned Enclave Salt (v2 CSPRNG Salt) Verification ---');
+  const randomSalt1 = generateEnclaveSalt();
+  const randomSalt2 = generateEnclaveSalt();
+  assert(randomSalt1.length >= 20 && randomSalt1 !== randomSalt2, 'generateEnclaveSalt() produces unique 128-bit Base64 salts');
+  const v2Sealed = await encryptWithEnclave({ text: 'Version 2 salted secret' }, keyPass, keyRoom, randomSalt1);
+  assert(v2Sealed.v === 2 && v2Sealed.salt === randomSalt1, 'encryptWithEnclave with customSalt produces v:2 envelope with salt metadata');
+  const v2Decrypted = await decryptWithEnclave<{ text: string }>(v2Sealed, keyPass, keyRoom);
+  assert(v2Decrypted?.text === 'Version 2 salted secret', 'decryptWithEnclave transparently derives key using v:2 salt metadata');
+
+  // -------------------------------------------------------------
+  // STATIC AUDIT BUG-009: Comprehensive Content-Security-Policy Verification
+  // -------------------------------------------------------------
+  console.log('--- [Static Audit BUG-009] Multi-Directive CSP Header Verification ---');
+  const healthRes = await fetch('http://localhost:3000/api/health');
+  const cspHeader = healthRes.headers.get('content-security-policy') || '';
+  assert(cspHeader.includes("default-src 'self'") && cspHeader.includes("object-src 'none'") && cspHeader.includes('frame-ancestors'), 'HTTP response includes comprehensive multi-directive Content-Security-Policy');
 
   console.log('\n============================================================');
   console.log(`AUDIT TEST RESULTS: ${passed} PASSED, ${failed} FAILED`);

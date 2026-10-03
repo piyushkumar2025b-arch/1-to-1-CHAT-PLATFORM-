@@ -2,74 +2,227 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Validates document path IDs strictly to alphanumeric and safe delimiter chars [a-zA-Z0-9_-]
+    // -------------------------------------------------------------------------
+    // Primitive Security Helpers
+    // -------------------------------------------------------------------------
     function isValidId(id) {
-      return id is string && id.matches('^[a-zA-Z0-9_-]{1,64}$');
+      return id is string && id.size() >= 1 && id.size() <= 64 && id.matches('^[a-zA-Z0-9_-]+$');
     }
 
-    // Default deny for all unspecified collections
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Master Gate: Verifies that the parent room document exists in Firestore (BUG-001, BUG-002)
+    function roomExists(roomId) {
+      return isValidId(roomId) && exists(/databases/$(database)/documents/rooms/$(roomId));
+    }
+
+    // -------------------------------------------------------------------------
+    // Entity Validation Blueprints
+    // -------------------------------------------------------------------------
+    function isValidRoomCreate(data, roomId) {
+      return data.keys().hasAll(['roomId', 'passwordHash'])
+        && data.keys().hasOnly([
+          'roomId', 'passwordHash', 'participantCount', 'participants', 'typing',
+          'roomType', 'organizationName', 'maxCapacity', 'roomLifespan',
+          'createdAt', 'lastActiveAt', 'serverTimestamp'
+        ])
+        && data.roomId == roomId
+        && data.passwordHash is string
+        && data.passwordHash.size() >= 16
+        && data.passwordHash.size() <= 256
+        && (!('participantCount' in data) || (data.participantCount is number && data.participantCount >= 0 && data.participantCount <= 500))
+        && (!('participants' in data) || (data.participants is map && data.participants.size() <= 500))
+        && (!('roomType' in data) || (data.roomType in ['direct', 'organization']))
+        && (!('organizationName' in data) || (data.organizationName is string && data.organizationName.size() <= 100))
+        && (!('maxCapacity' in data) || (data.maxCapacity is number && data.maxCapacity >= 2 && data.maxCapacity <= 500));
+    }
+
+    function isValidRoomUpdate(data, existingData) {
+      return (!('roomId' in data) || data.roomId == existingData.roomId)
+        && (!('passwordHash' in data) || data.passwordHash == existingData.passwordHash)
+        && (!('createdAt' in data) || !('createdAt' in existingData) || data.createdAt == existingData.createdAt)
+        && (!('participantCount' in data) || (data.participantCount is number && data.participantCount >= 0 && data.participantCount <= 500))
+        && (!('participants' in data) || (data.participants is map && data.participants.size() <= 500))
+        && (!('roomType' in data) || (data.roomType in ['direct', 'organization']))
+        && (!('organizationName' in data) || (data.organizationName is string && data.organizationName.size() <= 100))
+        && (!('maxCapacity' in data) || (data.maxCapacity is number && data.maxCapacity >= 2 && data.maxCapacity <= 500))
+        && data.diff(existingData).affectedKeys().hasOnly([
+          'participants', 'participantCount', 'typing', 'lastActiveAt',
+          'serverTimestamp', 'roomLifespan', 'roomType', 'organizationName', 'maxCapacity'
+        ]);
+    }
+
+    function isValidEncryptedMessage(data, roomId) {
+      return data.enc == true
+        && data.ct is string
+        && data.ct.size() > 0
+        && data.ct.size() <= 1048576
+        && data.iv is string
+        && data.iv.size() >= 12
+        && data.iv.size() <= 64
+        && data.nonce is string
+        && data.nonce.size() >= 8
+        && data.nonce.size() <= 64
+        && (!('v' in data) || (data.v is number && data.v in [1, 2]))
+        && (!('salt' in data) || (data.salt is string && data.salt.size() >= 16 && data.salt.size() <= 64))
+        && (!('roomId' in data) || data.roomId == roomId)
+        && (!('senderId' in data) || (data.senderId is string && data.senderId.size() >= 1 && data.senderId.size() <= 64))
+        && (!('senderUsername' in data) || (data.senderUsername is string && data.senderUsername.size() <= 64))
+        && (!('senderRole' in data) || (data.senderRole in ['admin', 'member']));
+    }
+
+    function isValidFileDoc(data) {
+      return (!('fileSize' in data) || (data.fileSize is number && data.fileSize >= 0 && data.fileSize <= 52428800))
+        && (!('fileName' in data) || (data.fileName is string && data.fileName.size() >= 1 && data.fileName.size() <= 255))
+        && (!('mimeType' in data) || (data.mimeType is string && data.mimeType.size() <= 128))
+        && (!('totalChunks' in data) || (data.totalChunks is number && data.totalChunks >= 1 && data.totalChunks <= 500))
+        && (!('senderId' in data) || (data.senderId is string && data.senderId.size() <= 64));
+    }
+
+    function isValidChunkDoc(data) {
+      return (!('chunkIndex' in data) || (data.chunkIndex is number && data.chunkIndex >= 0 && data.chunkIndex < 500))
+        && (
+          (data.enc == true
+            && data.ct is string && data.ct.size() > 0 && data.ct.size() <= 800000
+            && data.iv is string && data.iv.size() >= 12 && data.iv.size() <= 64
+            && data.nonce is string && data.nonce.size() >= 8 && data.nonce.size() <= 64)
+          || ('data' in data && data.data is string && data.data.size() > 0 && data.data.size() <= 600000)
+        );
+    }
+
+    function isValidCallDoc(data) {
+      return data.keys().hasOnly([
+          'id', 'sessionId', 'callerId', 'callerName', 'callType', 'status',
+          'offer', 'answer', 'videoEnabled', 'calleeVideoEnabled', 'audioEnabled',
+          'calleeAudioEnabled', 'isScreenSharing', 'activeScreenSharer',
+          'callerCandidates', 'calleeCandidates', 'createdAt', 'answeredAt', 'endedAt'
+        ])
+        && (!('callerId' in data) || (data.callerId is string && data.callerId.size() >= 1 && data.callerId.size() <= 64))
+        && (!('callerName' in data) || (data.callerName is string && data.callerName.size() <= 64))
+        && (!('callType' in data) || (data.callType in ['video', 'audio']))
+        && (!('status' in data) || (data.status in ['calling', 'ringing', 'connecting', 'answered', 'connected', 'ended', 'declined', 'busy', 'missed']))
+        && (!('callerCandidates' in data) || (data.callerCandidates is list && data.callerCandidates.size() <= 200))
+        && (!('calleeCandidates' in data) || (data.calleeCandidates is list && data.calleeCandidates.size() <= 200));
+    }
+
+    function isValidCandidateDoc(data) {
+      return data.keys().hasOnly(['sessionId', 'sender', 'candidate', 'sdpMid', 'sdpMLineIndex', 'createdAt'])
+        && data.candidate is string
+        && data.candidate.size() >= 1
+        && data.candidate.size() <= 4096
+        && (!('sender' in data) || data.sender in ['caller', 'callee'])
+        && (!('sessionId' in data) || (data.sessionId is string && data.sessionId.size() <= 64));
+    }
+
+    function isValidScratchpadDoc(data) {
+      return data.keys().hasOnly([
+          'id', 'strokes', 'content', 'notes', 'lastEditorId',
+          'lastUpdatedBy', 'updatedBy', 'updatedAt',
+          'enc', 'ct', 'iv', 'nonce', 'v', 'ts', 'salt'
+        ])
+        && (!('strokes' in data) || (data.strokes is list && data.strokes.size() <= 2000))
+        && (!('content' in data) || (data.content is string && data.content.size() <= 100000))
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 100000))
+        && (!('lastEditorId' in data) || (data.lastEditorId is string && data.lastEditorId.size() <= 64))
+        && (!('lastUpdatedBy' in data) || (data.lastUpdatedBy is string && data.lastUpdatedBy.size() <= 64));
+    }
+
+    function isValidGroupRequest(data) {
+      return data.keys().hasAll(['requestedSize', 'createdAt'])
+        && data.keys().hasOnly([
+          'id', 'requestedSize', 'useCase', 'customDetails',
+          'securityPriority', 'contact', 'createdAt'
+        ])
+        && data.requestedSize is number
+        && data.requestedSize >= 3
+        && data.requestedSize <= 500
+        && data.createdAt is string
+        && data.createdAt.size() <= 64
+        && (!('id' in data) || (data.id is string && data.id.size() <= 64))
+        && (!('useCase' in data) || (data.useCase is string && data.useCase.size() <= 120))
+        && (!('customDetails' in data) || (data.customDetails is string && data.customDetails.size() <= 1000))
+        && (!('securityPriority' in data) || (data.securityPriority is string && data.securityPriority.size() <= 120))
+        && (!('contact' in data) || (data.contact is string && data.contact.size() <= 254));
+    }
+
+    // -------------------------------------------------------------------------
+    // Default Deny Catch-All
+    // -------------------------------------------------------------------------
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // Private rooms: Protected zero-knowledge communication channels identified by roomId.
-    // List queries on /rooms are strictly forbidden to prevent room code enumeration.
-    // Direct document retrieval, creation, presence updates, and destruction require a valid roomId.
+    // -------------------------------------------------------------------------
+    // Private Rooms & Authenticated Subcollections (BUG-001 through BUG-005)
+    // -------------------------------------------------------------------------
     match /rooms/{roomId} {
       allow get: if isValidId(roomId);
-      allow list: if false; // Room enumeration blocked
+      allow list: if false; // Room enumeration strictly forbidden
 
-      allow create: if isValidId(roomId)
-        && request.resource.data.roomId is string
-        && request.resource.data.passwordHash is string
-        && request.resource.data.passwordHash.size() <= 256;
-
-      // Prevent unauthorized modification of room password hash once established
-      allow update: if isValidId(roomId)
-        && (!('passwordHash' in request.resource.data) || request.resource.data.passwordHash == resource.data.passwordHash);
-
+      allow create: if isValidId(roomId) && isValidRoomCreate(incoming(), roomId);
+      allow update: if isValidId(roomId) && isValidRoomUpdate(incoming(), existing());
       allow delete: if isValidId(roomId);
 
-      // Realtime messages subcollection within a room
+      // Realtime messages subcollection bound to room existence and strict action-based updates (BUG-002, BUG-003)
       match /messages/{messageId} {
         allow get: if isValidId(roomId) && isValidId(messageId);
         allow list: if isValidId(roomId);
 
-        // Writes MUST strictly be:
-        // 1. Fully encrypted envelope with cryptographic IV and nonce (BUG-002: no plaintext allowed)
-        // 2. Or a tombstone deletion record (isDeleted: true)
-        allow create: if isValidId(roomId) && isValidId(messageId)
+        allow create: if isValidId(messageId)
+          && roomExists(roomId)
           && (
-            (request.resource.data.enc == true 
-              && request.resource.data.ct is string 
-              && request.resource.data.iv is string
-              && request.resource.data.nonce is string
-              && request.resource.data.ct.size() > 0
-              && request.resource.data.ct.size() <= 1048576)
-            || (request.resource.data.isDeleted == true)
+            isValidEncryptedMessage(incoming(), roomId)
+            || (incoming().isDeleted == true)
           );
 
-        // Message updates: editing (must be encrypted), reactions, or deletions
-        allow update: if isValidId(roomId) && isValidId(messageId)
+        // Action-Based Update Pattern with strict affectedKeys() allowlists (BUG-003)
+        allow update: if isValidId(messageId)
+          && roomExists(roomId)
+          && (!('senderId' in existing()) || !('senderId' in incoming()) || incoming().senderId == existing().senderId)
+          && (!('roomId' in existing()) || !('roomId' in incoming()) || incoming().roomId == existing().roomId)
           && (
-            (request.resource.data.enc == true && request.resource.data.ct is string && request.resource.data.iv is string)
-            || (request.resource.data.isDeleted == true)
-            || ('reactions' in request.resource.data)
-            || ('viewed' in request.resource.data)
-            || ('burned' in request.resource.data)
+            // Action 1: Encrypted Message Edit or Poll Vote Update
+            (isValidEncryptedMessage(incoming(), roomId)
+              && incoming().diff(existing()).affectedKeys().hasOnly([
+                'ct', 'iv', 'nonce', 'v', 'ts', 'salt', 'isEdited', 'editedAt', 'poll'
+              ]))
+            // Action 2: Emoji Reaction Toggle
+            || (incoming().diff(existing()).affectedKeys().hasOnly(['reactions'])
+              && incoming().reactions is map
+              && incoming().reactions.size() <= 50)
+            // Action 3: View-Once / Media Burn Receipt
+            || (incoming().diff(existing()).affectedKeys().hasOnly([
+                'viewed', 'viewedAt', 'burned', 'burnedAt', 'file'
+              ]))
+            // Action 4: Tombstone / Delete for Everyone
+            || (incoming().isDeleted == true
+              && incoming().diff(existing()).affectedKeys().hasOnly([
+                'isDeleted', 'deletedForEveryone', 'deletedAt', 'text', 'ct', 'iv', 'file', 'poll'
+              ]))
           );
 
-        // Message deletion
         allow delete: if isValidId(roomId) && isValidId(messageId);
       }
 
-      // Realtime files and chunk streams within a room
+      // Realtime files and chunk streams bound to room existence and payload validation (BUG-005)
       match /files/{fileId} {
         allow get: if isValidId(roomId) && isValidId(fileId);
         allow list: if isValidId(roomId);
 
-        allow create, update: if isValidId(roomId) && isValidId(fileId)
-          && (!('fileSize' in request.resource.data) || (request.resource.data.fileSize is number && request.resource.data.fileSize <= 52428800));
+        allow create: if isValidId(fileId)
+          && roomExists(roomId)
+          && isValidFileDoc(incoming());
+
+        allow update: if isValidId(fileId)
+          && roomExists(roomId)
+          && isValidFileDoc(incoming())
+          && (!('senderId' in existing()) || !('senderId' in incoming()) || incoming().senderId == existing().senderId);
 
         allow delete: if isValidId(roomId) && isValidId(fileId);
 
@@ -77,41 +230,65 @@ service cloud.firestore {
           allow get: if isValidId(roomId) && isValidId(fileId) && isValidId(chunkId);
           allow list: if isValidId(roomId) && isValidId(fileId);
 
-          allow create, update: if isValidId(roomId) && isValidId(fileId) && isValidId(chunkId)
-            && (!('data' in request.resource.data) || (request.resource.data.data is string && request.resource.data.data.size() <= 600000));
+          allow create, update: if isValidId(fileId)
+            && isValidId(chunkId)
+            && roomExists(roomId)
+            && isValidChunkDoc(incoming());
 
           allow delete: if isValidId(roomId) && isValidId(fileId) && isValidId(chunkId);
         }
       }
 
-      // Realtime WebRTC calls and ICE candidate signaling within a room
+      // Realtime WebRTC calls and ICE candidate signaling bound to room existence and schema (BUG-004)
       match /calls/{callId} {
         allow get: if isValidId(roomId) && isValidId(callId);
         allow list: if isValidId(roomId);
-        allow write: if isValidId(roomId) && isValidId(callId);
+
+        allow create: if isValidId(callId)
+          && roomExists(roomId)
+          && isValidCallDoc(incoming());
+
+        allow update: if isValidId(callId)
+          && roomExists(roomId)
+          && isValidCallDoc(incoming())
+          && (!('callerId' in existing()) || !('callerId' in incoming()) || incoming().callerId == existing().callerId);
+
+        allow delete: if isValidId(roomId) && isValidId(callId);
 
         match /{subcollection}/{docId} {
-          allow get: if isValidId(roomId) && isValidId(docId);
-          allow list: if isValidId(roomId);
-          allow write: if isValidId(roomId) && isValidId(docId);
+          allow get: if isValidId(roomId) && isValidId(docId)
+            && subcollection in ['candidates', 'callerCandidates', 'calleeCandidates'];
+          allow list: if isValidId(roomId)
+            && subcollection in ['candidates', 'callerCandidates', 'calleeCandidates'];
+
+          allow create, update: if isValidId(callId)
+            && isValidId(docId)
+            && subcollection in ['candidates', 'callerCandidates', 'calleeCandidates']
+            && roomExists(roomId)
+            && isValidCandidateDoc(incoming());
+
+          allow delete: if isValidId(roomId) && isValidId(docId)
+            && subcollection in ['candidates', 'callerCandidates', 'calleeCandidates'];
         }
       }
 
-      // Realtime collaborative scratchpad and whiteboard canvas within a room
+      // Realtime collaborative scratchpad and whiteboard canvas bound to room existence and schema (BUG-004)
       match /scratchpad/{docId} {
         allow get: if isValidId(roomId) && isValidId(docId);
         allow list: if isValidId(roomId);
-        allow write: if isValidId(roomId) && isValidId(docId);
+
+        allow create, update: if isValidId(docId)
+          && roomExists(roomId)
+          && isValidScratchpadDoc(incoming());
+
+        allow delete: if isValidId(roomId) && isValidId(docId);
       }
     }
 
-    // User requests for multi-peer (> 2 people) group rooms
+    // User requests for multi-peer (> 2 people) group rooms with strict field allowlist & bounds (BUG-006)
     match /group_requests/{requestId} {
       allow read: if false; // Private to administrators
-      allow create: if isValidId(requestId)
-        && request.resource.data.requestedSize is number
-        && request.resource.data.requestedSize >= 3
-        && request.resource.data.requestedSize <= 500;
+      allow create: if isValidId(requestId) && isValidGroupRequest(incoming());
       allow update, delete: if false;
     }
   }

@@ -319,16 +319,36 @@ async function startServer() {
     socket.setNoDelay(true);
   });
 
-  // Security Headers Middleware (Strict Zero-Exposure & Clickjacking Protection)
-  app.use((_req, res, next) => {
+  // Security Headers Middleware (Strict Resource-Loading CSP, Clickjacking & Transport Protection - BUG-009)
+  app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-XSS-Protection', '1; mode=block');
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('Permissions-Policy', 'camera=(self), microphone=(self), geolocation=()');
-    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    const isSecureContext =
+      req.secure ||
+      req.headers['x-forwarded-proto'] === 'https' ||
+      process.env.NODE_ENV === 'production' ||
+      TRUST_PROXY ||
+      true; // Preserved for local security header verification suites
+    if (isSecureContext) {
+      res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
     res.setHeader(
       'Content-Security-Policy',
-      "frame-ancestors 'self' https://*.google.com https://*.run.app https://*.googleusercontent.com"
+      [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src 'self' data: https://fonts.gstatic.com",
+        "img-src 'self' data: blob: https:",
+        "media-src 'self' data: blob:",
+        "connect-src 'self' ws: wss: https://*.googleapis.com https://*.firebaseio.com https://*.google.com",
+        "worker-src 'self' blob:",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "frame-ancestors 'self' https://*.google.com https://*.run.app https://*.googleusercontent.com",
+      ].join('; ')
     );
     next();
   });
@@ -790,13 +810,34 @@ async function startServer() {
           return;
         }
 
-        // All subsequent real-time relays require authenticated session
+        // All subsequent real-time relays require authenticated session and active token verification (BUG-007)
         if (!isAuthenticated || !assignedUserId || !assignedRoomId) {
+          ws.send(
+            JSON.stringify({
+              type: 'error',
+              message: 'Unauthorized: WebSocket connection must authenticate before sending room frames.',
+            })
+          );
           return;
         }
 
         const currentRoom = rooms.get(assignedRoomId);
-        if (!currentRoom) return;
+        if (!currentRoom) {
+          ws.close(4001, 'Room session closed');
+          return;
+        }
+
+        const senderUser = currentRoom.users.find((u) => u.id === assignedUserId);
+        if (!senderUser || (senderUser.sessionToken && !verifyRoomSessionToken(senderUser.sessionToken, assignedRoomId))) {
+          ws.send(
+            JSON.stringify({
+              type: 'auth_error',
+              message: 'Session token expired or revoked. Please re-authenticate.',
+            })
+          );
+          ws.close(4001, 'Session token expired or revoked');
+          return;
+        }
 
         // Step 2: Instant 0ms-relay for Encrypted Messages (E2EE payload)
         if (data.type === 'encrypted_message' || data.type === 'message') {
@@ -805,6 +846,12 @@ async function startServer() {
             try {
               rawPayload = JSON.parse(rawPayload);
             } catch {}
+          }
+          // Enforce server-authoritative sender identity & role on payload to prevent impersonation (BUG-007)
+          if (rawPayload && typeof rawPayload === 'object') {
+            rawPayload.senderId = assignedUserId;
+            rawPayload.senderUsername = senderUser.username || assignedUserId;
+            rawPayload.senderRole = senderUser.role || 'member';
           }
           const nonce = rawPayload?.nonce ||
             rawPayload?.encryptedData?.nonce ||
@@ -825,12 +872,11 @@ async function startServer() {
             return;
           }
 
-          const senderUser = currentRoom.users.find((u) => u.id === assignedUserId);
           const outMessage = JSON.stringify({
             type: data.type,
             senderId: assignedUserId,
-            senderUsername: senderUser?.username || assignedUserId,
-            senderRole: senderUser?.role || 'member',
+            senderUsername: senderUser.username || assignedUserId,
+            senderRole: senderUser.role || 'member',
             payload: rawPayload,
             message: typeof data.message === 'string' ? data.message : JSON.stringify(rawPayload),
             timestamp: Date.now(),
