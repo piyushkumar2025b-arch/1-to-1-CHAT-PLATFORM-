@@ -19,6 +19,7 @@ import {
   OWASP_PBKDF2_ROUNDS,
 } from '../src/lib/crypto-enclave';
 import {
+  authenticateOrCreateRoom,
   recordMessage,
   recordEncryptedPayload,
 } from '../src/lib/server-db';
@@ -66,7 +67,7 @@ async function runAuditFixesTests() {
 
   // Send 10 messages (bucket size is 15). With previous double-check bug, 10 messages would consume 20 tokens and trigger rate limit error!
   for (let i = 0; i < 10; i++) {
-    ws1.send(JSON.stringify({ type: 'encrypted_message', payload: { enc: true, ct: 'test', iv: 'test', nonce: 'nonce' + i } }));
+    ws1.send(JSON.stringify({ type: 'encrypted_message', payload: { enc: true, ct: 'dGVzdENpcGhlcnRleHQ=', iv: 'dGVzdElWMTIzNDU2', nonce: 'bm9uY2UxMjM0_' + i } }));
   }
   await new Promise((res) => setTimeout(res, 200));
   assert(rateErrors === 0, '10 messages within 15-token bucket succeeded without premature rate-limiting');
@@ -95,10 +96,11 @@ async function runAuditFixesTests() {
   console.log('--- [Bug 3] Firestore Encrypted Message Persistence Fix ---');
   let persistenceThrew = false;
   try {
+    await authenticateOrCreateRoom('TEST_AUDIT_ROOM', 'AuditPass_2026!');
     await recordEncryptedPayload('TEST_AUDIT_ROOM', 'user1', {
       enc: true,
       v: 1,
-      iv: 'dGVzdElWMTIz',
+      iv: 'dGVzdElWMTIzNDU2',
       ct: 'dGVzdENpcGhlcnRleHQxMjM=',
       nonce: 'bm9uY2UxMjM=',
       ts: Date.now(),

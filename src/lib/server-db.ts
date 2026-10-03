@@ -260,7 +260,7 @@ export interface RoomOptions {
 export async function authenticateOrCreateRoom(
   roomId: string,
   password: string,
-  currentActiveParticipants: number,
+  currentActiveParticipants: number = 0,
   options?: RoomOptions
 ): Promise<{
   ok: boolean;
@@ -692,7 +692,7 @@ export async function burnMediaServer(
           viewed: true,
           burned: true,
           burnedAt: new Date().toISOString(),
-          'file.burned': true,
+          ...(msgData?.file ? { file: { ...msgData.file, viewed: true, burned: true } } : {}),
         },
         { merge: true }
       );
