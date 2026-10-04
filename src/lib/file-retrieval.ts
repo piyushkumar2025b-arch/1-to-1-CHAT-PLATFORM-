@@ -80,19 +80,37 @@ export async function getRoomFileBlob(
 
   rawChunksList.sort((a, b) => (a.chunkIndex ?? 0) - (b.chunkIndex ?? 0));
 
+  if (rawChunksList.length === 0) {
+    throw new Error('File chunks not found or have been burned.');
+  }
+  if (typeof file.chunkCount === 'number' && file.chunkCount > 0 && rawChunksList.length !== file.chunkCount) {
+    throw new Error(`Incomplete file transfer: expected ${file.chunkCount} chunks, received ${rawChunksList.length}.`);
+  }
+
   onProgress?.('Decrypting zero-knowledge chunks...');
   const decryptedChunks: string[] = [];
   for (let i = 0; i < rawChunksList.length; i++) {
     const c = rawChunksList[i];
+    if (typeof c.chunkIndex === 'number' && c.chunkIndex !== i) {
+      throw new Error(`File chunk ordering mismatch at index ${i} (got ${c.chunkIndex}).`);
+    }
     if (c.enc && c.ct && roomPassword) {
       const dec = await decryptWithEnclave<{ chunkIndex: number; data: string }>(
         c,
         roomPassword,
         roomId
       );
-      decryptedChunks.push(dec?.data || '');
+      if (!dec || typeof dec.data !== 'string' || dec.data.length === 0) {
+        throw new Error(`File chunk #${i} failed cryptographic integrity verification.`);
+      }
+      if (typeof dec.chunkIndex === 'number' && dec.chunkIndex !== i) {
+        throw new Error(`Encrypted chunk index mismatch at #${i}.`);
+      }
+      decryptedChunks.push(dec.data);
+    } else if (typeof c.data === 'string' && c.data.length > 0) {
+      decryptedChunks.push(c.data);
     } else {
-      decryptedChunks.push(c.data || '');
+      throw new Error(`Malformed or empty file chunk #${i}.`);
     }
   }
 

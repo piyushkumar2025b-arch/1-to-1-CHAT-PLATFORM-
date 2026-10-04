@@ -187,10 +187,11 @@ service cloud.firestore {
           && (!('senderId' in existing()) || !('senderId' in incoming()) || incoming().senderId == existing().senderId)
           && (!('roomId' in existing()) || !('roomId' in incoming()) || incoming().roomId == existing().roomId)
           && (
-            // Action 1: Encrypted Message Edit or Poll Vote Update
+            // Action 1: Encrypted Message Edit, Poll Vote Update, or Idempotent Server Relay Sync
             (isValidEncryptedMessage(incoming(), roomId)
               && incoming().diff(existing()).affectedKeys().hasOnly([
-                'ct', 'iv', 'nonce', 'v', 'ts', 'salt', 'isEdited', 'editedAt', 'poll'
+                'ct', 'iv', 'nonce', 'v', 'ts', 'salt', 'isEdited', 'editedAt', 'poll',
+                'serverTimestamp', 'createdAt', 'time', 'senderUsername', 'senderRole'
               ]))
             // Action 2: Emoji Reaction Toggle
             || (incoming().diff(existing()).affectedKeys().hasOnly(['reactions'])

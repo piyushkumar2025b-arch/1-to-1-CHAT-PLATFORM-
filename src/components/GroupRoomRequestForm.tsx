@@ -65,24 +65,41 @@ export function GroupRoomRequestForm({ mode = 'light' }: GroupRoomRequestFormPro
     setIsSubmitting(true);
 
     try {
-      const requestId = 'req_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 7);
-      const newRequest: GroupRoomRequest = {
+      // 1. Validate & rate-limit through the backend endpoint (BUG-006)
+      const apiRes = await fetch('/api/group-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestedSize,
+          useCase,
+          customDetails: customDetails.trim() || undefined,
+          securityPriority: 'High Confidentiality',
+          contact: contact.trim() || undefined,
+        }),
+      });
+
+      if (apiRes.status === 429) {
+        const errData = await apiRes.json().catch(() => ({}));
+        setErrorMessage(errData.error || 'Too many requests. Please wait before submitting again.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      const apiData = await apiRes.json().catch(() => null);
+      const requestId = apiData?.request?.id || 'req_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 7);
+      const newRequest: GroupRoomRequest = apiData?.request || {
         id: requestId,
         requestedSize,
         useCase,
-        customDetails: customDetails.trim()
-          ? sanitizeForFirestore(customDetails.trim())
-          : undefined,
+        ...(customDetails.trim() ? { customDetails: sanitizeForFirestore(customDetails.trim().slice(0, 1000)) } : {}),
         securityPriority: 'High Confidentiality',
-        contact: contact.trim()
-          ? sanitizeForFirestore(contact.trim())
-          : undefined,
+        ...(contact.trim() ? { contact: sanitizeForFirestore(contact.trim().slice(0, 254)) } : {}),
         createdAt: new Date().toISOString(),
       };
 
       // Persist in Firestore
       const reqRef = doc(collection(db, 'group_requests'), requestId);
-      await setDoc(reqRef, newRequest);
+      await setDoc(reqRef, sanitizeForFirestore(newRequest));
 
       // Keep in localStorage for the user
       localStorage.setItem('saved_group_room_request', JSON.stringify(newRequest));

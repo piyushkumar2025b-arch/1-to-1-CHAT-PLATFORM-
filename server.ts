@@ -25,6 +25,7 @@ import {
   editMessageServer,
   burnMediaServer,
   getRoomMessagesServer,
+  recentMessagesCache,
   ROOM_ID_REGEX,
 } from './src/lib/server-db';
 import { isAllowedWsOrigin, stripInvisibleChars } from './src/lib/security';
@@ -980,23 +981,37 @@ async function startServer() {
           return;
         }
 
-        // Step 7: Instant Emoji Reaction Relay (<2ms)
+        // Step 7: Instant Emoji Reaction Relay (<2ms) with anti-spoofing sender binding (BUG-007)
         if (data.type === 'reaction') {
+          const safeReactionPayload =
+            data.payload && typeof data.payload === 'object'
+              ? { ...data.payload, userId: assignedUserId, senderId: assignedUserId }
+              : data.payload;
           broadcastToRoom(
             currentRoom,
             assignedUserId,
             JSON.stringify({
               type: 'reaction',
               senderId: assignedUserId,
-              payload: data.payload,
+              payload: safeReactionPayload,
               timestamp: Date.now(),
             })
           );
           return;
         }
 
-        // Step 8: Instant Message Edit Relay (<2ms)
+        // Step 8: Instant Message Edit Relay (<2ms) with sender ownership check (BUG-007)
         if (data.type === 'edit_message' || data.type === 'message_edited') {
+          const cachedMsg = recentMessagesCache.get(`${assignedRoomId}::${data.messageId}`);
+          if (cachedMsg && cachedMsg.senderId && cachedMsg.senderId !== assignedUserId) {
+            ws.send(
+              JSON.stringify({
+                type: 'error',
+                message: 'Unauthorized: only the original sender can edit this message.',
+              })
+            );
+            return;
+          }
           broadcastToRoom(
             currentRoom,
             assignedUserId,
@@ -1013,8 +1028,18 @@ async function startServer() {
           return;
         }
 
-        // Step 9: Instant Message Delete Relay (<2ms)
+        // Step 9: Instant Message Delete Relay (<2ms) with sender ownership check (BUG-007)
         if (data.type === 'delete_message' || data.type === 'message_deleted') {
+          const cachedMsg = recentMessagesCache.get(`${assignedRoomId}::${data.messageId}`);
+          if (cachedMsg && cachedMsg.senderId && cachedMsg.senderId !== assignedUserId) {
+            ws.send(
+              JSON.stringify({
+                type: 'error',
+                message: 'Unauthorized: only the original sender can delete this message.',
+              })
+            );
+            return;
+          }
           broadcastToRoom(
             currentRoom,
             assignedUserId,
@@ -1376,6 +1401,46 @@ async function startServer() {
     } catch (err: any) {
       return res.status(500).json({ ok: false, error: err.message || 'Failed to retrieve messages' });
     }
+  });
+
+  // Server-side rate-limited Group Room Feature Request endpoint (BUG-006)
+  const groupRequestRateMap = new Map<string, { count: number; resetAt: number }>();
+  app.post('/api/group-requests', (req, res) => {
+    const clientIp = getClientIp(req);
+    const now = Date.now();
+    const record = groupRequestRateMap.get(clientIp);
+    if (record && record.resetAt > now) {
+      if (record.count >= 5) {
+        return res.status(429).json({ ok: false, error: 'Rate limit exceeded for group room requests. Please try again later.' });
+      }
+      record.count += 1;
+    } else {
+      groupRequestRateMap.set(clientIp, { count: 1, resetAt: now + 3600000 });
+    }
+
+    const { requestedSize, useCase, customDetails, securityPriority, contact } = req.body || {};
+    const parsedSize = Number(requestedSize);
+    if (!Number.isInteger(parsedSize) || parsedSize < 3 || parsedSize > 500) {
+      return res.status(400).json({ ok: false, error: 'requestedSize must be an integer between 3 and 500.' });
+    }
+
+    const requestId = `req_${crypto.randomBytes(8).toString('hex')}`;
+    const validatedRequest = {
+      id: requestId,
+      requestedSize: parsedSize,
+      useCase: typeof useCase === 'string' ? stripInvisibleChars(useCase).trim().slice(0, 120) : 'Confidential Work Team',
+      ...(typeof customDetails === 'string' && customDetails.trim()
+        ? { customDetails: stripInvisibleChars(customDetails).trim().slice(0, 1000) }
+        : {}),
+      securityPriority:
+        typeof securityPriority === 'string' ? stripInvisibleChars(securityPriority).trim().slice(0, 120) : 'High Confidentiality',
+      ...(typeof contact === 'string' && contact.trim()
+        ? { contact: stripInvisibleChars(contact).trim().slice(0, 254) }
+        : {}),
+      createdAt: new Date().toISOString(),
+    };
+
+    return res.status(200).json({ ok: true, request: validatedRequest });
   });
 
   // Serve Vite in development, compiled static files in production
