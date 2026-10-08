@@ -686,14 +686,28 @@ async function startServer() {
             return;
           }
 
-          // Always generate a cryptographically random, authoritative server-side user ID (BUG-003)
-          assignedUserId = `user_${crypto.randomBytes(8).toString('hex')}`;
+          // Use server-issued identity from valid pre-authenticated REST sessionToken, or generate a fresh server-side user ID (BUG-003, BUG-A1)
+          const preAuthSession =
+            typeof data.sessionToken === 'string' && data.sessionToken.length > 0
+              ? verifyRoomSessionToken(data.sessionToken, assignedRoomId)
+              : null;
+          const isUserAlreadyInRoom =
+            preAuthSession && room.users.some((u) => u.id === preAuthSession.userId);
+
+          if (preAuthSession && !isUserAlreadyInRoom) {
+            assignedUserId = preAuthSession.userId;
+          } else {
+            assignedUserId = `user_${crypto.randomBytes(8).toString('hex')}`;
+          }
 
           const assignedUsername = requestedUsername || `Team Member ${assignedUserId.slice(5, 9).toUpperCase()}`;
           const assignedRole: 'admin' | 'member' = room.users.length === 0 ? 'admin' : 'member';
 
-          // Generate cryptographic session token (Fix Bug 1, 2 & 14)
-          const sessionToken = createRoomSessionToken(assignedRoomId, assignedUserId);
+          // Issue or reuse verified cryptographic session token (Fix Bug 1, 2 & 14)
+          const sessionToken =
+            preAuthSession && !isUserAlreadyInRoom
+              ? data.sessionToken
+              : createRoomSessionToken(assignedRoomId, assignedUserId);
 
           const user: ChatUser = {
             id: assignedUserId,

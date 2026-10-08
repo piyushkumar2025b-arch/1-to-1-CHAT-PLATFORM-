@@ -78,15 +78,23 @@ service cloud.firestore {
     }
 
     function isValidFileDoc(data) {
-      return (!('fileSize' in data) || (data.fileSize is number && data.fileSize >= 0 && data.fileSize <= 52428800))
+      return data.keys().hasOnly([
+          'fileId', 'fileName', 'fileSize', 'compressedSize', 'mimeType',
+          'isCompressed', 'totalChunks', 'chunkCount', 'senderId',
+          'createdAt', 'burned', 'burnedAt', 'viewed', 'viewedAt'
+        ])
+        && (!('fileId' in data) || (data.fileId is string && data.fileId.size() <= 64))
+        && (!('fileSize' in data) || (data.fileSize is number && data.fileSize >= 0 && data.fileSize <= 52428800))
         && (!('fileName' in data) || (data.fileName is string && data.fileName.size() >= 1 && data.fileName.size() <= 255))
         && (!('mimeType' in data) || (data.mimeType is string && data.mimeType.size() <= 128))
         && (!('totalChunks' in data) || (data.totalChunks is number && data.totalChunks >= 1 && data.totalChunks <= 500))
-        && (!('senderId' in data) || (data.senderId is string && data.senderId.size() <= 64));
+        && (!('senderId' in data) || (data.senderId is string && data.senderId.size() <= 64))
+        && (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 64));
     }
 
     function isValidChunkDoc(data) {
-      return (!('chunkIndex' in data) || (data.chunkIndex is number && data.chunkIndex >= 0 && data.chunkIndex < 500))
+      return data.keys().hasOnly(['chunkIndex', 'enc', 'v', 'iv', 'ct', 'nonce', 'ts', 'salt', 'data'])
+        && (!('chunkIndex' in data) || (data.chunkIndex is number && data.chunkIndex >= 0 && data.chunkIndex < 500))
         && (
           (data.enc == true
             && data.ct is string && data.ct.size() > 0 && data.ct.size() <= 800000
@@ -204,7 +212,8 @@ service cloud.firestore {
             // Action 4: Tombstone / Delete for Everyone
             || (incoming().isDeleted == true
               && incoming().diff(existing()).affectedKeys().hasOnly([
-                'isDeleted', 'deletedForEveryone', 'deletedAt', 'text', 'ct', 'iv', 'file', 'poll'
+                'isDeleted', 'deletedForEveryone', 'deletedAt', 'text', 'ct', 'iv',
+                'enc', 'v', 'nonce', 'ts', 'salt', 'file', 'poll'
               ]))
           );
 
@@ -223,7 +232,10 @@ service cloud.firestore {
         allow update: if isValidId(fileId)
           && roomExists(roomId)
           && isValidFileDoc(incoming())
-          && (!('senderId' in existing()) || !('senderId' in incoming()) || incoming().senderId == existing().senderId);
+          && (!('senderId' in existing()) || !('senderId' in incoming()) || incoming().senderId == existing().senderId)
+          && (!('fileName' in existing()) || !('fileName' in incoming()) || incoming().fileName == existing().fileName)
+          && (!('fileSize' in existing()) || !('fileSize' in incoming()) || incoming().fileSize == existing().fileSize)
+          && (!('totalChunks' in existing()) || !('totalChunks' in incoming()) || incoming().totalChunks == existing().totalChunks);
 
         allow delete: if isValidId(roomId) && isValidId(fileId);
 
@@ -231,10 +243,18 @@ service cloud.firestore {
           allow get: if isValidId(roomId) && isValidId(fileId) && isValidId(chunkId);
           allow list: if isValidId(roomId) && isValidId(fileId);
 
-          allow create, update: if isValidId(fileId)
+          allow create: if isValidId(fileId)
             && isValidId(chunkId)
             && roomExists(roomId)
             && isValidChunkDoc(incoming());
+
+          allow update: if isValidId(fileId)
+            && isValidId(chunkId)
+            && roomExists(roomId)
+            && isValidChunkDoc(incoming())
+            && (!('chunkIndex' in existing()) || !('chunkIndex' in incoming()) || incoming().chunkIndex == existing().chunkIndex)
+            && (!('ct' in existing()) || !('ct' in incoming()) || incoming().ct == existing().ct)
+            && (!('data' in existing()) || !('data' in incoming()) || incoming().data == existing().data);
 
           allow delete: if isValidId(roomId) && isValidId(fileId) && isValidId(chunkId);
         }

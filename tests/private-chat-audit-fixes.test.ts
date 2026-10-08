@@ -294,6 +294,25 @@ async function runAuditFixesTests() {
   assert(rulesContent.includes('function isValidGroupRequest(data)'), 'Firestore rules enforce strict field allowlist & bounds on group_requests (BUG-006)');
 
   // -------------------------------------------------------------
+  // STATIC AUDIT BUG-006: /api/group-requests Validation & Rate Limiting
+  // -------------------------------------------------------------
+  console.log('--- [Static Audit BUG-006] /api/group-requests Validation & Rate Limiting ---');
+  const invalidGroupReq = await fetch('http://localhost:3000/api/group-requests', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requestedSize: 999999, useCase: 'Spam' }),
+  });
+  assert(invalidGroupReq.status === 400, '/api/group-requests rejects out-of-bounds requestedSize (999999) with 400');
+
+  const validGroupReq = await fetch('http://localhost:3000/api/group-requests', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requestedSize: 8, useCase: 'Confidential Work Team', customDetails: 'Audit verification' }),
+  });
+  const validGroupData = await validGroupReq.json();
+  assert(validGroupReq.status === 200 && validGroupData.ok === true && validGroupData.request?.requestedSize === 8, '/api/group-requests accepts valid bounded request');
+
+  // -------------------------------------------------------------
   // STATIC AUDIT BUG-007: WebSocket Post-Auth & Anti-Spoofing Verification
   // -------------------------------------------------------------
   console.log('--- [Static Audit BUG-007] WebSocket Unauthenticated & Anti-Spoofing Verification ---');

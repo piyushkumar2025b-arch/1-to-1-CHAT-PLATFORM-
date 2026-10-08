@@ -15,7 +15,7 @@
 
 import { RoomType, RoomParticipant, PresenceUpdatePayload } from '../types';
 
-export type RealTimeConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'waiting' | 'room_full' | 'auth_error';
+export type RealTimeConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'waiting' | 'room_full' | 'auth_error' | 'room_burned';
 
 export interface RealTimeMessagePayload {
   id?: string;
@@ -172,6 +172,7 @@ class RealTimeSocketClient {
             roomId: this.currentRoomId,
             password: this.currentPassword,
             userId: this.currentUserId,
+            sessionToken: this.sessionToken || undefined,
             username: this.currentUsername,
             roomType: this.currentRoomType,
             organizationName: this.currentOrganizationName,
@@ -195,6 +196,12 @@ class RealTimeSocketClient {
       ws.onclose = (event) => {
         this.stopPingLoop();
         this.socket = null;
+
+        if (event.code === 4000) {
+          this.manualDisconnect = true;
+          this.setStatus('room_burned', event.reason);
+          return;
+        }
 
         if (event.code === 4001 || event.code === 4002) {
           this.setStatus('auth_error', event.reason);
@@ -275,6 +282,9 @@ class RealTimeSocketClient {
           this.setStatus('waiting', data);
         } else if (data.status === 'room_full') {
           this.setStatus('room_full', data);
+        } else if (data.status === 'room_burned') {
+          this.manualDisconnect = true;
+          this.setStatus('room_burned', data);
         }
         break;
       }

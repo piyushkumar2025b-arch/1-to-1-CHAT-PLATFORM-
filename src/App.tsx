@@ -844,7 +844,7 @@ export default function App() {
     processedMessagesCacheRef.current.clear();
 
     const roomRef = doc(db, 'rooms', activeRoomId);
-    const roomPwd = activePasswordRef.current || password.trim();
+    const roomPwd = activePasswordRef.current || stripInvisibleChars(password);
 
     // Connect to ultra-low latency real-time WebSocket tunnel (<10ms)
     realTimeSocket.connect(activeRoomId, roomPwd, myUserId, {
@@ -971,15 +971,20 @@ export default function App() {
       );
     });
 
-    // Instant socket message edit listener (<5ms)
+    // Instant socket message edit & poll vote listener (<5ms)
     const unsubSocketEdit = realTimeSocket.onMessageEdited(async ({ messageId, ct, iv, nonce, editedAt }) => {
       try {
         const dec = await decryptWithEnclave({ enc: true, ct, iv, nonce: nonce || '', v: 1 }, roomPwd, activeRoomId);
-        if (dec && dec.text) {
+        if (dec) {
           setMessages((prev) =>
             prev.map((m) =>
               m.id === messageId
-                ? { ...m, text: sanitizeDecryptedHtml(dec.text), isEdited: true, editedAt: editedAt || Date.now() }
+                ? {
+                    ...m,
+                    ...(dec.text !== undefined ? { text: sanitizeDecryptedHtml(dec.text) } : {}),
+                    ...(dec.poll !== undefined ? { poll: dec.poll } : {}),
+                    ...(dec.isEdited ? { isEdited: true, editedAt: editedAt || Date.now() } : {}),
+                  }
                 : m
             )
           );
@@ -1038,10 +1043,18 @@ export default function App() {
       } else if (status === 'room_full') {
         setConnectionState('room_full');
         showToast(data?.message || 'Room is at maximum capacity.', 'error');
+      } else if (status === 'room_burned') {
+        purgeEnclaveKey(activeRoomId);
+        setMessages([]);
+        setActiveRoomId('');
+        setConnectionState('unauthenticated');
+        setSessionLocked(false);
+        showToast(data?.message || 'Room has been burned and destroyed by a participant.', 'warning');
+        return;
       }
       if (data) {
         if (data.userId) {
-          setMyUserId(data.userId);
+          setMyUserId((prev) => (prev === data.userId ? prev : data.userId));
           sessionStorage.setItem('chat_session_user_id', data.userId);
         }
         if (typeof data.participantCount === 'number') {
@@ -1593,6 +1606,11 @@ export default function App() {
       }
 
       const authData = await authRes.json();
+      const assignedServerUserId = authData.userId || myUserId;
+      if (authData.userId) {
+        setMyUserId(authData.userId);
+        sessionStorage.setItem('chat_session_user_id', authData.userId);
+      }
       if (authData.sessionToken) {
         realTimeSocket.setSessionToken(authData.sessionToken);
       }
@@ -1616,8 +1634,8 @@ export default function App() {
       // Pre-warm enclave key in background so initial message encryption/decryption is instant
       prewarmEnclaveKey(cleanPassword, cleanRoom).catch(() => {});
 
-      // Connect WebSocket to real-time relay
-      realTimeSocket.connect(cleanRoom, cleanPassword, myUserId, {
+      // Connect WebSocket to real-time relay using authoritative server-issued userId
+      realTimeSocket.connect(cleanRoom, cleanPassword, assignedServerUserId, {
         roomType: authData.roomType || roomType,
         organizationName: authData.organizationName || organizationName,
         username: myUsername,
@@ -1647,11 +1665,11 @@ export default function App() {
     }
   };
 
-  // Privacy Session Unlock Handler
+  // Privacy Session Unlock Handler (preserves whitespace in passphrases - BUG-A6)
   const handleUnlockSession = async (enteredPassword?: string): Promise<boolean> => {
-    const currentPass = activePasswordRef.current || password.trim();
+    const currentPass = activePasswordRef.current || stripInvisibleChars(password);
     if (enteredPassword) {
-      if (enteredPassword.trim() === currentPass) {
+      if (stripInvisibleChars(enteredPassword) === currentPass) {
         setSessionLocked(false);
         lastActivityTimeRef.current = Date.now();
         setSecurityToastMessage('Session unlocked successfully.');
@@ -1820,10 +1838,21 @@ export default function App() {
     return () => clearInterval(timer);
   }, [roomExpiresAt, connectionState]);
 
-  // Send regular text message (with optional reply reference or direct text)
-  const handleSendMessage = async (e?: FormEvent, customText?: string) => {
-    if (e) e.preventDefault();
-    const rawContent = (customText !== undefined ? customText : inputText).trim();
+  // Send regular text message (supports FormEvent, direct string argument from modals, or customText + overrides - BUG-A7, BUG-A12)
+  const handleSendMessage = async (
+    eOrText?: FormEvent | string,
+    customText?: string,
+    overrideOptions?: {
+      replyTo?: ReplyReference;
+      isEphemeral?: boolean;
+      ephemeralDuration?: number;
+    }
+  ) => {
+    if (eOrText && typeof eOrText !== 'string' && typeof eOrText.preventDefault === 'function') {
+      eOrText.preventDefault();
+    }
+    const resolvedCustomText = typeof eOrText === 'string' ? eOrText : customText;
+    const rawContent = (resolvedCustomText !== undefined ? resolvedCustomText : inputText).trim();
     if (!rawContent || (connectionState !== 'connected' && connectionState !== 'waiting') || !activeRoomId) return;
 
     // Token-bucket rate limiting against automated spam scripts
@@ -1841,18 +1870,24 @@ export default function App() {
     }).catch(() => {});
 
     const draftedText = inputText;
-    const sentReplyTo = replyingTo;
-    if (customText === undefined) {
+    const sentReplyTo = overrideOptions?.replyTo !== undefined ? overrideOptions.replyTo : replyingTo;
+    if (resolvedCustomText === undefined) {
       setInputText('');
     }
-    setReplyingTo(null);
+    if (overrideOptions?.replyTo === undefined) {
+      setReplyingTo(null);
+    }
 
     const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const roomPwd = activePasswordRef.current || password;
 
     // Calculate auto-disappear duration & expiration if enabled
-    const durationMs = ephemeralEnabled ? getDurationMs(ephemeralDurationOption) : 0;
-    const expiresAt = ephemeralEnabled && durationMs > 0 ? Date.now() + durationMs : null;
+    const effectiveEphemeral =
+      overrideOptions?.isEphemeral !== undefined ? overrideOptions.isEphemeral : ephemeralEnabled;
+    const durationMs = effectiveEphemeral
+      ? overrideOptions?.ephemeralDuration || getDurationMs(ephemeralDurationOption)
+      : 0;
+    const expiresAt = effectiveEphemeral && durationMs > 0 ? Date.now() + durationMs : null;
 
     // Instantaneous 0ms optimistic visual update for sender
     const optimisticId = `opt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -1865,7 +1900,7 @@ export default function App() {
       time: currentTime,
       createdAt: optimisticCreatedAt,
       replyTo: sentReplyTo || undefined,
-      isEphemeral: ephemeralEnabled,
+      isEphemeral: effectiveEphemeral,
       ephemeralDuration: durationMs,
       expiresAt: expiresAt || undefined,
       status: 'sending',
@@ -1885,7 +1920,7 @@ export default function App() {
         {
           text: content,
           replyTo: sentReplyTo || undefined,
-          isEphemeral: ephemeralEnabled,
+          isEphemeral: effectiveEphemeral,
           ephemeralDuration: durationMs,
           expiresAt: expiresAt || undefined,
         },
@@ -1909,7 +1944,7 @@ export default function App() {
         ct: envelope.ct,
         nonce: envelope.nonce,
         ts: envelope.ts,
-        isEphemeral: ephemeralEnabled,
+        isEphemeral: effectiveEphemeral,
         ephemeralDuration: durationMs,
         expiresAt: expiresAt,
       });
@@ -1929,7 +1964,7 @@ export default function App() {
         ct: envelope.ct,
         nonce: envelope.nonce,
         ts: envelope.ts,
-        isEphemeral: ephemeralEnabled,
+        isEphemeral: effectiveEphemeral,
         ephemeralDuration: durationMs,
         expiresAt: expiresAt,
         encryptedData: envelope,
@@ -1994,7 +2029,7 @@ export default function App() {
     const content = sanitizeChatMessage(newRawText);
     if (!content) return;
 
-    const roomPwd = activePasswordRef.current || password.trim();
+    const roomPwd = activePasswordRef.current || stripInvisibleChars(password);
     const now = Date.now();
 
     try {
@@ -2189,7 +2224,7 @@ export default function App() {
     const optimisticId = `poll_msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const optimisticCreatedAt = new Date().toISOString();
     const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const roomPwd = activePasswordRef.current || password.trim();
+    const roomPwd = activePasswordRef.current || stripInvisibleChars(password);
 
     const optimisticMsg: ChatMessage = {
       id: optimisticId,
@@ -2215,12 +2250,12 @@ export default function App() {
         activeRoomId
       );
 
+      // Keep poll data strictly inside encrypted envelope (BUG-A5: no plaintext poll field in Firestore)
       const payload = sanitizeForFirestore({
         roomId: activeRoomId,
         senderId: myUserId,
         time: currentTime,
         createdAt: optimisticCreatedAt,
-        poll: pollData,
         enc: true,
         v: envelope.v,
         iv: envelope.iv,
@@ -2235,7 +2270,6 @@ export default function App() {
         roomId: activeRoomId,
         time: currentTime,
         createdAt: optimisticCreatedAt,
-        poll: pollData,
         enc: true,
         v: envelope.v,
         iv: envelope.iv,
@@ -2354,8 +2388,14 @@ export default function App() {
         activeRoomId
       );
 
+      realTimeSocket.sendEditMessage({
+        messageId,
+        ct: envelope.ct,
+        iv: envelope.iv,
+        nonce: envelope.nonce,
+      });
+
       await updateDoc(doc(db, 'rooms', activeRoomId, 'messages', messageId), {
-        poll: updatedPoll,
         v: envelope.v,
         iv: envelope.iv,
         ct: envelope.ct,
@@ -2401,7 +2441,11 @@ export default function App() {
     const target = scheduledMessages.find((m) => m.id === id);
     if (!target) return;
     setScheduledMessages((prev) => prev.filter((m) => m.id !== id));
-    handleSendMessage(target.text);
+    handleSendMessage(undefined, target.text, {
+      replyTo: target.replyTo,
+      isEphemeral: target.isEphemeral,
+      ephemeralDuration: target.ephemeralDuration,
+    });
     setSecurityToastMessage('Scheduled message dispatched immediately.');
   };
 
@@ -2422,7 +2466,11 @@ export default function App() {
       const readyToSend = scheduledMessages.filter((m) => m.scheduledAt <= now);
       if (readyToSend.length > 0) {
         readyToSend.forEach((item) => {
-          handleSendMessage(item.text);
+          handleSendMessage(undefined, item.text, {
+            replyTo: item.replyTo,
+            isEphemeral: item.isEphemeral,
+            ephemeralDuration: item.ephemeralDuration,
+          });
         });
         setScheduledMessages((prev) => prev.filter((m) => m.scheduledAt > now));
       }
@@ -2434,38 +2482,8 @@ export default function App() {
   // Send a shared web link with optional description into encrypted chat stream
   const handleSendSharedLink = async (url: string, note?: string) => {
     if ((connectionState !== 'connected' && connectionState !== 'waiting') || !activeRoomId) return;
-
     const messageText = note ? `${note}\n${url}` : url;
-    const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const roomPwd = activePasswordRef.current || password;
-
-    try {
-      const envelope = await encryptWithEnclave(
-        {
-          text: messageText,
-        },
-        roomPwd,
-        activeRoomId
-      );
-
-      const payload = sanitizeForFirestore({
-        roomId: activeRoomId,
-        senderId: myUserId,
-        time: currentTime,
-        createdAt: new Date().toISOString(),
-        enc: true,
-        v: envelope.v,
-        iv: envelope.iv,
-        ct: envelope.ct,
-        nonce: envelope.nonce,
-        ts: envelope.ts,
-      });
-
-      const linkDocId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-      await setDoc(doc(db, 'rooms', activeRoomId, 'messages', linkDocId), payload);
-    } catch (err) {
-      console.error('Failed to send shared link:', err);
-    }
+    await handleSendMessage(undefined, messageText);
   };
 
   // Compute total vault items (files + extracted links)
@@ -2554,10 +2572,23 @@ export default function App() {
         prev.map((m) => (m.id === tempId ? { ...m, file: attachment, uploadProgress: 60 } : m))
       );
 
-      // 2. If multi-chunk large file, write chunks to Firestore subcollection
+      // 2. If multi-chunk large file, create parent file doc (BUG-A3) and write chunks to Firestore subcollection
       if (chunks.length > 1) {
         setCompressModal((prev) =>
           prev ? { ...prev, step: 'Uploading chunks to database...', percent: 65 } : null
+        );
+
+        await setDoc(
+          doc(db, 'rooms', activeRoomId, 'files', attachment.fileId),
+          sanitizeForFirestore({
+            fileId: attachment.fileId,
+            fileName: attachment.fileName,
+            fileSize: attachment.fileSize,
+            mimeType: attachment.mimeType,
+            totalChunks: chunks.length,
+            senderId: myUserId,
+            createdAt: new Date().toISOString(),
+          })
         );
 
         for (let i = 0; i < chunks.length; i++) {
@@ -2645,6 +2676,25 @@ export default function App() {
         isEphemeral: ephemeralEnabled,
         ephemeralDuration: durationMs,
         expiresAt: expiresAt,
+      });
+
+      // Broadcast file message over WebSocket tunnel for instant peer delivery (BUG-A8)
+      realTimeSocket.sendEncryptedMessage({
+        messageId: tempId,
+        senderId: myUserId,
+        roomId: activeRoomId,
+        time: currentTime,
+        createdAt: messageDocPayload.createdAt,
+        enc: true,
+        v: fileEnvelope.v,
+        iv: fileEnvelope.iv,
+        ct: fileEnvelope.ct,
+        nonce: fileEnvelope.nonce,
+        ts: fileEnvelope.ts,
+        isEphemeral: ephemeralEnabled,
+        ephemeralDuration: durationMs,
+        expiresAt: expiresAt,
+        encryptedData: fileEnvelope,
       });
 
       // Store file message with canonical tempId matching optimistic local message (BUG-007)
@@ -3221,6 +3271,45 @@ export default function App() {
       });
 
       const voiceDocId = `voice_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      const voiceCreatedAt = new Date().toISOString();
+
+      // Add optimistic voice message bubble immediately and broadcast over WebSocket (BUG-A8)
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: voiceDocId,
+          text: '',
+          sender: 'me',
+          senderId: myUserId,
+          time: currentTime,
+          createdAt: voiceCreatedAt,
+          file: attachment,
+          replyTo: currentReply || undefined,
+          isEphemeral: ephemeralEnabled,
+          ephemeralDuration: durationMs,
+          expiresAt: expiresAt || undefined,
+          status: 'sent',
+        },
+      ]);
+
+      realTimeSocket.sendEncryptedMessage({
+        messageId: voiceDocId,
+        senderId: myUserId,
+        roomId: activeRoomId,
+        time: currentTime,
+        createdAt: voiceCreatedAt,
+        enc: true,
+        v: voiceEnvelope.v,
+        iv: voiceEnvelope.iv,
+        ct: voiceEnvelope.ct,
+        nonce: voiceEnvelope.nonce,
+        ts: voiceEnvelope.ts,
+        isEphemeral: ephemeralEnabled,
+        ephemeralDuration: durationMs,
+        expiresAt: expiresAt,
+        encryptedData: voiceEnvelope,
+      });
+
       await setDoc(doc(db, 'rooms', activeRoomId, 'messages', voiceDocId), messageDocPayload);
       setIsViewOnce(false);
     } catch (err) {
@@ -4108,7 +4197,7 @@ export default function App() {
             <span>
               <strong>DISPOSABLE BURNER ROOM ACTIVE:</strong> Automatic purge and evacuation in{' '}
               <span className="font-mono font-bold text-white bg-black/40 px-2 py-0.5 rounded border border-orange-500/30">
-                {formatRemainingTime(Math.max(0, Math.floor((roomExpiresAt - Date.now()) / 1000)) * 1000)}
+                {formatRemainingTime(roomExpiresAt).text}
               </span>
             </span>
           </div>
@@ -4267,7 +4356,7 @@ export default function App() {
                     isCopied={copiedMsgId === msg.id}
                     currentTheme={currentTheme}
                     activeRoomId={activeRoomId}
-                    roomPassword={activePasswordRef.current || password.trim()}
+                    roomPassword={activePasswordRef.current || stripInvisibleChars(password)}
                     onToggleReaction={handleToggleReaction}
                     onReplyToMessage={handleReplyToMessage}
                     onTogglePinMessage={handleTogglePinMessage}
@@ -4630,7 +4719,7 @@ export default function App() {
         roomId={activeRoomId}
         messages={messages}
         myUserId={myUserId}
-        roomPassword={activePasswordRef.current || password.trim()}
+        roomPassword={activePasswordRef.current || stripInvisibleChars(password)}
         onJumpToMessage={handleJumpToMessage}
         onOpenShareModal={() => {
           setShareLinkInitialMode('send_link');
@@ -4743,7 +4832,7 @@ export default function App() {
         onUnlock={handleUnlockSession}
         onBurnRoom={handleEmergencyBurn}
         activeRoomId={activeRoomId}
-        expectedPassword={activePasswordRef.current || password.trim()}
+        expectedPassword={activePasswordRef.current || stripInvisibleChars(password)}
         autoLockReason={sessionLockReason}
       />
 
