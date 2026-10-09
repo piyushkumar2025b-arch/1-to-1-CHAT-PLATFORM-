@@ -537,6 +537,8 @@ export const ChatMessageItem = memo<ChatMessageItemProps>(
   (prev, next) => {
     return (
       prev.msg === next.msg &&
+      prev.msg.senderUsername === next.msg.senderUsername &&
+      prev.msg.senderRole === next.msg.senderRole &&
       prev.isMe === next.isMe &&
       prev.isSeen === next.isSeen &&
       prev.isHighlighted === next.isHighlighted &&

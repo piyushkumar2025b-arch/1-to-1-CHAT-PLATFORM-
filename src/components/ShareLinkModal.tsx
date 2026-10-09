@@ -14,12 +14,16 @@ import {
 } from 'lucide-react';
 import { isSafeHttpUrl, getDomainFromUrl } from '../lib/link-utils';
 import { scheduleClipboardAutoWipe } from '../lib/crypto-enclave';
+import { buildJoinUrl } from '../lib/qr-helper';
+import { RoomType } from '../types';
 
 interface ShareLinkModalProps {
   isOpen: boolean;
   onClose: () => void;
   roomId: string;
   roomPassword?: string;
+  roomType?: RoomType;
+  organizationName?: string;
   onSendLinkToChat: (url: string, note?: string) => void;
   onOpenQrModal?: () => void;
   initialMode?: 'send_link' | 'share_room';
@@ -30,6 +34,8 @@ export function ShareLinkModal({
   onClose,
   roomId,
   roomPassword = '',
+  roomType = 'direct',
+  organizationName = '',
   onSendLinkToChat,
   onOpenQrModal,
   initialMode = 'send_link',
@@ -48,9 +54,8 @@ export function ShareLinkModal({
 
   if (!isOpen) return null;
 
-  // Build room invite URL pointing to public app
-  const APP_PUBLIC_URL = 'https://ai.studio/apps/00442c1b-abc3-4bb8-8929-0feb1d748cba';
-  const roomInviteUrl = APP_PUBLIC_URL;
+  // Build room invite URL with roomId, password (if toggled), and organization metadata
+  const roomInviteUrl = buildJoinUrl(roomId, roomPassword, includePassword, roomType, organizationName);
 
   const handleCopyRoomLink = () => {
     navigator.clipboard.writeText(roomInviteUrl);
@@ -62,11 +67,14 @@ export function ShareLinkModal({
   const handleNativeShare = async () => {
     if (navigator.share) {
       try {
+        const roomLabel = roomType === 'organization'
+          ? `Organization Room ${organizationName ? `"${organizationName}" (${roomId})` : roomId}`
+          : `private encrypted chat room ${roomId}`;
         await navigator.share({
-          title: `Join Private Chat Room: ${roomId}`,
+          title: `Join ${roomLabel}`,
           text: includePassword && roomPassword
-            ? `Join my encrypted 1-to-1 chat room ${roomId} (Password: ${roomPassword}):`
-            : `Join my encrypted 1-to-1 chat room ${roomId}:`,
+            ? `Join our ${roomLabel} (Password: ${roomPassword}):`
+            : `Join our ${roomLabel}:`,
           url: roomInviteUrl,
         });
         setSharedViaNative(true);

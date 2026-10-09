@@ -173,8 +173,8 @@ export interface PresenceUpdatePayload {
   roomType: RoomType;
   organizationName?: string;
   participantCount: number;
-  action?: 'joined' | 'left' | 'sync';
-  user?: { id: string; username: string };
+  action?: 'joined' | 'left' | 'sync' | 'updated';
+  user?: { id: string; username: string; role?: 'admin' | 'member' };
   participants: RoomParticipant[];
   timestamp?: number;
 }

@@ -4,30 +4,56 @@ import jsQR from 'jsqr';
 export interface QrJoinPayload {
   roomId: string;
   password?: string;
+  roomType?: 'direct' | 'organization';
+  organizationName?: string;
   raw: string;
 }
 
 export const APP_PUBLIC_REDIRECT_URL = 'https://ai.studio/apps/00442c1b-abc3-4bb8-8929-0feb1d748cba';
 
 /**
- * Builds the canonical QR redirect URL:
- * https://ai.studio/apps/00442c1b-abc3-4bb8-8929-0feb1d748cba
- * Just this URL, directly.
+ * Builds the canonical QR redirect URL with room credentials encoded in the URL hash
+ * so scanning or opening the invite link auto-populates the room & password without server leakage.
  */
-export function buildJoinUrl(_roomId?: string, _password?: string, _includePassword = true): string {
-  return APP_PUBLIC_REDIRECT_URL;
+export function buildJoinUrl(
+  roomId?: string,
+  password?: string,
+  includePassword = true,
+  roomType?: 'direct' | 'organization',
+  organizationName?: string
+): string {
+  const baseUrl =
+    typeof window !== 'undefined' && window.location?.origin
+      ? `${window.location.origin}${window.location.pathname}`
+      : APP_PUBLIC_REDIRECT_URL;
+  if (!roomId || !roomId.trim()) {
+    return baseUrl;
+  }
+  const params = new URLSearchParams();
+  params.set('room', roomId.trim().toUpperCase());
+  if (includePassword && password) {
+    params.set('pwd', password);
+  }
+  if (roomType === 'organization') {
+    params.set('mode', 'organization');
+    if (organizationName && organizationName.trim()) {
+      params.set('org', organizationName.trim());
+    }
+  }
+  return `${baseUrl}#${params.toString()}`;
 }
 
 /**
- * Generates a high-quality QR code Data URL (PNG) that encodes
- * https://ai.studio/apps/00442c1b-abc3-4bb8-8929-0feb1d748cba
+ * Generates a high-quality QR code Data URL (PNG) that encodes the room join URL.
  */
 export async function generateRoomQrDataUrl(
-  _roomId?: string,
-  _password?: string,
-  _includePassword = true
+  roomId?: string,
+  password?: string,
+  includePassword = true,
+  roomType?: 'direct' | 'organization',
+  organizationName?: string
 ): Promise<{ qrDataUrl: string; joinUrl: string }> {
-  const joinUrl = APP_PUBLIC_REDIRECT_URL;
+  const joinUrl = buildJoinUrl(roomId, password, includePassword, roomType, organizationName);
 
   const qrDataUrl = await QRCode.toDataURL(joinUrl, {
     errorCorrectionLevel: 'H',
@@ -67,18 +93,24 @@ export function parseQrJoinPayload(rawText: string): QrJoinPayload | null {
       // Check query params
       let r = url.searchParams.get('room') || url.searchParams.get('roomId') || url.searchParams.get('join');
       let p = url.searchParams.get('pwd') || url.searchParams.get('password') || url.searchParams.get('pass');
+      let m = url.searchParams.get('mode') || url.searchParams.get('roomType');
+      let o = url.searchParams.get('org') || url.searchParams.get('organizationName');
 
       // If not found in query, check hash (e.g. #room=XYZ&pwd=123)
       if (!r && url.hash) {
         const hashParams = new URLSearchParams(url.hash.replace(/^#/, ''));
         r = hashParams.get('room') || hashParams.get('roomId') || hashParams.get('join');
         p = hashParams.get('pwd') || hashParams.get('password') || hashParams.get('pass');
+        m = m || hashParams.get('mode') || hashParams.get('roomType');
+        o = o || hashParams.get('org') || hashParams.get('organizationName');
       }
 
       if (r) {
         return {
           roomId: r.trim().toUpperCase(),
-          password: p ? p.trim() : undefined,
+          password: p ? p : undefined,
+          roomType: m === 'organization' ? 'organization' : undefined,
+          organizationName: o ? o.trim() : undefined,
           raw: trimmed,
         };
       }

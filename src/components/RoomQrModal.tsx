@@ -11,15 +11,25 @@ import {
   QrCode,
 } from 'lucide-react';
 import { generateRoomQrDataUrl } from '../lib/qr-helper';
+import { RoomType } from '../types';
 
 interface RoomQrModalProps {
   isOpen: boolean;
   onClose: () => void;
   roomId: string;
   password?: string;
+  roomType?: RoomType;
+  organizationName?: string;
 }
 
-export function RoomQrModal({ isOpen, onClose, roomId, password }: RoomQrModalProps) {
+export function RoomQrModal({
+  isOpen,
+  onClose,
+  roomId,
+  password,
+  roomType = 'direct',
+  organizationName,
+}: RoomQrModalProps) {
   const [includePassword, setIncludePassword] = useState(true);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [joinUrl, setJoinUrl] = useState<string>('');
@@ -34,7 +44,10 @@ export function RoomQrModal({ isOpen, onClose, roomId, password }: RoomQrModalPr
     let isMounted = true;
     setLoading(true);
 
-    generateRoomQrDataUrl(roomId, password, includePassword)
+    generateRoomQrDataUrl(roomId, password, includePassword, {
+      roomType,
+      organizationName,
+    })
       .then(({ qrDataUrl: dataUrl, joinUrl: url }) => {
         if (isMounted) {
           setQrDataUrl(dataUrl);
@@ -50,7 +63,7 @@ export function RoomQrModal({ isOpen, onClose, roomId, password }: RoomQrModalPr
     return () => {
       isMounted = false;
     };
-  }, [isOpen, roomId, password, includePassword]);
+  }, [isOpen, roomId, password, includePassword, roomType, organizationName]);
 
   if (!isOpen || !roomId) return null;
 
@@ -89,11 +102,17 @@ export function RoomQrModal({ isOpen, onClose, roomId, password }: RoomQrModalPr
   const handleShare = async () => {
     if (navigator.share && joinUrl) {
       try {
+        const roomLabel =
+          roomType === 'organization'
+            ? organizationName
+              ? `Organization Room "${organizationName}" (${roomId})`
+              : `Organization Room (${roomId})`
+            : `1-to-1 Chat Room (${roomId})`;
         await navigator.share({
-          title: `Join Private Chat Room ${roomId}`,
+          title: `Join ${roomLabel}`,
           text: password
-            ? `Join my private, encrypted 1-to-1 chat room (${roomId}, Password: ${password}):`
-            : `Join my private, encrypted 1-to-1 chat room (${roomId}):`,
+            ? `Join our encrypted ${roomLabel} — Password: ${password}:`
+            : `Join our encrypted ${roomLabel}:`,
           url: joinUrl,
         });
       } catch (err) {

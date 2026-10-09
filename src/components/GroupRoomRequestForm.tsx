@@ -12,9 +12,10 @@ import { GroupRoomRequest } from '../types';
 
 interface GroupRoomRequestFormProps {
   mode?: 'light' | 'dark';
+  onLaunchOrganizationRoom?: (requestedSize?: number, orgName?: string) => void;
 }
 
-export function GroupRoomRequestForm({ mode = 'light' }: GroupRoomRequestFormProps) {
+export function GroupRoomRequestForm({ mode = 'light', onLaunchOrganizationRoom }: GroupRoomRequestFormProps) {
   const isLight = mode === 'light';
   const [requestedSize, setRequestedSize] = useState<number>(4);
   const [useCase, setUseCase] = useState<string>('Confidential Work Team');
@@ -157,16 +158,32 @@ export function GroupRoomRequestForm({ mode = 'light' }: GroupRoomRequestFormPro
               isLight ? 'text-slate-900' : 'text-white'
             }`}
           >
-            Rooms for more than 2 people will be made if asked.
+            Organization Rooms (Up to 100 Members) & Custom Group Requests
           </h2>
           <p
             className={`text-sm sm:text-base leading-relaxed max-w-2xl ${
               isLight ? 'text-slate-700' : 'text-neutral-300'
             }`}
           >
-            Currently, every room is strictly capped at two participants to keep communication strictly private.
-            If your team, family, or study group needs multi-person rooms, tell us below. We build features based directly on user requests.
+            Standard 1-on-1 rooms are capped at two participants, while <strong>Organization Rooms</strong> are live right now for up to 100 team members with live presence rosters and admin roles! You can launch an Organization Room immediately or request custom enterprise capacity below.
           </p>
+          {onLaunchOrganizationRoom && (
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => onLaunchOrganizationRoom(requestedSize, useCase)}
+                className={`inline-flex items-center gap-2 py-2.5 px-5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md ${
+                  isLight
+                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                    : 'bg-emerald-500 hover:bg-emerald-400 text-neutral-950'
+                }`}
+              >
+                <Users className="w-4 h-4" />
+                <span>Launch Organization Room Now (Up to 100 Members)</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Persistent Submitted Receipt View */}

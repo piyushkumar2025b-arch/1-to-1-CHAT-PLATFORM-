@@ -148,9 +148,18 @@ export function MessageDetailsModal({
               <span className="text-[10px] uppercase font-semibold text-neutral-400 block tracking-wider">
                 Security & Delivery
               </span>
-              <div className="flex items-center gap-1.5 text-neutral-300 mt-0.5 font-medium">
+              <div className="flex items-center gap-1.5 text-neutral-300 mt-0.5 font-medium flex-wrap">
                 <User className="w-3 h-3 text-neutral-400" />
-                <span>{message.sender === 'me' ? 'Sent by you' : 'Sent by peer'}</span>
+                <span>
+                  {message.sender === 'me'
+                    ? `Sent by you${message.senderUsername ? ` (${message.senderUsername})` : ''}`
+                    : `Sent by ${message.senderUsername || 'Peer'}`}
+                </span>
+                {message.senderRole === 'admin' && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                    Room Admin
+                  </span>
+                )}
               </div>
               {message.sender === 'me' && (
                 <div className="flex items-center gap-1.5 mt-1 text-xs">

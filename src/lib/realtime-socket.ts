@@ -66,6 +66,7 @@ class RealTimeSocketClient {
   private currentUsername: string = '';
   private currentRoomType: RoomType = 'direct';
   private currentOrganizationName: string = '';
+  private currentMaxCapacity: number = 2;
   private participantCount: number = 0;
   private participants: RoomParticipant[] = [];
   private sessionToken: string = '';
@@ -123,7 +124,7 @@ class RealTimeSocketClient {
     roomId: string,
     password: string,
     userId: string,
-    options?: { roomType?: RoomType; organizationName?: string; username?: string }
+    options?: { roomType?: RoomType; organizationName?: string; username?: string; maxCapacity?: number }
   ): void {
     if (!roomId || !password) return;
 
@@ -146,6 +147,7 @@ class RealTimeSocketClient {
     this.currentUsername = options?.username || '';
     this.currentRoomType = options?.roomType || 'direct';
     this.currentOrganizationName = options?.organizationName || '';
+    this.currentMaxCapacity = options?.maxCapacity || (this.currentRoomType === 'organization' ? 50 : 2);
 
     this.initSocket();
   }
@@ -176,6 +178,7 @@ class RealTimeSocketClient {
             username: this.currentUsername,
             roomType: this.currentRoomType,
             organizationName: this.currentOrganizationName,
+            maxCapacity: this.currentMaxCapacity,
           })
         );
       };
@@ -524,9 +527,16 @@ class RealTimeSocketClient {
   }
 
   /**
-   * Relay instant message edit over ultra-low-latency WebSocket tunnel (<2ms)
+   * Relay instant message edit or poll vote over ultra-low-latency WebSocket tunnel (<2ms)
    */
-  public sendEditMessage(payload: { messageId: string; ct: string; iv: string; nonce?: string; editedAt?: number }): void {
+  public sendEditMessage(payload: {
+    messageId: string;
+    ct: string;
+    iv: string;
+    nonce?: string;
+    editedAt?: number;
+    isPollVote?: boolean;
+  }): void {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       try {
         this.socket.send(
@@ -537,6 +547,26 @@ class RealTimeSocketClient {
             iv: payload.iv,
             nonce: payload.nonce || '',
             editedAt: payload.editedAt || Date.now(),
+            isPollVote: payload.isPollVote,
+          })
+        );
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  /**
+   * Update participant display name / username in real time across the room roster
+   */
+  public updateUsername(username: string): void {
+    this.currentUsername = username;
+    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+      try {
+        this.socket.send(
+          JSON.stringify({
+            type: 'update_username',
+            username,
           })
         );
       } catch {

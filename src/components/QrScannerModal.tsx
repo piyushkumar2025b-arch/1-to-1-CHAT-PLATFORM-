@@ -14,7 +14,12 @@ import { scanQrFromVideoFrame, scanQrFromImageFile, QrJoinPayload } from '../lib
 interface QrScannerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onScanSuccess: (payload: { roomId: string; password?: string }) => void;
+  onScanSuccess: (payload: {
+    roomId: string;
+    password?: string;
+    roomType?: 'direct' | 'organization';
+    organizationName?: string;
+  }) => void;
 }
 
 // Synthesizes a clean success confirmation tone using Web Audio API
@@ -84,7 +89,12 @@ export function QrScannerModal({ isOpen, onClose, onScanSuccess }: QrScannerModa
 
       // Brief delay to allow user to see success checkmark
       setTimeout(() => {
-        onScanSuccess({ roomId: payload.roomId, password: payload.password });
+        onScanSuccess({
+          roomId: payload.roomId,
+          password: payload.password,
+          roomType: payload.roomType,
+          organizationName: payload.organizationName,
+        });
         onClose();
       }, 500);
     },

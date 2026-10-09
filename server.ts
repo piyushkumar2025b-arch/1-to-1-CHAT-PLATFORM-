@@ -182,6 +182,7 @@ function validateWebSocketMessage(data: any): { valid: boolean; error?: string }
     'media_burned',
     'whiteboard',
     'webrtc_signal',
+    'update_username',
     'ack',
     'delivery_ack'
   ];
@@ -573,6 +574,7 @@ async function startServer() {
           const requestedRoomType: 'direct' | 'organization' = data.roomType === 'organization' ? 'organization' : 'direct';
           const requestedOrgName = typeof data.organizationName === 'string' ? data.organizationName.trim().slice(0, 100) : '';
           const requestedUsername = typeof data.username === 'string' && data.username.trim().length > 0 ? stripInvisibleChars(data.username).trim().slice(0, 50) : '';
+          const requestedMaxCapacity = typeof data.maxCapacity === 'number' && data.maxCapacity >= 2 && data.maxCapacity <= 100 ? data.maxCapacity : undefined;
 
           let authResult: {
             ok: boolean;
@@ -603,6 +605,7 @@ async function startServer() {
             authResult = await authenticateOrCreateRoom(rawRoomId, providedPassword, liveActiveCount, {
               roomType: requestedRoomType,
               organizationName: requestedOrgName,
+              maxCapacity: requestedMaxCapacity,
             });
             if (!authResult.ok) {
               recordAuthFailure(clientIp, rawRoomId);
@@ -630,7 +633,7 @@ async function startServer() {
           const effectiveOrgName = requestedOrgName || room?.organizationName || authResult.organizationName || '';
           const effectiveMaxCapacity =
             effectiveRoomType === 'organization'
-              ? Math.max(room?.maxCapacity || 0, authResult.maxCapacity || 50)
+              ? Math.max(room?.maxCapacity || 0, authResult.maxCapacity || requestedMaxCapacity || 50)
               : room?.maxCapacity || authResult.maxCapacity || 2;
 
           if (room && room.users.length >= effectiveMaxCapacity) {
@@ -1026,10 +1029,10 @@ async function startServer() {
           return;
         }
 
-        // Step 8: Instant Message Edit Relay (<2ms) with sender ownership check (BUG-007)
+        // Step 8: Instant Message Edit & Poll Vote Relay (<2ms)
         if (data.type === 'edit_message' || data.type === 'message_edited') {
           const cachedMsg = recentMessagesCache.get(`${assignedRoomId}::${data.messageId}`);
-          if (cachedMsg && cachedMsg.senderId && cachedMsg.senderId !== assignedUserId) {
+          if (cachedMsg && cachedMsg.senderId && cachedMsg.senderId !== assignedUserId && !data.isPollVote) {
             ws.send(
               JSON.stringify({
                 type: 'error',
@@ -1051,6 +1054,39 @@ async function startServer() {
               editedAt: data.editedAt || Date.now(),
             })
           );
+          return;
+        }
+
+        // Step 8b: Live Display Name / Username Update for Organization Rooms
+        if (data.type === 'update_username') {
+          const newName = typeof data.username === 'string' ? stripInvisibleChars(data.username).trim().slice(0, 50) : '';
+          if (newName) {
+            senderUser.username = newName;
+            const presencePayload = JSON.stringify({
+              type: 'presence_update',
+              roomId: assignedRoomId,
+              roomType: currentRoom.roomType || 'direct',
+              organizationName: currentRoom.organizationName || '',
+              participantCount: currentRoom.users.length,
+              action: 'updated',
+              user: { id: assignedUserId, username: newName, role: senderUser.role || 'member' },
+              participants: currentRoom.users.map((u) => ({
+                id: u.id,
+                username: u.username || u.id,
+                role: u.role || 'member',
+                joinedAt: u.joinedAt || Date.now(),
+                isOnline: true,
+              })),
+              timestamp: Date.now(),
+            });
+            for (const u of currentRoom.users) {
+              if (u.ws.readyState === WebSocket.OPEN) {
+                try {
+                  u.ws.send(presencePayload);
+                } catch {}
+              }
+            }
+          }
           return;
         }
 

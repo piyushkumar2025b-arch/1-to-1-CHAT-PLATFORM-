@@ -46,6 +46,8 @@ interface LandingHeroViewProps {
   setOrganizationName?: (name: string) => void;
   username?: string;
   setUsername?: (name: string) => void;
+  maxCapacity?: number;
+  setMaxCapacity?: (cap: number) => void;
   authError: string;
   setAuthError: (err: string) => void;
   isSubmitting: boolean;
@@ -74,6 +76,8 @@ export function LandingHeroView({
   setOrganizationName,
   username = '',
   setUsername,
+  maxCapacity = 50,
+  setMaxCapacity,
   authError,
   setAuthError,
   isSubmitting,
@@ -593,6 +597,39 @@ export function LandingHeroView({
                       }`}
                     />
                   </div>
+
+                  {setMaxCapacity && (
+                    <div className="space-y-1.5 pt-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className={`font-semibold ${isLight ? 'text-slate-800' : 'text-neutral-200'}`}>
+                          Max Team Capacity
+                        </span>
+                        <span className="font-mono font-bold text-emerald-500">
+                          {maxCapacity} members
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {[10, 25, 50, 100].map((cap) => (
+                          <button
+                            key={cap}
+                            type="button"
+                            onClick={() => setMaxCapacity(cap)}
+                            className={`py-1.5 px-2 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                              maxCapacity === cap
+                                ? isLight
+                                  ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs'
+                                  : 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
+                                : isLight
+                                ? 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                                : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:border-neutral-700'
+                            }`}
+                          >
+                            {cap} max
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -864,7 +901,22 @@ export function LandingHeroView({
       <MetaComparisonSection onScrollToGroupForm={scrollToGroupForm} mode={themeMode} />
 
       {/* Interactive Group Room Request Form (Multi-User Expansion) */}
-      <GroupRoomRequestForm mode={themeMode} />
+      <GroupRoomRequestForm
+        mode={themeMode}
+        onLaunchOrganizationRoom={(reqSize, useCaseName) => {
+          if (setRoomType) setRoomType('organization');
+          if (setMaxCapacity && reqSize) {
+            setMaxCapacity(reqSize <= 10 ? 10 : reqSize <= 25 ? 25 : 50);
+          }
+          if (setOrganizationName && useCaseName && !organizationName.trim()) {
+            setOrganizationName(useCaseName);
+          }
+          const card = document.getElementById('join-room-card');
+          if (card) {
+            card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }}
+      />
 
       {/* Full-width Professional Governance & Status Footer */}
       <footer

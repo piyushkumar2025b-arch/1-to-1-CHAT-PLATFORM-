@@ -13,6 +13,7 @@ import {
   Share2,
   Sparkles,
   Wifi,
+  Pencil,
 } from 'lucide-react';
 import { RoomParticipant, RoomType } from '../types';
 
@@ -26,6 +27,8 @@ interface OrganizationRosterModalProps {
   maxCapacity: number;
   participants: RoomParticipant[];
   currentUserId: string;
+  currentUsername?: string;
+  onUpdateUsername?: (newUsername: string) => void;
   onCopyRoomId: () => void;
   onOpenShareModal: () => void;
 }
@@ -40,11 +43,15 @@ export const OrganizationRosterModal: React.FC<OrganizationRosterModalProps> = (
   maxCapacity,
   participants,
   currentUserId,
+  currentUsername,
+  onUpdateUsername,
   onCopyRoomId,
   onOpenShareModal,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [draftName, setDraftName] = useState('');
 
   // Filter participants by search query
   const filteredParticipants = useMemo(() => {
@@ -216,14 +223,66 @@ export const OrganizationRosterModal: React.FC<OrganizationRosterModalProps> = (
 
                     {/* Member Details */}
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-xs sm:text-sm text-neutral-100 truncate">
-                          {member.username}
-                        </span>
-                        {isMe && (
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-300 border border-neutral-700">
-                            You
-                          </span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {isMe && isEditingName ? (
+                          <form
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              if (draftName.trim() && onUpdateUsername) {
+                                onUpdateUsername(draftName.trim());
+                              }
+                              setIsEditingName(false);
+                            }}
+                            className="flex items-center gap-1.5"
+                          >
+                            <input
+                              type="text"
+                              value={draftName}
+                              onChange={(e) => setDraftName(e.target.value)}
+                              maxLength={40}
+                              autoFocus
+                              placeholder="Your display name..."
+                              className="px-2 py-0.5 bg-neutral-950 border border-emerald-500/60 rounded-lg text-xs text-white focus:outline-none w-36 sm:w-44"
+                            />
+                            <button
+                              type="submit"
+                              className="px-2 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-[10px] font-bold text-white cursor-pointer"
+                            >
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setIsEditingName(false)}
+                              className="px-1.5 py-0.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-[10px] text-neutral-400 cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                          </form>
+                        ) : (
+                          <>
+                            <span className="font-semibold text-xs sm:text-sm text-neutral-100 truncate">
+                              {isMe && currentUsername ? currentUsername : member.username}
+                            </span>
+                            {isMe && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-300 border border-neutral-700">
+                                You
+                              </span>
+                            )}
+                            {isMe && onUpdateUsername && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDraftName(currentUsername || member.username || '');
+                                  setIsEditingName(true);
+                                }}
+                                title="Edit your display name"
+                                className="text-[10px] text-emerald-400 hover:text-emerald-300 flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-emerald-950/50 border border-emerald-800/50 cursor-pointer transition-colors"
+                              >
+                                <Pencil className="w-2.5 h-2.5" />
+                                <span>Edit Name</span>
+                              </button>
+                            )}
+                          </>
                         )}
                         {isAdmin && (
                           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30 flex items-center gap-1">

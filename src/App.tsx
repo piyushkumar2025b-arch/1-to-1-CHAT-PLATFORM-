@@ -868,6 +868,7 @@ export default function App() {
       roomType,
       organizationName,
       username: myUsername,
+      maxCapacity,
     });
 
     // Fast socket message listener (<10ms peer delivery)
@@ -882,6 +883,8 @@ export default function App() {
       let decryptedFile = payload.file;
       let decryptedReplyTo = payload.replyTo;
       let decryptedPoll = payload.poll;
+      let decryptedSenderUsername = payload.senderUsername;
+      let decryptedSenderRole = payload.senderRole;
       let isEdited = Boolean(payload.isEdited);
       let editedAt = payload.editedAt;
 
@@ -893,6 +896,8 @@ export default function App() {
             if (dec.file) decryptedFile = dec.file;
             if (dec.replyTo) decryptedReplyTo = dec.replyTo;
             if (dec.poll) decryptedPoll = dec.poll;
+            if (dec.senderUsername) decryptedSenderUsername = dec.senderUsername;
+            if (dec.senderRole) decryptedSenderRole = dec.senderRole;
             if (dec.isEdited !== undefined) isEdited = Boolean(dec.isEdited);
             if (dec.editedAt !== undefined) editedAt = dec.editedAt;
           }
@@ -906,8 +911,8 @@ export default function App() {
         text: decryptedText,
         sender: isMe ? 'me' : 'peer',
         senderId: senderId,
-        senderUsername: payload.senderUsername,
-        senderRole: payload.senderRole,
+        senderUsername: decryptedSenderUsername,
+        senderRole: decryptedSenderRole,
         time: payload.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         status: 'sent',
         file: decryptedFile,
@@ -1244,7 +1249,7 @@ export default function App() {
           const data = docSnap.data();
 
           // Compute fast fingerprint for memoization
-          const fingerprint = `${data.ts || ''}:${data.ct || ''}:${data.enc ? '1' : '0'}:${data.isDeleted ? '1' : '0'}:${data.deletedForEveryone ? '1' : '0'}:${data.deletedAt || ''}:${data.text || ''}:${data.time || ''}:${JSON.stringify(data.reactions || {})}:${data.expiresAt || ''}:${data.isEdited ? '1' : '0'}:${data.editedAt || ''}:${data.viewed ? '1' : '0'}:${data.burned ? '1' : '0'}:${data.file?.burned ? '1' : '0'}`;
+          const fingerprint = `${data.ts || ''}:${data.ct || ''}:${data.enc ? '1' : '0'}:${data.isDeleted ? '1' : '0'}:${data.deletedForEveryone ? '1' : '0'}:${data.deletedAt || ''}:${data.text || ''}:${data.time || ''}:${data.senderUsername || ''}:${data.senderRole || ''}:${JSON.stringify(data.reactions || {})}:${data.expiresAt || ''}:${data.isEdited ? '1' : '0'}:${data.editedAt || ''}:${data.viewed ? '1' : '0'}:${data.burned ? '1' : '0'}:${data.file?.burned ? '1' : '0'}`;
 
           const cached = processedMessagesCacheRef.current.get(docId);
           if (cached && cached.hash === fingerprint) {
@@ -1263,6 +1268,8 @@ export default function App() {
               text: '',
               sender: data.senderId === myUserId ? 'me' : 'peer',
               senderId: data.senderId,
+              senderUsername: data.senderUsername,
+              senderRole: data.senderRole,
               status: 'sent',
               isDeleted: true,
               deletedForEveryone: true,
@@ -1285,6 +1292,8 @@ export default function App() {
           let decryptedReplyTo = data.replyTo as ReplyReference | undefined;
           let decryptedReactions = (data.reactions || {}) as Record<string, string[]>;
           let decryptedPoll = data.poll as PollData | undefined;
+          let decryptedSenderUsername = data.senderUsername;
+          let decryptedSenderRole = data.senderRole;
           let isEphemeral = Boolean(data.isEphemeral);
           let ephemeralDuration = data.ephemeralDuration;
           let expiresAt = data.expiresAt;
@@ -1304,6 +1313,8 @@ export default function App() {
               if (dec.replyTo !== undefined) decryptedReplyTo = dec.replyTo;
               if (dec.reactions !== undefined) decryptedReactions = dec.reactions;
               if (dec.poll !== undefined) decryptedPoll = dec.poll;
+              if (dec.senderUsername && !decryptedSenderUsername) decryptedSenderUsername = dec.senderUsername;
+              if (dec.senderRole && !decryptedSenderRole) decryptedSenderRole = dec.senderRole;
               if (dec.isEphemeral !== undefined) isEphemeral = Boolean(dec.isEphemeral);
               if (dec.ephemeralDuration !== undefined) ephemeralDuration = dec.ephemeralDuration;
               if (dec.expiresAt !== undefined) expiresAt = dec.expiresAt;
@@ -1335,8 +1346,8 @@ export default function App() {
             text: decryptedText,
             sender: data.senderId === myUserId ? 'me' : 'peer',
             senderId: data.senderId,
-            senderUsername: data.senderUsername,
-            senderRole: data.senderRole,
+            senderUsername: decryptedSenderUsername,
+            senderRole: decryptedSenderRole,
             file: decryptedFile,
             replyTo: decryptedReplyTo,
             reactions: decryptedReactions,
@@ -1541,12 +1552,18 @@ export default function App() {
       if (payload && payload.roomId) {
         const cleanRoom = payload.roomId.trim().toUpperCase();
         setRoomId(cleanRoom);
+        if (payload.roomType === 'organization') {
+          setRoomType('organization');
+        }
+        if (payload.organizationName) {
+          setOrganizationName(payload.organizationName);
+        }
         if (payload.password) {
           // Preserve valid whitespace in passwords (BUG-006)
           const cleanPass = stripInvisibleChars(payload.password);
           setPassword(cleanPass);
           setSecurityToastMessage(`QR Invite: Auto-connecting to room ${cleanRoom}...`);
-          handleRoomSubmit(undefined, cleanRoom, cleanPass);
+          handleRoomSubmit(undefined, cleanRoom, cleanPass, payload.roomType, payload.organizationName);
         } else {
           setSecurityToastMessage(`QR Invite: Room ${cleanRoom} loaded. Please enter password.`);
         }
@@ -1560,20 +1577,31 @@ export default function App() {
   }, []);
 
   // Handle successful QR scan from QrScannerModal
-  const handleQrScanSuccess = (payload: { roomId: string; password?: string }) => {
+  const handleQrScanSuccess = (payload: {
+    roomId: string;
+    password?: string;
+    roomType?: 'direct' | 'organization';
+    organizationName?: string;
+  }) => {
     const cleanRoom = payload.roomId ? payload.roomId.trim().toUpperCase() : '';
     if (!cleanRoom) {
       setSecurityToastMessage('App URL verified. Enter or generate a room code to join.');
       return;
     }
     setRoomId(cleanRoom);
+    if (payload.roomType === 'organization') {
+      setRoomType('organization');
+    }
+    if (payload.organizationName) {
+      setOrganizationName(payload.organizationName);
+    }
     if (payload.password) {
       // Preserve valid whitespace in passwords (BUG-006)
       const cleanPass = stripInvisibleChars(payload.password);
       activePasswordRef.current = cleanPass;
       setPassword(cleanPass);
       setSecurityToastMessage(`QR Verified: Connecting to room ${cleanRoom}...`);
-      handleRoomSubmit(undefined, cleanRoom, cleanPass);
+      handleRoomSubmit(undefined, cleanRoom, cleanPass, payload.roomType, payload.organizationName);
     } else {
       setSecurityToastMessage(`QR Verified: Room ${cleanRoom} loaded. Enter password to connect.`);
     }
@@ -1582,11 +1610,15 @@ export default function App() {
   const handleRoomSubmit = async (
     e?: FormEvent,
     overrideRoomId?: string,
-    overridePassword?: string
+    overridePassword?: string,
+    overrideRoomType?: 'direct' | 'organization',
+    overrideOrgName?: string
   ) => {
     if (e) e.preventDefault();
     const targetRoom = overrideRoomId !== undefined ? overrideRoomId : roomId;
     const targetPassword = overridePassword !== undefined ? overridePassword : password;
+    const targetRoomType = overrideRoomType || roomType;
+    const targetOrgName = overrideOrgName !== undefined ? overrideOrgName : organizationName;
 
     const cleanRoom = targetRoom.trim().toUpperCase();
     // Preserve valid whitespace in passwords, only stripping invisible exploit characters (BUG-006)
@@ -1636,9 +1668,9 @@ export default function App() {
           roomId: cleanRoom,
           password: cleanPassword,
           userId: myUserId,
-          roomType,
-          organizationName: organizationName.trim(),
-          maxCapacity: roomType === 'organization' ? 50 : 2,
+          roomType: targetRoomType,
+          organizationName: targetOrgName.trim(),
+          maxCapacity: targetRoomType === 'organization' ? Math.max(maxCapacity, 10) : 2,
         }),
       });
       if (authRes.status === 429) {
@@ -1939,6 +1971,9 @@ export default function App() {
     const expiresAt = effectiveEphemeral && durationMs > 0 ? Date.now() + durationMs : null;
 
     // Instantaneous 0ms optimistic visual update for sender
+    const currentRole = (participants.find((p) => p.id === myUserId)?.role) || (participants.length <= 1 ? 'admin' : 'member');
+    const effectiveSenderName = myUsername.trim() || (participants.find((p) => p.id === myUserId)?.username) || `Member ${myUserId.slice(-4).toUpperCase()}`;
+
     const optimisticId = `opt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const optimisticCreatedAt = new Date().toISOString();
     const optimisticMsg: ChatMessage = {
@@ -1946,6 +1981,8 @@ export default function App() {
       text: content,
       sender: 'me',
       senderId: myUserId,
+      senderUsername: effectiveSenderName,
+      senderRole: currentRole,
       time: currentTime,
       createdAt: optimisticCreatedAt,
       replyTo: sentReplyTo || undefined,
@@ -1968,6 +2005,8 @@ export default function App() {
       const envelope = await encryptWithEnclave(
         {
           text: content,
+          senderUsername: effectiveSenderName,
+          senderRole: currentRole,
           replyTo: sentReplyTo || undefined,
           isEphemeral: effectiveEphemeral,
           ephemeralDuration: durationMs,
@@ -1976,9 +2015,6 @@ export default function App() {
         roomPwd,
         activeRoomId
       );
-
-      const currentRole = (participants.find((p) => p.id === myUserId)?.role) || (participants.length <= 1 ? 'admin' : 'member');
-      const effectiveSenderName = myUsername.trim() || (participants.find((p) => p.id === myUserId)?.username) || undefined;
 
       // 2. Only opaque ciphertext, IV, and anti-replay nonce touch the database
       const payload = sanitizeForFirestore({
@@ -2276,11 +2312,16 @@ export default function App() {
     const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const roomPwd = activePasswordRef.current || stripInvisibleChars(password);
 
+    const currentRole = (participants.find((p) => p.id === myUserId)?.role) || (participants.length <= 1 ? 'admin' : 'member');
+    const effectiveSenderName = myUsername.trim() || (participants.find((p) => p.id === myUserId)?.username) || `Member ${myUserId.slice(-4).toUpperCase()}`;
+
     const optimisticMsg: ChatMessage = {
       id: optimisticId,
       text: `📊 Poll: ${question.trim()}`,
       sender: 'me',
       senderId: myUserId,
+      senderUsername: effectiveSenderName,
+      senderRole: currentRole,
       time: currentTime,
       createdAt: optimisticCreatedAt,
       poll: pollData,
@@ -2294,14 +2335,13 @@ export default function App() {
       const envelope = await encryptWithEnclave(
         {
           text: `📊 Poll: ${question.trim()}`,
+          senderUsername: effectiveSenderName,
+          senderRole: currentRole,
           poll: pollData,
         },
         roomPwd,
         activeRoomId
       );
-
-      const currentRole = (participants.find((p) => p.id === myUserId)?.role) || (participants.length <= 1 ? 'admin' : 'member');
-      const effectiveSenderName = myUsername.trim() || (participants.find((p) => p.id === myUserId)?.username) || undefined;
 
       // Keep poll data strictly inside encrypted envelope (BUG-A5: no plaintext poll field in Firestore)
       const payload = sanitizeForFirestore({
@@ -2402,14 +2442,23 @@ export default function App() {
       const envelope = await encryptWithEnclave(
         {
           text: targetMsg.text,
+          senderUsername: targetMsg.senderUsername,
+          senderRole: targetMsg.senderRole,
           poll: updatedPoll,
         },
         roomPwd,
         activeRoomId
       );
 
+      realTimeSocket.sendEditMessage({
+        messageId,
+        ct: envelope.ct,
+        iv: envelope.iv,
+        nonce: envelope.nonce,
+        isPollVote: true,
+      });
+
       await updateDoc(doc(db, 'rooms', activeRoomId, 'messages', messageId), {
-        poll: updatedPoll,
         v: envelope.v,
         iv: envelope.iv,
         ct: envelope.ct,
@@ -2706,9 +2755,14 @@ export default function App() {
         attachment.viewOnce = true;
       }
 
+      const currentRole = (participants.find((p) => p.id === myUserId)?.role) || (participants.length <= 1 ? 'admin' : 'member');
+      const effectiveSenderName = myUsername.trim() || (participants.find((p) => p.id === myUserId)?.username) || `Member ${myUserId.slice(-4).toUpperCase()}`;
+
       const fileEnvelope = await encryptWithEnclave(
         {
           text: textToSend,
+          senderUsername: effectiveSenderName,
+          senderRole: currentRole,
           file: attachment,
           replyTo: currentReply || undefined,
           isEphemeral: ephemeralEnabled,
@@ -2718,9 +2772,6 @@ export default function App() {
         roomPwd,
         activeRoomId
       );
-
-      const currentRole = (participants.find((p) => p.id === myUserId)?.role) || (participants.length <= 1 ? 'admin' : 'member');
-      const effectiveSenderName = myUsername.trim() || (participants.find((p) => p.id === myUserId)?.username) || undefined;
 
       const messageDocPayload = sanitizeForFirestore({
         roomId: activeRoomId,
@@ -3306,9 +3357,14 @@ export default function App() {
         attachment.viewOnce = true;
       }
 
+      const currentRole = (participants.find((p) => p.id === myUserId)?.role) || (participants.length <= 1 ? 'admin' : 'member');
+      const effectiveSenderName = myUsername.trim() || (participants.find((p) => p.id === myUserId)?.username) || `Member ${myUserId.slice(-4).toUpperCase()}`;
+
       const voiceEnvelope = await encryptWithEnclave(
         {
           text: '',
+          senderUsername: effectiveSenderName,
+          senderRole: currentRole,
           file: attachment,
           replyTo: currentReply || undefined,
           isEphemeral: ephemeralEnabled,
@@ -3318,9 +3374,6 @@ export default function App() {
         roomPwd,
         activeRoomId
       );
-
-      const currentRole = (participants.find((p) => p.id === myUserId)?.role) || (participants.length <= 1 ? 'admin' : 'member');
-      const effectiveSenderName = myUsername.trim() || (participants.find((p) => p.id === myUserId)?.username) || undefined;
 
       const messageDocPayload = sanitizeForFirestore({
         roomId: activeRoomId,
@@ -3915,6 +3968,8 @@ export default function App() {
           setOrganizationName={setOrganizationName}
           username={myUsername}
           setUsername={setMyUsername}
+          maxCapacity={maxCapacity}
+          setMaxCapacity={setMaxCapacity}
           authError={authError}
           setAuthError={setAuthError}
           isSubmitting={isSubmitting}
@@ -3929,6 +3984,7 @@ export default function App() {
             setPolicyModalOpen(true);
           }}
           onOpenDiagnosticsModal={() => setDiagnosticsModalOpen(true)}
+          onOpenCustomerService={() => setCustomerServiceModalOpen(true)}
           pingMs={pingMs}
         />
 
@@ -3947,11 +4003,24 @@ export default function App() {
           onClose={() => setRoomQrOpen(false)}
           roomId={roomId.trim().toUpperCase() || 'SAMPLE-ROOM'}
           password={password}
+          roomType={roomType}
+          organizationName={organizationName}
         />
         <PolicyTermsModal
           isOpen={policyModalOpen}
           onClose={() => setPolicyModalOpen(false)}
           defaultTab={policyTab}
+        />
+        <CustomerServiceModal
+          isOpen={customerServiceModalOpen}
+          onClose={() => setCustomerServiceModalOpen(false)}
+          pingMs={pingMs}
+          pingQuality={pingQuality}
+          jitterMs={jitterMs}
+          activeRoomId={activeRoomId || roomId}
+          onRunSpeedBoost={() => {
+            setSecurityToastMessage('⚡ Network ping pulse and memory optimization completed');
+          }}
         />
         <SystemDiagnosticsModal
           isOpen={diagnosticsModalOpen}
@@ -4748,8 +4817,11 @@ export default function App() {
         <VideoCallModal
           roomId={activeRoomId}
           myUserId={myUserId}
-          myUserName="You"
-          peerUserName={incomingCallData?.callerName || 'Peer'}
+          myUserName={myUsername.trim() || `Member ${myUserId.slice(-4).toUpperCase()}`}
+          peerUserName={
+            incomingCallData?.callerName ||
+            (roomType === 'organization' ? organizationName || 'Organization Team' : 'Peer')
+          }
           callType={callType}
           isOpen={videoCallModalOpen}
           isCaller={isVideoCaller}
@@ -4791,6 +4863,8 @@ export default function App() {
         onClose={() => setRoomQrOpen(false)}
         roomId={activeRoomId || roomId.trim().toUpperCase()}
         password={password}
+        roomType={roomType}
+        organizationName={organizationName}
       />
 
       {/* QR Scanner Modal (Live Camera Viewfinder + Image Upload) */}
@@ -4831,7 +4905,7 @@ export default function App() {
         onClose={() => setScratchpadOpen(false)}
         roomId={activeRoomId}
         myUserId={myUserId}
-        myUserName={`User ${myUserId.slice(-4)}`}
+        myUserName={myUsername.trim() || `Member ${myUserId.slice(-4).toUpperCase()}`}
         accentColor={currentTheme.accentColor}
         onSendMessageToChat={(text) => handleSendMessage(undefined, text)}
         onSendImageToChat={(file, caption) => processAndUploadFile(file, caption || '🎨 Shared Whiteboard Drawing')}
@@ -4843,6 +4917,8 @@ export default function App() {
         onClose={() => setShareLinkModalOpen(false)}
         roomId={activeRoomId || roomId.trim().toUpperCase()}
         roomPassword={password}
+        roomType={roomType}
+        organizationName={organizationName}
         initialMode={shareLinkInitialMode}
         onSendLinkToChat={handleSendSharedLink}
         onOpenQrModal={() => setRoomQrOpen(true)}
@@ -5353,6 +5429,25 @@ export default function App() {
         maxCapacity={maxCapacity}
         participants={participants}
         currentUserId={myUserId}
+        currentUsername={myUsername}
+        onUpdateUsername={(newName) => {
+          const cleanName = stripInvisibleChars(newName).trim().slice(0, 40);
+          if (!cleanName) return;
+          setMyUsername(cleanName);
+          try {
+            localStorage.setItem('chat_display_username', cleanName);
+          } catch {}
+          setParticipants((prev) =>
+            prev.map((p) => (p.id === myUserId ? { ...p, username: cleanName } : p))
+          );
+          realTimeSocket.updateUsername(cleanName);
+          if (activeRoomId) {
+            updateDoc(doc(db, 'rooms', activeRoomId), {
+              [`participants.${myUserId}.username`]: cleanName,
+            }).catch(() => {});
+          }
+          showToast(`Display name updated to "${cleanName}"`, 'success');
+        }}
         onCopyRoomId={handleCopyRoomId}
         onOpenShareModal={() => {
           setIsRosterModalOpen(false);

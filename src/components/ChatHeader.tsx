@@ -243,7 +243,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         </div>
 
         {/* Real-time Connection Status & Organization Presence Pill */}
-        <div id="connection-status-badge" className="hidden xs:flex">
+        <div id="connection-status-badge" className="flex items-center">
           {onOpenRoster ? (
             <button
               type="button"
@@ -253,7 +253,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                   ? `Organization Room: ${organizationName || 'Team Room'}\n${participantCount} active members connected.\nClick to view member roster.`
                   : `Direct Chat: ${participantCount}/2 connected.\nClick to view member details.`
               }
-              className={`inline-flex items-center text-[11px] font-medium px-2.5 py-1 rounded-full shadow-xs border transition-all cursor-pointer ${
+              className={`inline-flex items-center text-[11px] font-medium px-2 sm:px-2.5 py-1 rounded-full shadow-xs border transition-all cursor-pointer ${
                 connectionState === 'connected' || participantCount >= 2
                   ? 'text-emerald-400 bg-emerald-950/50 hover:bg-emerald-900/60 border-emerald-800/60'
                   : 'text-amber-400 bg-amber-950/50 hover:bg-amber-900/60 border-amber-800/60'
@@ -267,9 +267,9 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 }`}
               />
               {roomType === 'organization' ? (
-                <span className="flex items-center gap-1.5">
+                <span className="flex items-center gap-1">
                   <Building2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                  <span className="font-bold">{participantCount}</span>
+                  <span className="font-bold">{participantCount}/{maxCapacity}</span>
                   <span className="hidden sm:inline">online</span>
                 </span>
               ) : connectionState === 'connected' || participantCount >= 2 ? (
