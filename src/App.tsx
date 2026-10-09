@@ -643,6 +643,7 @@ export default function App() {
 
   // Live writing / typing state
   const [isPeerTyping, setIsPeerTyping] = useState(false);
+  const [typingPeerName, setTypingPeerName] = useState<string>('');
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTypingSentRef = useRef<number>(0);
 
@@ -845,6 +846,22 @@ export default function App() {
 
     const roomRef = doc(db, 'rooms', activeRoomId);
     const roomPwd = activePasswordRef.current || stripInvisibleChars(password);
+    const effectiveDisplayUsername = myUsername.trim() || `Member ${myUserId.slice(-4).toUpperCase()}`;
+
+    // Register current participant in Firestore immediately upon room entry so presence, roster, and connectionState stay synchronized
+    const initialNow = Date.now();
+    updateDoc(roomRef, {
+      [`participants.${myUserId}`]: {
+        id: myUserId,
+        username: effectiveDisplayUsername,
+        role: participants.length <= 1 ? 'admin' : 'member',
+        joinedAt: initialNow,
+        lastSeen: initialNow,
+        lastReadTimestamp: initialNow,
+        typing: false,
+      },
+      lastActiveAt: new Date().toISOString(),
+    }).catch(() => {});
 
     // Connect to ultra-low latency real-time WebSocket tunnel (<10ms)
     realTimeSocket.connect(activeRoomId, roomPwd, myUserId, {
@@ -924,9 +941,14 @@ export default function App() {
     });
 
     // Instant socket typing listener (<2ms)
-    const unsubSocketTyping = realTimeSocket.onTyping((isTyping, senderId) => {
+    const unsubSocketTyping = realTimeSocket.onTyping((isTyping, senderId, senderUsername) => {
       if (senderId === myUserId) return;
       setIsPeerTyping(isTyping);
+      if (isTyping && senderUsername) {
+        setTypingPeerName(senderUsername);
+      } else if (!isTyping) {
+        setTypingPeerName('');
+      }
     });
 
     // Instant socket read receipt listener (<5ms)
@@ -1085,15 +1107,42 @@ export default function App() {
         }
 
         const data = snapshot.data();
-        const participants: Record<string, any> = data?.participants || {};
+        const participantsMap: Record<string, any> = data?.participants || {};
         const now = Date.now();
 
+        // Sync roomType, organizationName, and maxCapacity from Firestore room document
+        if (data?.roomType === 'organization' || data?.roomType === 'direct') {
+          setRoomType(data.roomType);
+        }
+        if (typeof data?.organizationName === 'string' && data.organizationName) {
+          setOrganizationName(data.organizationName);
+        }
+        if (typeof data?.maxCapacity === 'number' && data.maxCapacity >= 2) {
+          setMaxCapacity(data.maxCapacity);
+        }
+
         // Active participants seen within last 25 seconds
-        const activeList = Object.values(participants).filter(
-          (p: any) => p && now - (p.lastSeen || 0) < 25000
+        const activeEntries = Object.entries(participantsMap).filter(
+          ([, p]: [string, any]) => p && now - (p.lastSeen || 0) < 25000
         );
 
-        const count = activeList.length;
+        const firestoreCount = activeEntries.length;
+        const wsCount = realTimeSocket.getParticipantCount();
+        const count = Math.max(firestoreCount, wsCount, 1);
+
+        // Sync participant count & fallback roster if WebSocket roster hasn't populated yet
+        setParticipantCount(count);
+        if (activeEntries.length > 0 && realTimeSocket.getParticipants().length === 0) {
+          setParticipants(
+            activeEntries.map(([id, p]: [string, any], idx) => ({
+              id,
+              username: p.username || `Team Member ${id.slice(-4).toUpperCase()}`,
+              role: p.role || (idx === 0 ? 'admin' : 'member'),
+              joinedAt: p.joinedAt || p.lastSeen || now,
+              isOnline: true,
+            }))
+          );
+        }
 
         // Peer arrival & departure notification sound and desktop push
         if (previousPeerCountRef.current === 1 && count >= 2) {
@@ -1103,7 +1152,7 @@ export default function App() {
           if (desktopEnabled && document.hidden) {
             sendBrowserNotification({
               title: 'Peer Connected',
-              body: `The second person has joined room ${activeRoomId}!`,
+              body: `A participant has joined room ${activeRoomId}!`,
             });
           }
           triggerTitleAlert(1);
@@ -1114,7 +1163,7 @@ export default function App() {
           if (desktopEnabled && document.hidden) {
             sendBrowserNotification({
               title: 'Peer Disconnected',
-              body: 'Your peer has left the private room.',
+              body: 'A participant has left the room.',
             });
           }
         }
@@ -1122,19 +1171,26 @@ export default function App() {
 
         // Check if peer is typing
         let peerWriting = false;
-        for (const [id, p] of Object.entries(participants)) {
+        let activeTypingName = '';
+        for (const [id, p] of Object.entries(participantsMap)) {
           if (id !== myUserId && p) {
             if (p.typing === true && now - (p.typingTimestamp || 0) < 6000) {
               peerWriting = true;
+              activeTypingName = p.username || '';
               break;
             }
           }
         }
         setIsPeerTyping(peerWriting);
+        if (peerWriting && activeTypingName) {
+          setTypingPeerName(activeTypingName);
+        } else if (!peerWriting) {
+          setTypingPeerName('');
+        }
 
         // Extract peer's latest lastReadTimestamp
         let latestPeerReadTime = 0;
-        for (const [id, p] of Object.entries(participants)) {
+        for (const [id, p] of Object.entries(participantsMap)) {
           if (id !== myUserId && p) {
             if (typeof p.lastReadTimestamp === 'number' && p.lastReadTimestamp > latestPeerReadTime) {
               latestPeerReadTime = p.lastReadTimestamp;
@@ -1633,13 +1689,6 @@ export default function App() {
 
       // Pre-warm enclave key in background so initial message encryption/decryption is instant
       prewarmEnclaveKey(cleanPassword, cleanRoom).catch(() => {});
-
-      // Connect WebSocket to real-time relay using authoritative server-issued userId
-      realTimeSocket.connect(cleanRoom, cleanPassword, assignedServerUserId, {
-        roomType: authData.roomType || roomType,
-        organizationName: authData.organizationName || organizationName,
-        username: myUsername,
-      });
     } catch (err: any) {
       console.error('Error authenticating room:', err);
       setAuthError(err.message || 'Failed to connect to room server. Please check your network.');
@@ -1928,13 +1977,14 @@ export default function App() {
         activeRoomId
       );
 
-      const currentRole = (participants.find((p) => p.id === myUserId)?.role) || (participants.length === 0 ? 'admin' : 'member');
+      const currentRole = (participants.find((p) => p.id === myUserId)?.role) || (participants.length <= 1 ? 'admin' : 'member');
+      const effectiveSenderName = myUsername.trim() || (participants.find((p) => p.id === myUserId)?.username) || undefined;
 
       // 2. Only opaque ciphertext, IV, and anti-replay nonce touch the database
       const payload = sanitizeForFirestore({
         roomId: activeRoomId,
         senderId: myUserId,
-        senderUsername: myUsername || undefined,
+        senderUsername: effectiveSenderName,
         senderRole: currentRole,
         time: currentTime,
         createdAt: optimisticCreatedAt,
@@ -1953,7 +2003,7 @@ export default function App() {
       realTimeSocket.sendEncryptedMessage({
         messageId: optimisticId,
         senderId: myUserId,
-        senderUsername: myUsername || undefined,
+        senderUsername: effectiveSenderName,
         senderRole: currentRole,
         roomId: activeRoomId,
         time: currentTime,
@@ -2250,10 +2300,15 @@ export default function App() {
         activeRoomId
       );
 
+      const currentRole = (participants.find((p) => p.id === myUserId)?.role) || (participants.length <= 1 ? 'admin' : 'member');
+      const effectiveSenderName = myUsername.trim() || (participants.find((p) => p.id === myUserId)?.username) || undefined;
+
       // Keep poll data strictly inside encrypted envelope (BUG-A5: no plaintext poll field in Firestore)
       const payload = sanitizeForFirestore({
         roomId: activeRoomId,
         senderId: myUserId,
+        senderUsername: effectiveSenderName,
+        senderRole: currentRole,
         time: currentTime,
         createdAt: optimisticCreatedAt,
         enc: true,
@@ -2267,6 +2322,8 @@ export default function App() {
       realTimeSocket.sendEncryptedMessage({
         messageId: optimisticId,
         senderId: myUserId,
+        senderUsername: effectiveSenderName,
+        senderRole: currentRole,
         roomId: activeRoomId,
         time: currentTime,
         createdAt: optimisticCreatedAt,
@@ -2662,9 +2719,14 @@ export default function App() {
         activeRoomId
       );
 
+      const currentRole = (participants.find((p) => p.id === myUserId)?.role) || (participants.length <= 1 ? 'admin' : 'member');
+      const effectiveSenderName = myUsername.trim() || (participants.find((p) => p.id === myUserId)?.username) || undefined;
+
       const messageDocPayload = sanitizeForFirestore({
         roomId: activeRoomId,
         senderId: myUserId,
+        senderUsername: effectiveSenderName,
+        senderRole: currentRole,
         time: currentTime,
         createdAt: new Date().toISOString(),
         enc: true,
@@ -2682,6 +2744,8 @@ export default function App() {
       realTimeSocket.sendEncryptedMessage({
         messageId: tempId,
         senderId: myUserId,
+        senderUsername: effectiveSenderName,
+        senderRole: currentRole,
         roomId: activeRoomId,
         time: currentTime,
         createdAt: messageDocPayload.createdAt,
@@ -2844,7 +2908,7 @@ export default function App() {
       setSlashMenuOpen(false);
     }
 
-    if (connectionState !== 'connected' || !activeRoomId) return;
+    if ((connectionState !== 'connected' && connectionState !== 'waiting') || !activeRoomId) return;
 
     // Fast socket typing indicator (<2ms)
     realTimeSocket.sendTyping(true);
@@ -2855,6 +2919,7 @@ export default function App() {
       updateDoc(doc(db, 'rooms', activeRoomId), {
         [`participants.${myUserId}.typing`]: true,
         [`participants.${myUserId}.typingTimestamp`]: now,
+        ...(myUsername.trim() ? { [`participants.${myUserId}.username`]: myUsername.trim() } : {}),
       }).catch(() => {});
     }
 
@@ -3254,9 +3319,14 @@ export default function App() {
         activeRoomId
       );
 
+      const currentRole = (participants.find((p) => p.id === myUserId)?.role) || (participants.length <= 1 ? 'admin' : 'member');
+      const effectiveSenderName = myUsername.trim() || (participants.find((p) => p.id === myUserId)?.username) || undefined;
+
       const messageDocPayload = sanitizeForFirestore({
         roomId: activeRoomId,
         senderId: myUserId,
+        senderUsername: effectiveSenderName,
+        senderRole: currentRole,
         time: currentTime,
         createdAt: new Date().toISOString(),
         enc: true,
@@ -3281,6 +3351,8 @@ export default function App() {
           text: '',
           sender: 'me',
           senderId: myUserId,
+          senderUsername: effectiveSenderName,
+          senderRole: currentRole,
           time: currentTime,
           createdAt: voiceCreatedAt,
           file: attachment,
@@ -3295,6 +3367,8 @@ export default function App() {
       realTimeSocket.sendEncryptedMessage({
         messageId: voiceDocId,
         senderId: myUserId,
+        senderUsername: effectiveSenderName,
+        senderRole: currentRole,
         roomId: activeRoomId,
         time: currentTime,
         createdAt: voiceCreatedAt,
@@ -3323,7 +3397,7 @@ export default function App() {
   const handleReplyToMessage = useCallback((msg: ChatMessage) => {
     setReplyingTo({
       id: msg.id,
-      senderName: msg.sender === 'me' ? 'You' : 'Peer',
+      senderName: msg.sender === 'me' ? 'You' : (msg.senderUsername || 'Peer'),
       senderId: msg.senderId,
       text: msg.text || (msg.file?.isVoice ? '🎤 Voice message' : msg.file ? `📎 ${msg.file.fileName}` : ''),
       fileName: msg.file?.fileName,
@@ -3762,7 +3836,7 @@ export default function App() {
 
   // Video & Voice call controls
   const handleStartVideoCall = () => {
-    if (connectionState !== 'connected') return;
+    if (connectionState !== 'connected' && participantCount < 2) return;
     callAudioEffects.unlock();
     setCallType('video');
     setIsVideoCaller(true);
@@ -3771,7 +3845,7 @@ export default function App() {
   };
 
   const handleStartVoiceCall = () => {
-    if (connectionState !== 'connected') return;
+    if (connectionState !== 'connected' && participantCount < 2) return;
     callAudioEffects.unlock();
     setCallType('audio');
     setIsVideoCaller(true);
@@ -3917,15 +3991,17 @@ export default function App() {
           </div>
           <div>
             <h1 className="text-base font-bold tracking-wider uppercase text-neutral-100">
-              Room is Full (2/2)
+              {roomType === 'organization' ? `Room is Full (${maxCapacity}/${maxCapacity})` : 'Room is Full (2/2)'}
             </h1>
             <p className="text-xs text-neutral-400 mt-1">
-              Room <span className="font-mono text-neutral-200 font-semibold">{activeRoomId || roomId}</span> already has two active participants.
+              Room <span className="font-mono text-neutral-200 font-semibold">{activeRoomId || roomId}</span> has reached its maximum capacity of {roomType === 'organization' ? maxCapacity : 2} active participants.
             </p>
           </div>
 
           <p className="text-xs text-neutral-500 leading-relaxed">
-            Each private room strictly enforces a 2-person limit for zero-knowledge 1-to-1 encryption.
+            {roomType === 'organization'
+              ? `This organization room enforces a ${maxCapacity}-member limit for encrypted team collaboration.`
+              : 'Each private direct room strictly enforces a 2-person limit for zero-knowledge 1-to-1 encryption.'}
           </p>
 
           <div className="space-y-2 pt-1">
@@ -4226,17 +4302,20 @@ export default function App() {
                 <div className="w-full p-4 sm:p-5 rounded-2xl bg-neutral-900/85 border border-white/10 backdrop-blur-md shadow-2xl text-center space-y-3.5">
                   <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold">
                     <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                    <span>Private Room Ready</span>
+                    <span>{roomType === 'organization' ? 'Organization Room Ready' : 'Private Room Ready'}</span>
                   </div>
                   <div>
                     <h2 className="text-base font-bold text-neutral-100">
-                      Welcome to Room{' '}
+                      Welcome to {roomType === 'organization' && organizationName ? `${organizationName} (` : 'Room '}
                       <span className="font-mono text-amber-300" style={{ color: currentTheme.accentColor }}>
                         {activeRoomId}
                       </span>
+                      {roomType === 'organization' && organizationName ? ')' : ''}
                     </h2>
                     <p className="text-xs text-neutral-400 mt-1 leading-relaxed max-w-sm mx-auto">
-                      Share the room code & password to chat together in real time, or start sending messages now — they will decrypt automatically when your peer joins!
+                      {roomType === 'organization'
+                        ? `Share the room code & password with up to ${maxCapacity} team members to collaborate in real time, or start posting messages now — they will decrypt automatically as teammates join!`
+                        : 'Share the room code & password to chat together in real time, or start sending messages now — they will decrypt automatically when your peer joins!'}
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
@@ -4248,6 +4327,16 @@ export default function App() {
                       {copiedCode ? <Check className="w-4 h-4 text-neutral-950" /> : <Copy className="w-4 h-4" />}
                       <span>{copiedCode ? 'Room Code Copied!' : 'Copy Room Code'}</span>
                     </button>
+                    {roomType === 'organization' && (
+                      <button
+                        type="button"
+                        onClick={() => setIsRosterModalOpen(true)}
+                        className="inline-flex items-center gap-2 text-xs text-emerald-300 hover:text-white bg-emerald-950/60 hover:bg-emerald-900/70 px-4 py-2.5 rounded-xl border border-emerald-700/50 transition-colors cursor-pointer"
+                      >
+                        <Users className="w-4 h-4 text-emerald-400" />
+                        <span>Team Roster ({participantCount}/{maxCapacity})</span>
+                      </button>
+                    )}
                     <button
                       id="waiting-show-qr-button"
                       type="button"
@@ -4305,8 +4394,17 @@ export default function App() {
                 const prevTime = prevMsg?.createdAt ? new Date(prevMsg.createdAt).getTime() : 0;
                 const nextTime = nextMsg?.createdAt ? new Date(nextMsg.createdAt).getTime() : 0;
 
-                const isPrevSameSender = !showDateDivider && prevMsg && prevMsg.sender === msg.sender && Math.abs(msgTime - prevTime) < 180000;
-                const isNextSameSender = nextMsg && nextMsg.sender === msg.sender && Math.abs(nextTime - msgTime) < 180000;
+                const isPrevSameSender =
+                  !showDateDivider &&
+                  prevMsg &&
+                  prevMsg.sender === msg.sender &&
+                  (prevMsg.senderId || prevMsg.sender) === (msg.senderId || msg.sender) &&
+                  Math.abs(msgTime - prevTime) < 180000;
+                const isNextSameSender =
+                  nextMsg &&
+                  nextMsg.sender === msg.sender &&
+                  (nextMsg.senderId || nextMsg.sender) === (msg.senderId || msg.sender) &&
+                  Math.abs(nextTime - msgTime) < 180000;
 
                 // Dynamic bubble border radii for a sleek conversation flow
                 let bubbleRadiusClass = '';
@@ -4399,7 +4497,7 @@ export default function App() {
           )}
 
           {/* Real-Time Live Writing Floating Animation */}
-          <FloatingTypingIndicator isVisible={isPeerTyping} />
+          <FloatingTypingIndicator isVisible={isPeerTyping} typingUsername={typingPeerName} />
 
           <div ref={messagesEndRef} />
         </div>

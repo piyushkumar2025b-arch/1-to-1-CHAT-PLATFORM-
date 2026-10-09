@@ -329,11 +329,31 @@ export async function authenticateOrCreateRoom(
       // 1. Verify password using constant-time PBKDF2/legacy verification
       const isValid = verifyPasswordHash(password, storedHash, cleanRoom);
       if (isValid) {
+        let finalRoomType = storedRoomType;
+        let finalOrgName = storedOrgName;
+        let finalMaxCap = storedMaxCap;
+
+        // If user explicitly joins or upgrades a room in organization mode, persist organization capacity & metadata
+        if (options?.roomType === 'organization' && (storedRoomType !== 'organization' || (targetOrgName && !storedOrgName))) {
+          finalRoomType = 'organization';
+          finalOrgName = targetOrgName || storedOrgName;
+          finalMaxCap = Math.max(storedMaxCap, targetMaxCap);
+          try {
+            await updateDoc(roomRef, {
+              roomType: finalRoomType,
+              ...(finalOrgName ? { organizationName: finalOrgName } : {}),
+              maxCapacity: finalMaxCap,
+              lastActiveAt: new Date().toISOString(),
+              serverTimestamp: serverTimestamp(),
+            });
+          } catch {}
+        }
+
         return {
           ok: true,
-          roomType: storedRoomType,
-          organizationName: storedOrgName,
-          maxCapacity: storedMaxCap,
+          roomType: finalRoomType,
+          organizationName: finalOrgName,
+          maxCapacity: finalMaxCap,
         };
       }
 
@@ -735,9 +755,11 @@ export async function recordEncryptedPayload(
 
   const docId = payload.messageId || payload.id || (payload.nonce ? `nonce_${String(payload.nonce).replace(/[^a-zA-Z0-9]/g, '')}` : null);
 
-  const messageData = {
+  const messageData: Record<string, any> = {
     roomId: cleanRoom,
     senderId,
+    ...(payload.senderUsername ? { senderUsername: String(payload.senderUsername).slice(0, 64) } : {}),
+    ...(payload.senderRole === 'admin' || payload.senderRole === 'member' ? { senderRole: payload.senderRole } : {}),
     enc: Boolean(payload.enc || payload.encryptedData?.enc),
     v: payload.v || payload.encryptedData?.v || 1,
     iv: payload.iv || payload.encryptedData?.iv || '',

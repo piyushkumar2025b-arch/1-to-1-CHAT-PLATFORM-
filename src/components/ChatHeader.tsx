@@ -341,8 +341,21 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           </span>
         </button>
 
+        {/* Organization / Team Name Badge */}
+        {roomType === 'organization' && organizationName && (
+          <button
+            type="button"
+            onClick={onOpenRoster}
+            title={`Organization: ${organizationName} — Click to view team roster`}
+            className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-950/60 hover:bg-emerald-900/70 border border-emerald-700/50 text-xs text-emerald-200 font-semibold transition-colors cursor-pointer"
+          >
+            <Building2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span className="truncate max-w-[140px]">{organizationName}</span>
+          </button>
+        )}
+
         {/* Peer Name Badge */}
-        {targetName && (
+        {targetName && roomType !== 'organization' && (
           <div className="hidden lg:flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-neutral-900/60 border border-neutral-800 text-[11px] text-neutral-300">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
             <span className="font-medium truncate max-w-[100px]">{targetName}</span>
@@ -357,11 +370,11 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           id="voice-call-toggle-button"
           type="button"
           onClick={onStartVoiceCall}
-          disabled={connectionState !== 'connected'}
+          disabled={connectionState !== 'connected' && participantCount < 2}
           title={
-            connectionState === 'connected'
-              ? 'Start 1-to-1 Voice Call'
-              : 'Connect with your friend to start a call'
+            connectionState === 'connected' || participantCount >= 2
+              ? 'Start Voice Call'
+              : 'Wait for another member to join to start a call'
           }
           className="p-2 rounded-xl text-sky-400 border border-sky-500/25 bg-sky-950/30 hover:bg-sky-900/40 hover:border-sky-400/50 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-35 disabled:cursor-not-allowed"
         >
@@ -374,11 +387,11 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           id="video-call-toggle-button"
           type="button"
           onClick={onStartVideoCall}
-          disabled={connectionState !== 'connected'}
+          disabled={connectionState !== 'connected' && participantCount < 2}
           title={
-            connectionState === 'connected'
-              ? 'Start 1-to-1 Video Call'
-              : 'Connect with your friend to start video'
+            connectionState === 'connected' || participantCount >= 2
+              ? 'Start Video Call'
+              : 'Wait for another member to join to start video'
           }
           className="p-2 rounded-xl text-emerald-400 border border-emerald-500/25 bg-emerald-950/30 hover:bg-emerald-900/40 hover:border-emerald-400/50 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-35 disabled:cursor-not-allowed"
         >

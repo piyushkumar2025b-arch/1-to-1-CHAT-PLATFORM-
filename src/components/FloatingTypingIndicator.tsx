@@ -3,9 +3,10 @@ import { PenTool } from 'lucide-react';
 
 interface FloatingTypingIndicatorProps {
   isVisible: boolean;
+  typingUsername?: string;
 }
 
-export default function FloatingTypingIndicator({ isVisible }: FloatingTypingIndicatorProps) {
+export default function FloatingTypingIndicator({ isVisible, typingUsername }: FloatingTypingIndicatorProps) {
   if (!isVisible) return null;
 
   return (
@@ -38,7 +39,7 @@ export default function FloatingTypingIndicator({ isVisible }: FloatingTypingInd
         </motion.div>
 
         <span className="text-xs font-medium tracking-wide text-neutral-300">
-          The other person is writing
+          {typingUsername ? `${typingUsername} is writing` : 'The other person is writing'}
         </span>
 
         {/* 3 bouncing rhythmic dots */}

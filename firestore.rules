@@ -29,7 +29,7 @@ service cloud.firestore {
       return data.keys().hasAll(['roomId', 'passwordHash'])
         && data.keys().hasOnly([
           'roomId', 'passwordHash', 'participantCount', 'participants', 'typing',
-          'roomType', 'organizationName', 'maxCapacity', 'roomLifespan',
+          'roomType', 'organizationName', 'maxCapacity', 'roomLifespan', 'ephemeralSettings',
           'createdAt', 'lastActiveAt', 'serverTimestamp'
         ])
         && data.roomId == roomId
@@ -54,7 +54,7 @@ service cloud.firestore {
         && (!('maxCapacity' in data) || (data.maxCapacity is number && data.maxCapacity >= 2 && data.maxCapacity <= 500))
         && data.diff(existingData).affectedKeys().hasOnly([
           'participants', 'participantCount', 'typing', 'lastActiveAt',
-          'serverTimestamp', 'roomLifespan', 'roomType', 'organizationName', 'maxCapacity'
+          'serverTimestamp', 'roomLifespan', 'ephemeralSettings', 'roomType', 'organizationName', 'maxCapacity'
         ]);
     }
 

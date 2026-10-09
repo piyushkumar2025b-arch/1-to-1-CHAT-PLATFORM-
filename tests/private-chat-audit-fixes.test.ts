@@ -357,6 +357,158 @@ async function runAuditFixesTests() {
   const cspHeader = healthRes.headers.get('content-security-policy') || '';
   assert(cspHeader.includes("default-src 'self'") && cspHeader.includes("object-src 'none'") && cspHeader.includes('frame-ancestors'), 'HTTP response includes comprehensive multi-directive Content-Security-Policy');
 
+  // -------------------------------------------------------------
+  // ORGANIZATION ROOM MULTI-MEMBER E2EE & ROSTER VERIFICATION
+  // -------------------------------------------------------------
+  console.log('--- [Organization Rooms] Multi-Participant Auth, Roster, Sender Attribution & Edit/Delete Relay ---');
+  const orgRoomId = ('ORG_TEAM_' + Math.random().toString(36).substring(2, 7)).toUpperCase();
+  const orgPass = 'OrgTeamSecret_2026!';
+
+  // 1. Authenticate 3 team members via /api/rooms/auth in Organization Mode
+  const authMember1Res = await fetch('http://localhost:3000/api/rooms/auth', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      roomId: orgRoomId,
+      password: orgPass,
+      roomType: 'organization',
+      organizationName: 'Acme Security Team',
+      maxCapacity: 50,
+    }),
+  });
+  const authMember1 = await authMember1Res.json();
+  assert(authMember1.ok === true && authMember1.roomType === 'organization' && authMember1.organizationName === 'Acme Security Team' && authMember1.maxCapacity === 50, 'Organization room created with capacity 50 and organizationName');
+
+  // Connect 3 concurrent WebSocket participants to the same Organization Room
+  const orgWs1 = new WebSocket('ws://localhost:3000/ws', { headers: { Origin: 'http://localhost:3000' } });
+  const orgWs2 = new WebSocket('ws://localhost:3000/ws', { headers: { Origin: 'http://localhost:3000' } });
+  const orgWs3 = new WebSocket('ws://localhost:3000/ws', { headers: { Origin: 'http://localhost:3000' } });
+
+  await Promise.all([
+    new Promise<void>((res) => orgWs1.on('open', () => res())),
+    new Promise<void>((res) => orgWs2.on('open', () => res())),
+    new Promise<void>((res) => orgWs3.on('open', () => res())),
+  ]);
+
+  const org1Frames: any[] = [];
+  const org2Frames: any[] = [];
+  const org3Frames: any[] = [];
+  orgWs1.on('message', (d) => { try { org1Frames.push(JSON.parse(d.toString())); } catch {} });
+  orgWs2.on('message', (d) => { try { org2Frames.push(JSON.parse(d.toString())); } catch {} });
+  orgWs3.on('message', (d) => { try { org3Frames.push(JSON.parse(d.toString())); } catch {} });
+
+  orgWs1.send(JSON.stringify({
+    type: 'auth',
+    roomId: orgRoomId,
+    password: orgPass,
+    sessionToken: authMember1.sessionToken,
+    roomType: 'organization',
+    organizationName: 'Acme Security Team',
+    username: 'Alice (Admin)',
+  }));
+
+  for (let i = 0; i < 40; i++) {
+    if (org1Frames.some((f) => f.type === 'auth_ok')) break;
+    await new Promise((r) => setTimeout(r, 40));
+  }
+
+  orgWs2.send(JSON.stringify({
+    type: 'auth',
+    roomId: orgRoomId,
+    password: orgPass,
+    roomType: 'organization',
+    organizationName: 'Acme Security Team',
+    username: 'Bob (Engineer)',
+  }));
+
+  for (let i = 0; i < 40; i++) {
+    if (org2Frames.some((f) => f.type === 'auth_ok')) break;
+    await new Promise((r) => setTimeout(r, 40));
+  }
+
+  orgWs3.send(JSON.stringify({
+    type: 'auth',
+    roomId: orgRoomId,
+    password: orgPass,
+    roomType: 'organization',
+    organizationName: 'Acme Security Team',
+    username: 'Charlie (SecOps)',
+  }));
+
+  for (let i = 0; i < 40; i++) {
+    if (org3Frames.some((f) => f.type === 'auth_ok')) break;
+    await new Promise((r) => setTimeout(r, 40));
+  }
+
+  const org3AuthOk = org3Frames.find((f) => f.type === 'auth_ok');
+  assert(Boolean(org3AuthOk && org3AuthOk.participantCount === 3 && org3AuthOk.participants?.length === 3), '3rd member joined Organization Room without 2-person rejection; roster has 3 online members');
+
+  // Verify Alice is admin and Charlie is member
+  const aliceAuth = org1Frames.find((f) => f.type === 'auth_ok');
+  assert(aliceAuth?.role === 'admin' && org3AuthOk?.role === 'member', 'Organization Room assigns admin role to creator and member role to subsequent entrants');
+
+  // Verify message broadcast from Charlie reaches Alice and Bob with senderUsername & senderRole
+  const orgMsgId = 'org_msg_' + Date.now();
+  const orgEnvelope = await encryptWithEnclave({ text: 'Hello Acme Security Team!' }, orgPass, orgRoomId);
+  orgWs3.send(JSON.stringify({
+    type: 'encrypted_message',
+    payload: {
+      messageId: orgMsgId,
+      roomId: orgRoomId,
+      enc: true,
+      v: orgEnvelope.v,
+      iv: orgEnvelope.iv,
+      ct: orgEnvelope.ct,
+      nonce: orgEnvelope.nonce,
+      ts: orgEnvelope.ts,
+      encryptedData: orgEnvelope,
+    },
+  }));
+
+  for (let i = 0; i < 30; i++) {
+    if (org1Frames.some((f) => f.type === 'encrypted_message') && org2Frames.some((f) => f.type === 'encrypted_message')) break;
+    await new Promise((r) => setTimeout(r, 40));
+  }
+
+  const relayedToAlice = org1Frames.find((f) => f.type === 'encrypted_message');
+  assert(
+    relayedToAlice?.senderUsername === 'Charlie (SecOps)' && relayedToAlice?.senderRole === 'member',
+    'Organization Room message broadcast includes authoritative senderUsername and senderRole'
+  );
+
+  // Verify edit_message frame is accepted by validateWebSocketMessage and relayed to peers
+  const editedEnvelope = await encryptWithEnclave({ text: 'Hello Acme Security Team (Edited)!', isEdited: true }, orgPass, orgRoomId);
+  orgWs3.send(JSON.stringify({
+    type: 'edit_message',
+    messageId: orgMsgId,
+    ct: editedEnvelope.ct,
+    iv: editedEnvelope.iv,
+    nonce: editedEnvelope.nonce,
+    editedAt: Date.now(),
+  }));
+
+  for (let i = 0; i < 30; i++) {
+    if (org1Frames.some((f) => f.type === 'message_edited')) break;
+    await new Promise((r) => setTimeout(r, 40));
+  }
+  assert(org1Frames.some((f) => f.type === 'message_edited' && f.messageId === orgMsgId), 'WebSocket edit_message frame accepted and relayed in Organization Room');
+
+  // Verify delete_message frame is accepted and relayed to peers
+  orgWs3.send(JSON.stringify({
+    type: 'delete_message',
+    messageId: orgMsgId,
+  }));
+
+  for (let i = 0; i < 30; i++) {
+    if (org1Frames.some((f) => f.type === 'message_deleted')) break;
+    await new Promise((r) => setTimeout(r, 40));
+  }
+  assert(org1Frames.some((f) => f.type === 'message_deleted' && f.messageId === orgMsgId), 'WebSocket delete_message frame accepted and relayed in Organization Room');
+
+  orgWs1.close();
+  orgWs2.close();
+  orgWs3.close();
+
   console.log('\n============================================================');
   console.log(`AUDIT TEST RESULTS: ${passed} PASSED, ${failed} FAILED`);
   console.log('============================================================\n');

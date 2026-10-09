@@ -174,6 +174,12 @@ function validateWebSocketMessage(data: any): { valid: boolean; error?: string }
     'typing',
     'read_receipt',
     'reaction',
+    'edit_message',
+    'message_edited',
+    'delete_message',
+    'message_deleted',
+    'burn_media',
+    'media_burned',
     'whiteboard',
     'webrtc_signal',
     'ack',
@@ -617,9 +623,15 @@ async function startServer() {
 
           // Re-verify room capacity after async Firestore operation
           room = rooms.get(rawRoomId);
-          const effectiveRoomType = room?.roomType || authResult.roomType || requestedRoomType;
-          const effectiveOrgName = room?.organizationName || authResult.organizationName || requestedOrgName;
-          const effectiveMaxCapacity = room?.maxCapacity || authResult.maxCapacity || (effectiveRoomType === 'organization' ? 50 : 2);
+          const effectiveRoomType =
+            requestedRoomType === 'organization'
+              ? 'organization'
+              : room?.roomType || authResult.roomType || requestedRoomType;
+          const effectiveOrgName = requestedOrgName || room?.organizationName || authResult.organizationName || '';
+          const effectiveMaxCapacity =
+            effectiveRoomType === 'organization'
+              ? Math.max(room?.maxCapacity || 0, authResult.maxCapacity || 50)
+              : room?.maxCapacity || authResult.maxCapacity || 2;
 
           if (room && room.users.length >= effectiveMaxCapacity) {
             ws.send(
@@ -665,9 +677,9 @@ async function startServer() {
             rooms.set(assignedRoomId, room);
           } else {
             // Never overwrite existing room password hash with an entrant's password (BUG-008)
-            if (!room.roomType) room.roomType = effectiveRoomType;
+            if (!room.roomType || effectiveRoomType === 'organization') room.roomType = effectiveRoomType;
             if (!room.organizationName && effectiveOrgName) room.organizationName = effectiveOrgName;
-            if (!room.maxCapacity) room.maxCapacity = effectiveMaxCapacity;
+            if (!room.maxCapacity || effectiveMaxCapacity > room.maxCapacity) room.maxCapacity = effectiveMaxCapacity;
           }
 
           // Final safety check on room capacity
@@ -1131,7 +1143,7 @@ async function startServer() {
               if (remaining.ws.readyState === WebSocket.OPEN) {
                 try {
                   remaining.ws.send(presenceLeftPayload);
-                  if (currentRoom.users.length === 1 && currentRoom.roomType === 'direct') {
+                  if (currentRoom.users.length === 1) {
                     remaining.ws.send(
                       JSON.stringify({
                         type: 'status',

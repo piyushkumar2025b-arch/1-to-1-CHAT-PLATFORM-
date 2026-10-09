@@ -45,7 +45,7 @@ export interface RealTimeMessagePayload {
 }
 
 type MessageHandler = (payload: RealTimeMessagePayload, senderId: string) => void;
-type TypingHandler = (isTyping: boolean, senderId: string) => void;
+type TypingHandler = (isTyping: boolean, senderId: string, senderUsername?: string) => void;
 type ReadReceiptHandler = (timestamp: number, senderId: string) => void;
 type WhiteboardHandler = (data: any, senderId: string) => void;
 type WebRtcSignalHandler = (signal: any, senderId: string) => void;
@@ -301,7 +301,7 @@ class RealTimeSocketClient {
         break;
       }
       case 'typing': {
-        this.typingHandlers.forEach((cb) => cb(Boolean(data.isTyping), data.senderId));
+        this.typingHandlers.forEach((cb) => cb(Boolean(data.isTyping), data.senderId, data.senderUsername));
         break;
       }
       case 'read_receipt': {
